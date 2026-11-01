@@ -1,13 +1,16 @@
 #!/var/jb/bin/sh
 set -eu
 
-VERSION="0.6.1"
+VERSION="0.6.2"
+LUA_VERSION="5.4.9"
 BASE="/var/mobile/Library/NKTouch"
 TMP_DIR="$BASE/tmp"
 STATUS_FILE="$BASE/status.state"
 LOG_FILE="$BASE/events.log"
 HEARTBEAT_FILE="$BASE/heartbeat"
 NATIVE="/var/jb/usr/libexec/nktouch/nktouch-native"
+LUA_RUNNER="/var/jb/usr/bin/nktouch-lua"
+LUAC="/var/jb/usr/libexec/nktouch/luac54"
 PY="/var/jb/usr/bin/python3"
 HELPER="/var/jb/usr/share/nktouch/nktouchctl.py"
 SELF="/var/jb/usr/bin/nktouchctl"
@@ -42,6 +45,10 @@ append_log(){
 
 need_native(){
     [ -x "$NATIVE" ] || { echo "NKTouch v$VERSION: missing native backend $NATIVE" >&2; exit 4; }
+}
+
+need_lua(){
+    [ -x "$LUA_RUNNER" ] || { echo "NKTouch v$VERSION: missing bundled Lua launcher $LUA_RUNNER" >&2; exit 4; }
 }
 
 need_python(){
@@ -105,6 +112,25 @@ check_script(){
     echo ok
 }
 
+run_lua(){
+    need_lua
+    export NKTOUCHCTL="$SELF" NKTOUCH_HOME="$BASE" NKTOUCH_VERSION="$VERSION"
+    exec "$LUA_RUNNER" "$@"
+}
+
+check_lua(){
+    script="${1:-}"
+    [ -n "$script" ] && [ -f "$script" ] && [ -r "$script" ] || { echo "Usage: nktouchctl lua-check <script.lua>" >&2; exit 2; }
+    [ -x "$LUAC" ] || { echo "NKTouch: bundled Lua compiler missing: $LUAC" >&2; exit 4; }
+    "$LUAC" -p "$script"
+    echo ok
+}
+
+lua_probe(){
+    need_lua
+    "$LUA_RUNNER" --plain -e 'io.write(_VERSION)'
+}
+
 doctor(){
     mode="${1:-quick}"
     fail=0
@@ -114,6 +140,14 @@ doctor(){
         echo "native=ok:$nv"
     else
         echo native=missing
+        fail=1
+    fi
+
+    if [ -x "$LUA_RUNNER" ]; then
+        lv="$(lua_probe 2>/dev/null || true)"
+        if [ -n "$lv" ]; then echo "lua=ok:$LUA_VERSION:$lv"; else echo lua=failed; fail=1; fi
+    else
+        echo lua=missing
         fail=1
     fi
 
@@ -154,6 +188,13 @@ doctor(){
             fail=1
         fi
         rm -f "$shot" 2>/dev/null || true
+
+        if [ -x "$LUA_RUNNER" ] && "$LUA_RUNNER" -e 'assert(nk and nk.VERSION=="0.6.2")' >/dev/null 2>&1; then
+            echo lua_api=ok
+        else
+            echo lua_api=failed
+            fail=1
+        fi
     fi
 
     echo "tmp_dir=$TMP_DIR"
@@ -167,6 +208,7 @@ selftest(){
     if [ -x "$NATIVE" ] && "$NATIVE" runtime >/dev/null 2>&1; then echo runtime=ok; else echo runtime=failed; fail=1; fi
     if [ -x "$NATIVE" ] && "$NATIVE" battery >/dev/null 2>&1; then echo battery=ok; else echo battery=failed; fail=1; fi
     if [ -x "$NATIVE" ] && "$NATIVE" sleep 1 >/dev/null 2>&1; then echo sleep=ok; else echo sleep=failed; fail=1; fi
+    if [ -x "$LUA_RUNNER" ] && "$LUA_RUNNER" -e 'assert(nk.VERSION=="0.6.2"); assert(type(tap)=="function"); io.write("ok")' >/dev/null 2>&1; then echo lua_runtime=ok; else echo lua_runtime=failed; fail=1; fi
     cleanup_tmp >/dev/null 2>&1 || true
     if [ "$fail" -eq 0 ]; then echo result=PASS; else echo result=FAIL; fi
     return "$fail"
@@ -185,14 +227,17 @@ case "$cmd" in
  logs) tail -n "${1:-50}" "$LOG_FILE" 2>/dev/null || true;;
  cleanup) cleanup_tmp;;
  backend)
-   if [ -x "$NATIVE" ]; then printf 'native %s (runtime %s)\n' "$("$NATIVE" version 2>/dev/null || echo unknown)" "$VERSION"
-   elif [ -x "$PY" ] && [ -f "$HELPER" ]; then echo "python-fallback (runtime $VERSION)"
+   if [ -x "$NATIVE" ]; then printf 'native %s (runtime %s; lua %s)\n' "$("$NATIVE" version 2>/dev/null || echo unknown)" "$VERSION" "$LUA_VERSION"
+   elif [ -x "$PY" ] && [ -f "$HELPER" ]; then echo "python-fallback (runtime $VERSION; lua $LUA_VERSION)"
    else echo unavailable; exit 4; fi;;
  ping) if [ -x "$NATIVE" ]; then run_native_read ping; else need_python; exec "$PY" "$HELPER" screen; fi;;
  doctor) doctor "${1:-quick}";;
  selftest) selftest;;
  run) run_script "$@";;
  check) check_script "$@";;
+ lua) run_lua "$@";;
+ lua-check) check_lua "$@";;
+ lua-version) printf '%s (' "$LUA_VERSION"; lua_probe; printf ')\n';;
 
  # Side-effecting commands: single attempt only.
  tap|hold|swipe|openapp|stop|record|text|keyboard|cursor|delete|paste|clipboard-set|toast|tap-image|tap-color)
@@ -212,27 +257,22 @@ case "$cmd" in
 
  native) run_native_only "$@";;
  help|-h|--help) cat <<'HELP'
-NKTouch v0.6.1 Stable runtime
+NKTouch v0.6.2 Standalone Lua runtime
 
 Core: tap/hold/swipe/openapp/wait-app/sleep/text/clipboard/screenshot/OCR
 Image: find-image, wait-image, tap-image
-Color:
-  nktouchctl pixel <x> <y>
-  nktouchctl find-color <x> <y> <w> <h> <rMin> <rMax> <gMin> <gMax> <bMin> <bMax> [skip]
-  nktouchctl wait-color <same 10 args> <timeout_ms> [interval_ms skip]
-  nktouchctl tap-color <same 10 args> <timeout_ms> [interval_ms skip]
-Text wait:
-  nktouchctl wait-text <x> <y> <w> <h> <needle> <timeout_ms> [interval_ms languages]
-Toast:
-  nktouchctl toast error|warning|message|success <seconds> <message>
-  nktouchctl toast hide
-Health:
-  nktouchctl doctor [quick|full]
-  nktouchctl selftest
-  nktouchctl cleanup
-Script:
-  nktouchctl check <script.sh>
-  nktouchctl run <script.sh> [args...]
+Color: pixel, find-color, wait-color, tap-color
+Text: OCR, wait-text
+Health: doctor [quick|full], selftest, cleanup, backend, ping
+Shell: check <script.sh>, run <script.sh> [args...]
+Lua:
+  nktouchctl lua <script.lua> [args...]
+  nktouchctl lua -e '<code>'
+  nktouchctl lua-check <script.lua>
+  nktouchctl lua-version
+
+The bundled Lua launcher preloads global `nk` and installs the small AutoTouch compatibility layer.
+Use /var/jb/usr/bin/nktouch-lua --plain for an unmodified Lua 5.4.9 interpreter.
 
 Hardening: read-only transport failures retry at most NKTOUCH_READ_RETRIES times (default 2).
 Side-effecting actions are never auto-retried.
