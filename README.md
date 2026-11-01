@@ -1,29 +1,30 @@
-# NKTouch v0.6.3 Direct Lua Native
+# NKTouch v0.6.4 Hardened Direct Runtime
 
-NKTouch v0.6.3 keeps the standalone Lua 5.4.9 runtime from V6.2 and removes most per-action shell overhead. The bundled Lua interpreter now statically embeds an `nkcore` C module that talks directly to the pinned ZXTouch SpringBoard core over TCP `127.0.0.1:6000`.
+NKTouch v0.6.4 keeps the proven V6.3 direct Lua architecture and hardens the runtime before V7. The SpringBoard protocol and embedded `nkcore` remain unchanged; reliability improvements are added around direct read-only operations so we do not risk duplicate taps, swipes, app launches, or text input.
 
-## What V6.3 changes
+## What V6.4 adds
 
-- Embedded `nkcore 0.6.3` is registered directly in Lua's built-in library table; no `dlopen` or separate `.so` is required
-- `nktouch.lua` automatically detects `nkcore` and sets `nk.DIRECT=true`
-- Primary automation calls now use Lua -> C -> SpringBoard core directly instead of spawning `nktouchctl` for every action
-- Direct native Lua primitives include touch, swipe, app launch, text/keyboard/clipboard, screenshot, image matching, pixel/color search, OCR, toast and device queries
-- `waitApp`, `waitImage`, `tapImage`, `waitColor`, `tapColor` and `waitText` use Lua loops built on direct C primitives and a monotonic native timer
-- Status overlay, logs, `doctor`, `selftest`, cleanup and shell-script launching intentionally remain shell-backed because they manage runtime files/processes
-- Host CI smoke-tests `require('nkcore')` before cross-compiling the iOS binary
-- iOS CI verifies that `nkcore` and version `0.6.3` are embedded in the final arm64 Lua executable
-- V6.1 safety rule remains: CLI side-effecting commands are not auto-retried
+- Runtime version `0.6.4` on top of tested `nkcore 0.6.3`
+- Read-only direct calls classify errors as `CONNECT`, `TRANSPORT`, `TIMEOUT`, `NOT_FOUND`, `CORE`, `INVALID`, or `UNKNOWN`
+- Transient read-only transport failures reconnect/retry with a bounded count (`NKTOUCH_READ_RETRIES`, default 2, max 4)
+- Side-effecting calls remain single-attempt only: tap, hold, swipe, text, paste, app launch, clipboard write, toast, and post-detection taps are never auto-retried
+- `waitApp`, image/color waits, and OCR text waits inherit the hardened read primitives
+- `nktouchctl benchmark [N]` compares direct Lua reads with CLI subprocess reads
+- `nktouchctl stress [N]` performs repeated read-only socket calls and reports failures, throughput, and Lua memory delta
+- `selftest` now includes a small read-only direct stress probe
+- CI executes the V6.4 Lua helper on a host-built Lua+nkcore binary before cross-compiling for iOS
+- New V6.4 contract tests enforce retry safety and unchanged protocol IDs
 
 ## Versions
 
 ```text
-NKTouch runtime: 0.6.3
+NKTouch runtime: 0.6.4
 Native CLI:      0.6.0
-Lua native core: 0.6.3
+Embedded nkcore: 0.6.3
 Bundled Lua:     5.4.9
 ```
 
-The separate `nktouch-native` CLI intentionally remains on the tested V6 protocol baseline. V6.3 adds a second in-process client used by Lua; both speak the same pinned SpringBoard protocol.
+Keeping `nkcore` at 0.6.3 is intentional: V6.3 passed device testing, including direct color reads and `selftest`. V6.4 hardens the Lua runtime around that tested native protocol implementation instead of changing the core again.
 
 ## Architecture
 
@@ -31,63 +32,24 @@ The separate `nktouch-native` CLI intentionally remains on the tested V6 protoco
 .lua script
    |
    v
-nktouch-lua / nktouchctl lua
-   |
-   v
 bundled Lua 5.4.9
    |
-   +--> nktouch.lua
+   +--> nktouch.lua 0.6.4
    |       |
-   |       +--> nkcore C module (direct path)
-   |               |
-   |               v
-   |       TCP 127.0.0.1:6000
-   |               |
-   |               v
-   |        ZXTouch SpringBoard core
-   |
-   `--> nktouchctl only for status/log/doctor/process helpers
+   |       +--> read-only: classify -> bounded retry/reconnect
+   |       +--> side effects: exactly one attempt
+   |       |
+   |       v
+   +--> embedded nkcore 0.6.3
+           |
+           v
+     TCP 127.0.0.1:6000
+           |
+           v
+     ZXTouch GPL core
 ```
 
-## Direct APIs
-
-These APIs use `nkcore` directly when V6.3 is installed:
-
-```text
-ping / sleep
-tap / hold / swipe
-openApp / waitApp / stop / recordStart / recordStop
-text / inputText / keyboard / cursor / delete / paste
-getClipboard / setClipboard
-screenshot
-findImage / waitImage / tapImage
-getColor / findColor / waitColor / tapColor
-ocr / waitText
-toast / hideToast
-screen / foreground / orientation / scale / device / battery / runtime
-```
-
-## Build
-
-Branch:
-
-```text
-v0.6.3-native-lua
-```
-
-Artifact:
-
-```text
-NKTouch-v0.6.3-native-lua-rootless
-```
-
-Package:
-
-```text
-com.nk.nktouch_0.6.3_rootless.deb
-```
-
-## Health test
+## First device test
 
 ```sh
 nktouchctl backend
@@ -96,93 +58,99 @@ nktouchctl doctor full
 nktouchctl selftest
 ```
 
-Expected healthy markers:
+Healthy output should include:
 
 ```text
-lua_api=ok:0.6.3:direct
+version=0.6.4
+lua_api=ok:0.6.3:direct-hardened
 lua_direct=ok
+lua_stress=ok
 result=PASS
 ```
 
-Check direct mode manually:
+## Benchmark
 
 ```sh
-nktouchctl lua -e 'print("runtime",nk.VERSION,"direct",nk.DIRECT,"core",nk.coreVersion())'
+nktouchctl benchmark 20
 ```
 
-Expected:
+It reports total/per-call time for direct Lua and CLI reads plus the observed speedup and Lua memory delta. The benchmark only reads screen metadata; it does not tap or type.
 
-```text
-runtime  0.6.3  direct  true  core  0.6.3
-```
-
-## Example Lua script
-
-```lua
-print('NKTouch:', nk.VERSION, 'direct:', nk.DIRECT)
-
-local screen, err = nk.screen()
-print('screen:', screen or err)
-
-local c = nk.getColor(100, 100)
-if c then
-    print('RGB:', c.red, c.green, c.blue)
-end
-
-local hit = nk.waitImage('/var/mobile/button.png', 5000, 250, 0.82)
-if hit then
-    nk.tap(hit.x + hit.width/2, hit.y + hit.height/2)
-end
-```
-
-## AutoTouch-style compatibility
-
-The default launcher still installs the small compatibility layer:
-
-```lua
-tap(200, 400)
-usleep(500000)
-inputText('Xin chào từ NKTouch')
-local color = getColor(100, 100)
-```
-
-These helpers now benefit from the direct `nkcore` path when possible.
-
-## Plain Lua mode
+## Stress test
 
 ```sh
-/var/jb/usr/bin/nktouch-lua --plain /var/mobile/plain.lua
+nktouchctl stress 100
 ```
 
-Even in plain mode the statically embedded module can be loaded explicitly:
-
-```lua
-local core = require('nkcore')
-print(core.VERSION, core.DIRECT)
-```
-
-## Safety and compatibility
-
-V6.3 does not add a new SpringBoard protocol task ID. It continues to verify the pinned core IDs:
+The stress test repeatedly reads screen/foreground state and reports:
 
 ```text
-21 template match
+iterations=100
+failures=0
+elapsed_ms=...
+ops_per_sec=...
+memory_delta_kb=...
+```
+
+Use a larger count only after the default test passes. The maximum accepted count is 2000.
+
+## Error handling
+
+Direct read APIs keep the familiar return style while adding a third error code:
+
+```lua
+local value, message, code = nk.screen()
+if not value then
+    print(code, message)
+end
+```
+
+You can also classify an error explicitly:
+
+```lua
+local e = nk.classifyError("connect failed")
+print(e.code, e.transient) -- CONNECT true
+```
+
+## Safety rule
+
+V6.4 never automatically repeats an operation that can change user state. For example, a failed `nk.tap()` returns the error instead of trying a second tap. Automatic reconnect/retry is reserved for read-only operations such as screen/device queries, OCR, image/color lookup, and clipboard reads.
+
+## Build
+
+Branch:
+
+```text
+v0.6.4-hardening
+```
+
+Artifact:
+
+```text
+NKTouch-v0.6.4-hardening-rootless
+```
+
+Package:
+
+```text
+com.nk.nktouch_0.6.4_rootless.deb
+```
+
+## Protocol safety
+
+The pinned core task IDs are unchanged:
+
+```text
 22 toast
 23 color picker
-24 text/clipboard
-25 device/app state
 27 OCR
 28 color search
 29 prompt input
 30 screenshot
 ```
 
-Touch/image/color coordinates remain in the physical-pixel coordinate system used by the SpringBoard core.
-
-## Remaining foundation work
-
-V6.3 removes most Lua subprocess overhead. Before V7, the next useful hardening step is device testing of the direct path, especially image/OCR/color loops and failure behavior when the SpringBoard core restarts. Network/HTTP and AI orchestration remain intentionally deferred until the local automation foundation is proven stable.
+V6.4 introduces no new SpringBoard task ID.
 
 ## License
 
-NKTouch/ZXTouch code remains GPL-3.0 with upstream attribution retained. The bundled Lua interpreter is built from the official Lua 5.4.9 source archive; its upstream README/license notice is included in the package.
+NKTouch/ZXTouch code remains GPL-3.0 with upstream attribution retained. Bundled Lua 5.4.9 keeps its upstream license notice in the package.
