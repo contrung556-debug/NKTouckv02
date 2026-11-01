@@ -266,7 +266,8 @@ function M.stress(iterations)
   iterations=math.max(1,math.min(2000,math.floor(tonumber(iterations) or 100)))
   if not core then return nil,"direct core unavailable","NO_DIRECT" end
   collectgarbage("collect")
-  local memBefore=collectgarbage("count"),failures=0,lastErr,lastCode
+  local memBefore=collectgarbage("count")
+  local failures,lastErr,lastCode=0,nil,nil
   local start=nowMs()
   for i=1,iterations do
     local v,e,c=M.screen()
