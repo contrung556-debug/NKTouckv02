@@ -75,12 +75,16 @@ jobs:
           /tmp/nktouch-lua-host -v
           /tmp/nktouch-lua-host -e 'assert(loadfile("lua/nktouch.lua")); assert(loadfile("lua/bootstrap.lua")); print("NKTouch Lua syntax OK")'
 
+          # Apple's iOS SDK marks system() unavailable. Lua's os.execute is kept
+          # functional by routing it through our posix_spawn/waitpid shim.
           xcrun --sdk iphoneos clang \
             -Os \
             -arch arm64 \
             -miphoneos-version-min=15.0 \
             -isysroot "$SDKROOT" \
-            $LUA_C_FILES lua-src/src/lua.c \
+            -Dl_system=nk_lua_system \
+            -include runtime/lua-ios-shim.h \
+            $LUA_C_FILES lua-src/src/lua.c runtime/lua-ios-shim.c \
             -lm \
             -o runtime/nktouch-lua
           file runtime/nktouch-lua
@@ -102,6 +106,7 @@ jobs:
           test -x runtime/nktouch-lua
           grep -q 'M.VERSION = "0.4.0"' lua/nktouch.lua
           grep -q 'LUA_INIT' runtime/nktouch-run
+          grep -q 'nk_lua_system' runtime/lua-ios-shim.c
           grep -q 'NKStatusOverlayStart' upstream/pccontrol/Tweak.xm
           grep -q 'NKStatusOverlay.xm' upstream/pccontrol/Makefile
           test -x upstream/layout/usr/libexec/nktouch/nktouch-native
