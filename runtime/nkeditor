@@ -302,9 +302,10 @@ case "$cmd" in
     need_runtime
     file="$(need_script "$1")" || exit $?
     shift
-    if append_checked "$file" "$*"; then exit 0; fi
+    append_checked "$file" "$*"
     rc=$?
-    echo "NKTouch Editor: append reverted because syntax check failed" >&2
+    if [ "$rc" -eq 0 ]; then exit 0; fi
+    echo "NKTouch Editor: append reverted or failed; script was not left partially edited" >&2
     exit "$rc"
     ;;
   delete)
@@ -334,9 +335,10 @@ case "$cmd" in
     else
       mkdir_state
       file="$(need_script "$2")" || exit $?
-      if append_checked "$file" "$line"; then echo "snippet=$line"; exit 0; fi
+      append_checked "$file" "$line"
       rc=$?
-      echo "NKTouch Editor: snippet reverted because syntax check failed" >&2
+      if [ "$rc" -eq 0 ]; then echo "snippet=$line"; exit 0; fi
+      echo "NKTouch Editor: snippet reverted or failed; script was not left partially edited" >&2
       exit "$rc"
     fi
     ;;
