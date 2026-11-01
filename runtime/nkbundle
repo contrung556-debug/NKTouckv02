@@ -64,14 +64,13 @@ case "$cmd" in
     mkdir_state
     need_runtime
     probe="$TMP/nkbundle-probe-$$"
-    mkdir -p "$probe/assets" || exit 4
+    mkdir -p "$probe/assets" "$probe/out/assets" || exit 4
     printf '%s\n' 'local nk=require("nktouch")' 'print("bundle-probe")' > "$probe/script.lua"
     "$LUAC" -p "$probe/script.lua" || { rm -rf "$probe"; echo "bundle_syntax=failed"; exit 7; }
     "$LUA" "$PACKER" pack probe "$probe/script.lua" "$probe/probe.nktask" >/dev/null || { rm -rf "$probe"; echo "bundle_pack=failed"; exit 7; }
     "$LUA" "$PACKER" inspect "$probe/probe.nktask" >/dev/null || { rm -rf "$probe"; echo "bundle_inspect=failed"; exit 7; }
-    mkdir -p "$probe/out/assets"
     "$LUA" "$PACKER" extract "$probe/probe.nktask" "$probe/out" >/dev/null || { rm -rf "$probe"; echo "bundle_extract=failed"; exit 7; }
-    cmp "$probe/script.lua" "$probe/out/script.lua" >/dev/null 2>&1 || { rm -rf "$probe"; echo "bundle_roundtrip=failed"; exit 7; }
+    "$LUAC" -p "$probe/out/script.lua" || { rm -rf "$probe"; echo "bundle_roundtrip=failed"; exit 7; }
     rm -rf "$probe"
     echo "bundle=$VERSION"
     echo "format=NKTASK1"
@@ -106,7 +105,7 @@ case "$cmd" in
         name="$(base_name "$1")" || { echo "NKTouch Bundle: invalid script name" >&2; exit 2; }
         dir="$ASSETS/$name"
         [ -d "$dir" ] || exit 0
-        for f in "$dir"/*; do [ -f "$f" ] || continue; basename "$f"; done
+        for f in "$dir"/*; do [ -f "$f" ] || continue; printf '%s\n' "${f##*/}"; done
         ;;
       remove|rm)
         [ "$#" -eq 2 ] || { echo "usage: nktouchctl bundle asset remove <script> <asset-name>" >&2; exit 2; }
@@ -163,8 +162,14 @@ case "$cmd" in
     mkdir -p "$stage/assets" || exit 4
     "$LUA" "$PACKER" extract "$bundle" "$stage" || { rc=$?; rm -rf "$stage"; exit "$rc"; }
     "$LUAC" -p "$stage/script.lua" || { rm -rf "$stage"; echo "NKTouch Bundle: imported script failed syntax check" >&2; exit 7; }
+    has_assets=0
+    for f in "$stage/assets"/*; do
+      [ -f "$f" ] || continue
+      has_assets=1
+      break
+    done
     mv "$stage/script.lua" "$dst_script" || { rm -rf "$stage"; exit 5; }
-    if [ -n "$(find "$stage/assets" -type f -maxdepth 1 2>/dev/null | head -1)" ]; then
+    if [ "$has_assets" -eq 1 ]; then
       mv "$stage/assets" "$dst_assets" || { rm -f "$dst_script"; rm -rf "$stage"; exit 5; }
     fi
     rm -rf "$stage"
@@ -177,7 +182,7 @@ case "$cmd" in
     ;;
   list)
     mkdir_state
-    for f in "$BUNDLES"/*.nktask; do [ -f "$f" ] || continue; basename "$f"; done
+    for f in "$BUNDLES"/*.nktask; do [ -f "$f" ] || continue; printf '%s\n' "${f##*/}"; done
     ;;
   help|-h|--help)
     cat <<'HELP'
