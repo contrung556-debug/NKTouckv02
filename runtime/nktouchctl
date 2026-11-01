@@ -1,7 +1,7 @@
 #!/var/jb/bin/sh
 set -eu
 
-VERSION="0.6.3"
+VERSION="0.6.4"
 LUA_VERSION="5.4.9"
 LUA_CORE_VERSION="0.6.3"
 BASE="/var/mobile/Library/NKTouch"
@@ -44,14 +44,8 @@ append_log(){
     fi
 }
 
-need_native(){
-    [ -x "$NATIVE" ] || { echo "NKTouch v$VERSION: missing native backend $NATIVE" >&2; exit 4; }
-}
-
-need_lua(){
-    [ -x "$LUA_RUNNER" ] || { echo "NKTouch v$VERSION: missing bundled Lua launcher $LUA_RUNNER" >&2; exit 4; }
-}
-
+need_native(){ [ -x "$NATIVE" ] || { echo "NKTouch v$VERSION: missing native backend $NATIVE" >&2; exit 4; }; }
+need_lua(){ [ -x "$LUA_RUNNER" ] || { echo "NKTouch v$VERSION: missing bundled Lua launcher $LUA_RUNNER" >&2; exit 4; }; }
 need_python(){
     [ -x "$PY" ] || { echo "NKTouch: native backend missing and no Python fallback." >&2; exit 3; }
     [ -f "$HELPER" ] || { echo "NKTouch: Python fallback helper missing." >&2; exit 4; }
@@ -60,161 +54,106 @@ need_python(){
 run_native_first(){
     subcmd="$1"; shift || true
     if [ -x "$NATIVE" ]; then exec "$NATIVE" "$subcmd" "$@"; fi
-    need_python
-    exec "$PY" "$HELPER" "$subcmd" "$@"
+    need_python; exec "$PY" "$HELPER" "$subcmd" "$@"
 }
+run_native_only(){ subcmd="$1"; shift || true; need_native; exec "$NATIVE" "$subcmd" "$@"; }
 
-run_native_only(){
-    subcmd="$1"; shift || true
-    need_native
-    exec "$NATIVE" "$subcmd" "$@"
-}
-
-# Retry only read-only operations. Never retry tap/text/openapp/etc. to avoid duplicate side effects.
+# Retry only read-only CLI operations. Side-effecting actions never retry.
 run_native_read(){
-    subcmd="$1"; shift || true
-    need_native
+    subcmd="$1"; shift || true; need_native
     tries="$READ_RETRIES"
     case "$tries" in ''|*[!0-9]*) tries=2;; esac
     [ "$tries" -lt 1 ] 2>/dev/null && tries=1 || true
     [ "$tries" -gt 4 ] 2>/dev/null && tries=4 || true
     i=1
     while :; do
-        if "$NATIVE" "$subcmd" "$@"; then
-            return 0
-        else
-            rc=$?
-        fi
+        if "$NATIVE" "$subcmd" "$@"; then return 0; else rc=$?; fi
         case "$rc" in 4|5) ;; *) return "$rc";; esac
         [ "$i" -ge "$tries" ] && return "$rc"
-        i=$((i + 1))
-        sleep 1
+        i=$((i + 1)); sleep 1
     done
 }
 
 cleanup_tmp(){
-    rm -f "$TMP_DIR"/doctor-* "$TMP_DIR"/selftest-* "$STATUS_FILE".tmp.* "$LOG_FILE".tmp.* 2>/dev/null || true
+    rm -f "$TMP_DIR"/doctor-* "$TMP_DIR"/selftest-* "$TMP_DIR"/stress-* "$STATUS_FILE".tmp.* "$LOG_FILE".tmp.* 2>/dev/null || true
     echo ok
 }
 
 run_script(){
-    script="${1:-}"
-    [ -n "$script" ] || { echo "Usage: nktouchctl run <script.sh> [args...]" >&2; exit 2; }
+    script="${1:-}"; [ -n "$script" ] || { echo "Usage: nktouchctl run <script.sh> [args...]" >&2; exit 2; }
     shift || true
     [ -f "$script" ] && [ -r "$script" ] || { echo "NKTouch: cannot read script: $script" >&2; exit 2; }
     export NKTOUCHCTL="$SELF" NKTOUCH_HOME="$BASE" NKTOUCH_VERSION="$VERSION"
     exec "$SH" "$script" "$@"
 }
-
 check_script(){
-    script="${1:-}"
-    [ -n "$script" ] && [ -f "$script" ] || { echo "Usage: nktouchctl check <script.sh>" >&2; exit 2; }
-    "$SH" -n "$script"
-    echo ok
+    script="${1:-}"; [ -n "$script" ] && [ -f "$script" ] || { echo "Usage: nktouchctl check <script.sh>" >&2; exit 2; }
+    "$SH" -n "$script"; echo ok
 }
-
-run_lua(){
-    need_lua
-    export NKTOUCHCTL="$SELF" NKTOUCH_HOME="$BASE" NKTOUCH_VERSION="$VERSION"
-    exec "$LUA_RUNNER" "$@"
-}
-
+run_lua(){ need_lua; export NKTOUCHCTL="$SELF" NKTOUCH_HOME="$BASE" NKTOUCH_VERSION="$VERSION"; exec "$LUA_RUNNER" "$@"; }
 check_lua(){
-    script="${1:-}"
-    [ -n "$script" ] && [ -f "$script" ] && [ -r "$script" ] || { echo "Usage: nktouchctl lua-check <script.lua>" >&2; exit 2; }
+    script="${1:-}"; [ -n "$script" ] && [ -f "$script" ] && [ -r "$script" ] || { echo "Usage: nktouchctl lua-check <script.lua>" >&2; exit 2; }
     [ -x "$LUAC" ] || { echo "NKTouch: bundled Lua compiler missing: $LUAC" >&2; exit 4; }
-    "$LUAC" -p "$script"
-    echo ok
+    "$LUAC" -p "$script"; echo ok
 }
-
-lua_probe(){
-    need_lua
-    "$LUA_RUNNER" --plain -e 'io.write(_VERSION)'
-}
-
+lua_probe(){ need_lua; "$LUA_RUNNER" --plain -e 'io.write(_VERSION)'; }
 lua_direct_probe(){
     need_lua
-    "$LUA_RUNNER" -e 'assert(nk and nk.VERSION=="0.6.3"); assert(nk.DIRECT==true); assert(nk.coreVersion()=="0.6.3"); io.write("direct")'
+    "$LUA_RUNNER" -e 'assert(nk and nk.VERSION=="0.6.4"); assert(nk.DIRECT==true); assert(nk.coreVersion()=="0.6.3"); assert(nk.retryConfig()>=1); local e=nk.classifyError("connect failed"); assert(e.code=="CONNECT" and e.transient==true); io.write("direct-hardened")'
+}
+
+validate_count(){
+    n="${1:-}"; def="$2"; max="$3"
+    [ -n "$n" ] || n="$def"
+    case "$n" in ''|*[!0-9]*) echo "NKTouch: count must be an integer" >&2; exit 2;; esac
+    [ "$n" -ge 1 ] 2>/dev/null || { echo "NKTouch: count must be >= 1" >&2; exit 2; }
+    [ "$n" -le "$max" ] 2>/dev/null || { echo "NKTouch: count must be <= $max" >&2; exit 2; }
+    printf '%s' "$n"
+}
+
+benchmark(){
+    need_lua; n="$(validate_count "${1:-}" 20 100)"
+    "$LUA_RUNNER" -e "local r,e,c=nk.benchmark($n); if not r then io.stderr:write((c or 'ERR')..': '..tostring(e)..'\\n'); os.exit(1) end; print('iterations='..r.iterations); print(string.format('direct_ms=%d',r.direct_ms)); print(string.format('cli_ms=%d',r.cli_ms)); print(string.format('direct_per_call_ms=%.3f',r.direct_per_call_ms)); print(string.format('cli_per_call_ms=%.3f',r.cli_per_call_ms)); print(string.format('speedup=%.2fx',r.speedup)); print(string.format('memory_delta_kb=%.2f',r.memory_delta_kb))"
+}
+
+stress(){
+    need_lua; n="$(validate_count "${1:-}" 100 2000)"
+    "$LUA_RUNNER" -e "local r,e,c=nk.stress($n); if not r then io.stderr:write((c or 'ERR')..': '..tostring(e)..'\\n'); os.exit(1) end; print('iterations='..r.iterations); print('failures='..r.failures); print('elapsed_ms='..r.elapsed_ms); print(string.format('ops_per_sec=%.2f',r.ops_per_sec)); print(string.format('memory_delta_kb=%.2f',r.memory_delta_kb)); if r.last_code then print('last_code='..r.last_code) end; if r.failures>0 then os.exit(1) end"
 }
 
 doctor(){
-    mode="${1:-quick}"
-    fail=0
+    mode="${1:-quick}"; fail=0
     echo "version=$VERSION"
-    if [ -x "$NATIVE" ]; then
-        nv="$("$NATIVE" version 2>/dev/null || echo unknown)"
-        echo "native=ok:$nv"
-    else
-        echo native=missing
-        fail=1
-    fi
-
-    if [ -x "$LUA_RUNNER" ]; then
-        lv="$(lua_probe 2>/dev/null || true)"
-        if [ -n "$lv" ]; then echo "lua=ok:$LUA_VERSION:$lv"; else echo lua=failed; fail=1; fi
-    else
-        echo lua=missing
-        fail=1
-    fi
-
+    if [ -x "$NATIVE" ]; then nv="$("$NATIVE" version 2>/dev/null || echo unknown)"; echo "native=ok:$nv"; else echo native=missing; fail=1; fi
+    if [ -x "$LUA_RUNNER" ]; then lv="$(lua_probe 2>/dev/null || true)"; if [ -n "$lv" ]; then echo "lua=ok:$LUA_VERSION:$lv"; else echo lua=failed; fail=1; fi; else echo lua=missing; fail=1; fi
+    echo "read_retries=$READ_RETRIES"
     probe="$TMP_DIR/.write-test-$$"
-    if : > "$probe" 2>/dev/null; then
-        rm -f "$probe" 2>/dev/null || true
-        echo state_dir=writable
-    else
-        echo state_dir=not-writable
-        fail=1
-    fi
-
-    if [ -x "$NATIVE" ] && "$NATIVE" ping >/dev/null 2>&1; then
-        echo core=ok
-    else
-        echo core=unreachable
-        fail=1
-    fi
-
+    if : > "$probe" 2>/dev/null; then rm -f "$probe" 2>/dev/null || true; echo state_dir=writable; else echo state_dir=not-writable; fail=1; fi
+    if [ -x "$NATIVE" ] && "$NATIVE" ping >/dev/null 2>&1; then echo core=ok; else echo core=unreachable; fail=1; fi
     if [ -x "$NATIVE" ]; then
-        screen="$("$NATIVE" screen 2>/dev/null || true)"
-        fg="$("$NATIVE" foreground 2>/dev/null || true)"
-        orientation="$("$NATIVE" orientation 2>/dev/null || true)"
-        scale="$("$NATIVE" scale 2>/dev/null || true)"
+        screen="$("$NATIVE" screen 2>/dev/null || true)"; fg="$("$NATIVE" foreground 2>/dev/null || true)"; orientation="$("$NATIVE" orientation 2>/dev/null || true)"; scale="$("$NATIVE" scale 2>/dev/null || true)"
         [ -n "$screen" ] && echo "screen=$screen" || { echo screen=unavailable; fail=1; }
         [ -n "$fg" ] && echo "foreground=$fg" || echo foreground=unknown
         [ -n "$orientation" ] && echo "orientation=$orientation" || echo orientation=unknown
         [ -n "$scale" ] && echo "scale=$scale" || echo scale=unknown
     fi
-
     if [ "$mode" = "full" ] || [ "$mode" = "vision" ]; then
         shot="$TMP_DIR/doctor-$$.jpg"
-        if [ -x "$NATIVE" ] && "$NATIVE" screenshot "$shot" >/dev/null 2>&1 && [ -s "$shot" ]; then
-            bytes=$(wc -c < "$shot" 2>/dev/null || echo 0)
-            echo "screenshot=ok:$bytes"
-        else
-            echo screenshot=failed
-            fail=1
-        fi
+        if [ -x "$NATIVE" ] && "$NATIVE" screenshot "$shot" >/dev/null 2>&1 && [ -s "$shot" ]; then bytes=$(wc -c < "$shot" 2>/dev/null || echo 0); echo "screenshot=ok:$bytes"; else echo screenshot=failed; fail=1; fi
         rm -f "$shot" 2>/dev/null || true
-
-        if [ -x "$LUA_RUNNER" ] && lua_direct_probe >/dev/null 2>&1; then
-            echo "lua_api=ok:$LUA_CORE_VERSION:direct"
-        else
-            echo lua_api=failed
-            fail=1
-        fi
+        if [ -x "$LUA_RUNNER" ] && lua_direct_probe >/dev/null 2>&1; then echo "lua_api=ok:$LUA_CORE_VERSION:direct-hardened"; else echo lua_api=failed; fail=1; fi
     fi
-
-    echo "tmp_dir=$TMP_DIR"
-    return "$fail"
+    echo "tmp_dir=$TMP_DIR"; return "$fail"
 }
 
 selftest(){
-    fail=0
-    echo "NKTouch v$VERSION selftest"
+    fail=0; echo "NKTouch v$VERSION selftest"
     if doctor full; then :; else fail=1; fi
     if [ -x "$NATIVE" ] && "$NATIVE" runtime >/dev/null 2>&1; then echo runtime=ok; else echo runtime=failed; fail=1; fi
     if [ -x "$NATIVE" ] && "$NATIVE" battery >/dev/null 2>&1; then echo battery=ok; else echo battery=failed; fail=1; fi
     if [ -x "$NATIVE" ] && "$NATIVE" sleep 1 >/dev/null 2>&1; then echo sleep=ok; else echo sleep=failed; fail=1; fi
     if [ -x "$LUA_RUNNER" ] && lua_direct_probe >/dev/null 2>&1; then echo lua_direct=ok; else echo lua_direct=failed; fail=1; fi
+    if [ -x "$LUA_RUNNER" ] && "$LUA_RUNNER" -e 'local r=assert(nk.stress(5)); assert(r.failures==0)' >/dev/null 2>&1; then echo lua_stress=ok; else echo lua_stress=failed; fail=1; fi
     cleanup_tmp >/dev/null 2>&1 || true
     if [ "$fail" -eq 0 ]; then echo result=PASS; else echo result=FAIL; fi
     return "$fail"
@@ -233,43 +172,33 @@ case "$cmd" in
  logs) tail -n "${1:-50}" "$LOG_FILE" 2>/dev/null || true;;
  cleanup) cleanup_tmp;;
  backend)
-   if [ -x "$NATIVE" ]; then printf 'native %s (runtime %s; lua %s; direct-lua %s)\n' "$("$NATIVE" version 2>/dev/null || echo unknown)" "$VERSION" "$LUA_VERSION" "$LUA_CORE_VERSION"
+   if [ -x "$NATIVE" ]; then printf 'native %s (runtime %s; lua %s; direct-lua %s hardened)\n' "$("$NATIVE" version 2>/dev/null || echo unknown)" "$VERSION" "$LUA_VERSION" "$LUA_CORE_VERSION"
    elif [ -x "$PY" ] && [ -f "$HELPER" ]; then echo "python-fallback (runtime $VERSION; lua $LUA_VERSION)"
    else echo unavailable; exit 4; fi;;
  ping) if [ -x "$NATIVE" ]; then run_native_read ping; else need_python; exec "$PY" "$HELPER" screen; fi;;
  doctor) doctor "${1:-quick}";;
  selftest) selftest;;
+ benchmark) benchmark "${1:-}";;
+ stress) stress "${1:-}";;
  run) run_script "$@";;
  check) check_script "$@";;
  lua) run_lua "$@";;
  lua-check) check_lua "$@";;
  lua-version) printf '%s (core %s; ' "$LUA_VERSION" "$LUA_CORE_VERSION"; lua_probe; printf ')\n';;
-
- # Side-effecting commands: single attempt only.
- tap|hold|swipe|openapp|stop|record|text|keyboard|cursor|delete|paste|clipboard-set|toast|tap-image|tap-color)
-   run_native_only "$cmd" "$@";;
-
- # Compatibility commands that may use the old Python fallback if native is absent.
- screen|foreground)
-   if [ -x "$NATIVE" ]; then run_native_read "$cmd" "$@"; else run_native_first "$cmd" "$@"; fi;;
-
- # Read-only native commands: safe bounded retry on transport errors only.
- clipboard-get|screenshot|orientation|scale|device|battery|runtime|find-image|pixel|find-color|ocr)
-   run_native_read "$cmd" "$@";;
-
- # Native loops already own their timeout; do not add an outer retry.
- sleep|wait-image|wait-color|wait-text|wait-app)
-   run_native_only "$cmd" "$@";;
-
+ tap|hold|swipe|openapp|stop|record|text|keyboard|cursor|delete|paste|clipboard-set|toast|tap-image|tap-color) run_native_only "$cmd" "$@";;
+ screen|foreground) if [ -x "$NATIVE" ]; then run_native_read "$cmd" "$@"; else run_native_first "$cmd" "$@"; fi;;
+ clipboard-get|screenshot|orientation|scale|device|battery|runtime|find-image|pixel|find-color|ocr) run_native_read "$cmd" "$@";;
+ sleep|wait-image|wait-color|wait-text|wait-app) run_native_only "$cmd" "$@";;
  native) run_native_only "$@";;
  help|-h|--help) cat <<'HELP'
-NKTouch v0.6.3 Direct Lua Native runtime
+NKTouch v0.6.4 Hardened Direct Lua runtime
 
 Core: tap/hold/swipe/openapp/wait-app/sleep/text/clipboard/screenshot/OCR
 Image: find-image, wait-image, tap-image
 Color: pixel, find-color, wait-color, tap-color
 Text: OCR, wait-text
 Health: doctor [quick|full], selftest, cleanup, backend, ping
+Performance: benchmark [1-100], stress [1-2000]
 Shell: check <script.sh>, run <script.sh> [args...]
 Lua:
   nktouchctl lua <script.lua> [args...]
@@ -277,11 +206,9 @@ Lua:
   nktouchctl lua-check <script.lua>
   nktouchctl lua-version
 
-V0.6.3 embeds `nkcore` directly inside Lua 5.4.9. The primary Lua automation APIs call the SpringBoard core without spawning nktouchctl for every action. Runtime status/diagnostic helpers remain shell-backed.
-Use /var/jb/usr/bin/nktouch-lua --plain for a plain Lua interpreter; `require("nkcore")` is still available.
-
-Hardening: read-only CLI transport failures retry at most NKTOUCH_READ_RETRIES times (default 2).
-Side-effecting CLI actions are never auto-retried.
+V0.6.4 keeps the tested nkcore 0.6.3 protocol implementation and hardens the Lua runtime around it.
+Read-only direct calls classify transport errors and reconnect/retry up to NKTOUCH_READ_RETRIES (default 2, max 4).
+Tap/swipe/text/open-app and all other side-effecting actions are never auto-retried.
 HELP
  ;;
  *) echo "NKTouch: unknown command '$cmd'" >&2; echo "Run: nktouchctl help" >&2; exit 2;;
