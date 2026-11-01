@@ -1,12 +1,14 @@
 #!/var/jb/bin/sh
 set -u
 
-VERSION="0.7.0"
+VERSION="0.7.1"
 CORE="/var/jb/usr/libexec/nktouch/nktouchctl-core"
 TASK="/var/jb/usr/bin/nktask"
+RECORDER="/var/jb/usr/bin/nkrecorder"
 
 need_core(){ [ -x "$CORE" ] || { echo "NKTouch v$VERSION: missing core runtime $CORE" >&2; exit 4; }; }
 need_task(){ [ -x "$TASK" ] || { echo "NKTouch v$VERSION: missing task engine $TASK" >&2; exit 4; }; }
+need_recorder(){ [ -x "$RECORDER" ] || { echo "NKTouch v$VERSION: missing Recorder V2 $RECORDER" >&2; exit 4; }; }
 
 cmd="${1:-help}"
 [ "$#" -gt 0 ] && shift || true
@@ -15,6 +17,10 @@ case "$cmd" in
   task)
     need_task
     exec "$TASK" "$@"
+    ;;
+  recorder)
+    need_recorder
+    exec "$RECORDER" "$@"
     ;;
   version)
     echo "$VERSION"
@@ -25,6 +31,7 @@ case "$cmd" in
     "$CORE" backend
     rc=$?
     if [ -x "$TASK" ]; then echo "task-engine=$($TASK version 2>/dev/null || echo unknown)"; else echo "task-engine=missing"; [ "$rc" -eq 0 ] && rc=4; fi
+    if [ -x "$RECORDER" ]; then echo "recorder=$($RECORDER version 2>/dev/null || echo unknown)"; else echo "recorder=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     exit "$rc"
     ;;
   doctor)
@@ -32,18 +39,20 @@ case "$cmd" in
     "$CORE" doctor "${1:-quick}"
     rc1=$?
     if [ -x "$TASK" ]; then "$TASK" doctor; rc2=$?; else echo task_engine=missing; rc2=4; fi
-    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]
+    if [ -x "$RECORDER" ]; then "$RECORDER" doctor; rc3=$?; else echo recorder=missing; rc3=4; fi
+    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ]
     ;;
   selftest)
     need_core
     "$CORE" selftest
     rc1=$?
     if [ -x "$TASK" ]; then "$TASK" doctor >/tmp/nktask-selftest.$$ 2>&1; rc2=$?; cat /tmp/nktask-selftest.$$; rm -f /tmp/nktask-selftest.$$; else echo task_engine=missing; rc2=4; fi
-    if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]; then echo v7_result=PASS; exit 0; else echo v7_result=FAIL; exit 1; fi
+    if [ -x "$RECORDER" ]; then "$RECORDER" doctor >/tmp/nkrecorder-selftest.$$ 2>&1; rc3=$?; cat /tmp/nkrecorder-selftest.$$; rm -f /tmp/nkrecorder-selftest.$$; else echo recorder=missing; rc3=4; fi
+    if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ]; then echo v7_result=PASS; exit 0; else echo v7_result=FAIL; exit 1; fi
     ;;
   help|-h|--help)
     cat <<'HELP'
-NKTouch v0.7.0 Script/Task Engine
+NKTouch v0.7.1 Recorder V2 + Script/Task Engine
 
 Task manager:
   nktouchctl task start <script.lua> [--timeout SEC] [-- args...]
@@ -54,9 +63,19 @@ Task manager:
   nktouchctl task list
   nktouchctl task logs [TASK_ID] [LINES]
 
-V7.0 runs one screen-control task at a time to prevent competing taps/swipes.
-Finished task history and logs remain available by TASK_ID.
-OCR remains on-demand only: V7.0 does not run OCR in the background.
+Recorder V2:
+  nktouchctl recorder start
+  nktouchctl recorder status
+  nktouchctl recorder stop [name]
+  nktouchctl recorder export <bundle.bdl|file.raw> [name]
+  nktouchctl recorder latest
+  nktouchctl recorder list
+  nktouchctl recorder doctor
+
+V7.1 keeps the V7.0 single-active-task safety rule. Recorder V2 converts
+real HID timing into editable Lua using nk.tap/nk.hold/nk.swipe/nk.sleep.
+Keyboard typing is replayed as recorded screen taps; text is not guessed.
+OCR remains on-demand only and is never started by the recorder.
 
 Existing V6.4 native/Lua commands remain available unchanged.
 HELP
