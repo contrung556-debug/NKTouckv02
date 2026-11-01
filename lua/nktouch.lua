@@ -1,7 +1,9 @@
--- NKTouch v0.2 Lua compatibility helper
+-- NKTouch v0.3 Lua compatibility helper
 -- SPDX-License-Identifier: GPL-3.0-or-later
 
 local M = {}
+M.VERSION = "0.3.0"
+
 local CTL = "/var/jb/usr/bin/nktouchctl"
 
 local function shq(s)
@@ -45,6 +47,7 @@ function M.heartbeat()
     return run({"heartbeat"})
 end
 
+-- v0.3: these commands route to the compiled native socket client first.
 function M.tap(x, y)
     return run({"tap", x, y})
 end
@@ -71,6 +74,18 @@ end
 
 function M.stop()
     return run({"stop"})
+end
+
+function M.ping()
+    return run({"ping"})
+end
+
+function M.screen()
+    return run({"screen"})
+end
+
+function M.foreground()
+    return run({"foreground"})
 end
 
 function M.installAutoTouchCompat()
