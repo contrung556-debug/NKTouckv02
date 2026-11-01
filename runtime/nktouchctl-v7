@@ -1,0 +1,72 @@
+#!/var/jb/bin/sh
+set -u
+
+VERSION="0.7.0"
+CORE="/var/jb/usr/libexec/nktouch/nktouchctl-core"
+TASK="/var/jb/usr/bin/nktask"
+
+need_core(){ [ -x "$CORE" ] || { echo "NKTouch v$VERSION: missing core runtime $CORE" >&2; exit 4; }; }
+need_task(){ [ -x "$TASK" ] || { echo "NKTouch v$VERSION: missing task engine $TASK" >&2; exit 4; }; }
+
+cmd="${1:-help}"
+[ "$#" -gt 0 ] && shift || true
+
+case "$cmd" in
+  task)
+    need_task
+    exec "$TASK" "$@"
+    ;;
+  version)
+    echo "$VERSION"
+    ;;
+  backend)
+    echo "runtime=$VERSION"
+    need_core
+    "$CORE" backend
+    rc=$?
+    if [ -x "$TASK" ]; then echo "task-engine=$($TASK version 2>/dev/null || echo unknown)"; else echo "task-engine=missing"; [ "$rc" -eq 0 ] && rc=4; fi
+    exit "$rc"
+    ;;
+  doctor)
+    need_core
+    "$CORE" doctor "${1:-quick}"
+    rc1=$?
+    if [ -x "$TASK" ]; then "$TASK" doctor; rc2=$?; else echo task_engine=missing; rc2=4; fi
+    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]
+    ;;
+  selftest)
+    need_core
+    "$CORE" selftest
+    rc1=$?
+    if [ -x "$TASK" ]; then "$TASK" doctor >/tmp/nktask-selftest.$$ 2>&1; rc2=$?; cat /tmp/nktask-selftest.$$; rm -f /tmp/nktask-selftest.$$; else echo task_engine=missing; rc2=4; fi
+    if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]; then echo v7_result=PASS; exit 0; else echo v7_result=FAIL; exit 1; fi
+    ;;
+  help|-h|--help)
+    cat <<'HELP'
+NKTouch v0.7.0 Script/Task Engine
+
+Task manager:
+  nktouchctl task start <script.lua> [--timeout SEC] [-- args...]
+  nktouchctl task status [TASK_ID]
+  nktouchctl task pause [TASK_ID]
+  nktouchctl task resume [TASK_ID]
+  nktouchctl task stop [TASK_ID]
+  nktouchctl task list
+  nktouchctl task logs [TASK_ID] [LINES]
+
+V7.0 runs one screen-control task at a time to prevent competing taps/swipes.
+Finished task history and logs remain available by TASK_ID.
+OCR remains on-demand only: V7.0 does not run OCR in the background.
+
+Existing V6.4 native/Lua commands remain available unchanged.
+HELP
+    if [ -x "$CORE" ]; then
+      echo
+      "$CORE" help
+    fi
+    ;;
+  *)
+    need_core
+    exec "$CORE" "$cmd" "$@"
+    ;;
+esac
