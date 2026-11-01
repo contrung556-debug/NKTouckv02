@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Talks directly to the local ZXTouch SpringBoard service on 127.0.0.1:6000.
-// Protocol is compatible with the upstream GPL ZXTouch task/socket format.
+// Protocol is compatible with the pinned GPL ZXTouch task/socket format.
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -28,6 +28,10 @@
 #define TASK_RECORD_START 14
 #define TASK_RECORD_STOP 15
 #define TASK_FORCE_STOP 20
+#define TASK_DEVICE_INFO 25
+
+#define DEVICE_INFO_SCREEN_SIZE 1
+#define DEVICE_INFO_RUNTIME_STATUS 32
 
 #define TOUCH_UP 0
 #define TOUCH_DOWN 1
@@ -44,6 +48,8 @@ static void usage(FILE *out) {
         "  nktouch-native openapp <bundle-id>\n"
         "  nktouch-native record start|stop\n"
         "  nktouch-native stop\n"
+        "  nktouch-native screen\n"
+        "  nktouch-native foreground\n"
         "  nktouch-native version\n", NK_VERSION);
 }
 
@@ -161,7 +167,21 @@ static int recv_line(int fd, char *buf, size_t cap) {
     return used ? 0 : -1;
 }
 
-static int send_task_wait(int fd, int task, const char *payload) {
+static void trim_line(char *s) {
+    size_t n = strlen(s);
+    while (n > 0 && (s[n - 1] == '\r' || s[n - 1] == '\n')) {
+        s[--n] = '\0';
+    }
+}
+
+static char *response_payload(char *response) {
+    if (strncmp(response, "0;;", 3) == 0) return response + 3;
+    if (response[0] == '0') return response + 1;
+    return response;
+}
+
+static int send_task_response(int fd, int task, const char *payload,
+                              char *response, size_t response_cap) {
     char packet[1024];
     int n = snprintf(packet, sizeof(packet), "%02d%s\r\n", task, payload ? payload : "");
     if (n <= 0 || (size_t)n >= sizeof(packet)) {
@@ -169,12 +189,10 @@ static int send_task_wait(int fd, int task, const char *payload) {
         return -1;
     }
     if (send_all(fd, packet, (size_t)n) != 0) return -1;
-
-    char response[1024];
-    if (recv_line(fd, response, sizeof(response)) != 0) return -1;
+    if (recv_line(fd, response, response_cap) != 0) return -1;
+    trim_line(response);
     if (response[0] != '0') {
-        fprintf(stderr, "NKTouch native: core rejected task %02d: %s", task, response);
-        if (!strchr(response, '\n')) fputc('\n', stderr);
+        fprintf(stderr, "NKTouch native: core rejected task %02d: %s\n", task, response);
         return -1;
     }
     return 0;
@@ -296,10 +314,38 @@ static int cmd_swipe(int argc, char **argv) {
 static int cmd_simple_task(int task, const char *payload) {
     int fd = connect_core();
     if (fd < 0) return 4;
-    int ok = send_task_wait(fd, task, payload);
+    char response[1024];
+    int ok = send_task_response(fd, task, payload, response, sizeof(response));
     close(fd);
     if (ok != 0) return 5;
     puts("ok");
+    return 0;
+}
+
+static int cmd_screen(void) {
+    int fd = connect_core();
+    if (fd < 0) return 4;
+    char response[1024];
+    int ok = send_task_response(fd, TASK_DEVICE_INFO, "1", response, sizeof(response));
+    close(fd);
+    if (ok != 0) return 5;
+    char *payload = response_payload(response);
+    printf("{\"ok\":true,\"result\":\"%s\"}\n", payload);
+    return 0;
+}
+
+static int cmd_foreground(void) {
+    int fd = connect_core();
+    if (fd < 0) return 4;
+    char response[1024];
+    int ok = send_task_response(fd, TASK_DEVICE_INFO, "32", response, sizeof(response));
+    close(fd);
+    if (ok != 0) return 5;
+
+    char *payload = response_payload(response);
+    char *sep = strstr(payload, ";;");
+    if (sep) *sep = '\0';
+    printf("{\"ok\":true,\"result\":\"%s\"}\n", payload);
     return 0;
 }
 
@@ -361,6 +407,20 @@ int main(int argc, char **argv) {
             return 2;
         }
         return cmd_simple_task(TASK_FORCE_STOP, "");
+    }
+    if (strcmp(cmd, "screen") == 0) {
+        if (argc != 2) {
+            fprintf(stderr, "Usage: nktouch-native screen\n");
+            return 2;
+        }
+        return cmd_screen();
+    }
+    if (strcmp(cmd, "foreground") == 0) {
+        if (argc != 2) {
+            fprintf(stderr, "Usage: nktouch-native foreground\n");
+            return 2;
+        }
+        return cmd_foreground();
     }
 
     usage(stderr);
