@@ -1,0 +1,294 @@
+name: Build NKTouch v0.7.3 Task Bundle
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ v0.7.3-task-bundle ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-rootless:
+    runs-on: macos-latest
+    env:
+      UPSTREAM_REPO: https://github.com/epic0001/zxtouchrootless.git
+      UPSTREAM_SHA: a602da112ef1a688fb2601424443abb1ccc28c63
+      NK_VERSION: 0.7.3
+      LUA_VERSION: 5.4.9
+      LUA_SHA256: 2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6
+
+    steps:
+      - name: Checkout NKTouch v0.7.3 Task Bundle
+        uses: actions/checkout@v4
+
+      - name: Fetch pinned GPL automation core
+        run: |
+          git init upstream
+          git -C upstream remote add origin "$UPSTREAM_REPO"
+          git -C upstream fetch --depth 1 origin "$UPSTREAM_SHA"
+          git -C upstream checkout --detach FETCH_HEAD
+          git -C upstream submodule update --init --recursive
+          echo "Pinned upstream: $(git -C upstream rev-parse HEAD)"
+
+      - name: Build NKTouch native iOS engine
+        run: |
+          set -euxo pipefail
+          SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
+          xcrun --sdk iphoneos clang -Os -Wall -Wextra -Werror -arch arm64 -miphoneos-version-min=15.0 -isysroot "$SDKROOT" runtime/nktouch-native.c -o runtime/nktouch-native
+          file runtime/nktouch-native
+          test -x runtime/nktouch-native
+          brew install ldid 2>/dev/null || true
+          ldid -S runtime/nktouch-native
+
+      - name: Syntax-check and build native task supervisor
+        run: |
+          set -euxo pipefail
+          clang -std=c11 -Wall -Wextra -fsyntax-only runtime/nktask.c
+          SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
+          xcrun --sdk iphoneos clang -std=c11 -Os -Wall -Wextra -arch arm64 -miphoneos-version-min=15.0 -isysroot "$SDKROOT" runtime/nktask.c -o runtime/nktask
+          chmod 755 runtime/nktask runtime/nktouchctl-v7 runtime/nkrecorder runtime/nkeditor runtime/nkbundle
+          file runtime/nktask
+          strings runtime/nktask | grep -q 'NKTask v'
+          strings runtime/nktask | grep -q '0.7.0'
+          ldid -S runtime/nktask
+
+      - name: Fetch and verify Lua source
+        run: |
+          set -euxo pipefail
+          curl -fsSL "https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz" -o /tmp/lua.tar.gz
+          printf '%s  %s\n' "$LUA_SHA256" /tmp/lua.tar.gz | shasum -a 256 -c -
+          rm -rf lua-src
+          mkdir lua-src
+          tar -xzf /tmp/lua.tar.gz -C lua-src --strip-components=1
+          test -f lua-src/src/lua.c
+          test -f lua-src/src/luac.c
+          test -f lua-src/src/linit.c
+          cp lua-src/README runtime/LUA_README.txt
+
+      - name: Prepare Lua static nkcore registry
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('lua-src/src/linit.c').read_text()
+          include='#include "lualib.h"\n'
+          if include not in src:
+              raise SystemExit('linit include marker missing')
+          src=src.replace(include, include+'\nextern int luaopen_nkcore(lua_State *L);\n', 1)
+          marker='  {NULL, NULL}\n'
+          if marker not in src:
+              raise SystemExit('linit library marker missing')
+          src=src.replace(marker, '  {"nkcore", luaopen_nkcore},\n'+marker, 1)
+          Path('runtime/linit-nktouch.c').write_text(src)
+          PY
+          grep -q 'luaopen_nkcore' runtime/linit-nktouch.c
+          grep -q '"nkcore"' runtime/linit-nktouch.c
+
+      - name: Host smoke-test hardened direct Lua API
+        run: |
+          set -euxo pipefail
+          COMMON=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' ! -name 'linit.c' -print | sort | tr '\n' ' ')
+          clang -O2 -Ilua-src/src -DLUA_USE_POSIX $COMMON runtime/linit-nktouch.c runtime/nkcore.c lua-src/src/lua.c -lm -o /tmp/nktouch-lua-host
+          /tmp/nktouch-lua-host -e 'local n=require("nkcore"); assert(n.VERSION=="0.6.3"); assert(n.DIRECT==true); io.write("nkcore-host-ok")'
+          echo
+          /tmp/nktouch-lua-host -e 'package.path="lua/?.lua;"..package.path; local n=require("nktouch"); assert(n.VERSION=="0.6.4"); assert(n.DIRECT==true); io.write("v64-api-host-ok")'
+          echo
+
+      - name: Host smoke-test Recorder V2 exporter
+        run: |
+          set -euxo pipefail
+          cat > /tmp/nktouch-recorder.raw <<'RAW'
+          180
+          1011070100002000
+          1880000
+          1010070100002000
+          18500000
+          1011070050001000
+          18150000
+          1012070150001000
+          18150000
+          1010070250001000
+          RAW
+          /tmp/nktouch-lua-host lua/nkrecorder.lua export /tmp/nktouch-recorder.raw /tmp/nktouch-recorded.lua
+          grep -Fq 'must(nk.tap(100.0, 200.0))' /tmp/nktouch-recorded.lua
+          grep -Fq 'must(nk.sleep(500))' /tmp/nktouch-recorded.lua
+          grep -Fq 'must(nk.swipe(50.0, 100.0, 250.0, 100.0, 300))' /tmp/nktouch-recorded.lua
+
+      - name: Host smoke-test Script Editor sources
+        run: |
+          set -euxo pipefail
+          bash -n runtime/nkeditor
+          bash -n runtime/nktouchctl-v7
+          grep -q '^nk.tap|' runtime/nktouch-api.tsv
+          grep -q '^nk.ocr|' runtime/nktouch-api.tsv
+          grep -q 'new)' runtime/nkeditor
+          grep -q 'run)' runtime/nkeditor
+
+      - name: Host round-trip Task Bundle container
+        run: |
+          set -euxo pipefail
+          bash -n runtime/nkbundle
+          bash -n scripts/prepare-v073.sh
+          rm -rf /tmp/nkbundle-test
+          mkdir -p /tmp/nkbundle-test/out/assets
+          cat > /tmp/nkbundle-test/demo.lua <<'LUA'
+          local nk=require("nktouch")
+          print("bundle-ok", nk.VERSION)
+          LUA
+          python3 - <<'PY'
+          from pathlib import Path
+          Path('/tmp/nkbundle-test/button.bin').write_bytes(bytes(range(256))*8)
+          PY
+          /tmp/nktouch-lua-host lua/nkbundle.lua pack demo /tmp/nkbundle-test/demo.lua /tmp/nkbundle-test/demo.nktask /tmp/nkbundle-test/button.bin
+          /tmp/nktouch-lua-host lua/nkbundle.lua inspect /tmp/nkbundle-test/demo.nktask | tee /tmp/nkbundle-test/inspect.txt
+          grep -q '^format=NKTASK1$' /tmp/nkbundle-test/inspect.txt
+          grep -q '^name=demo$' /tmp/nkbundle-test/inspect.txt
+          grep -q $'^assets/button.bin\t2048\t' /tmp/nkbundle-test/inspect.txt
+          /tmp/nktouch-lua-host lua/nkbundle.lua extract /tmp/nkbundle-test/demo.nktask /tmp/nkbundle-test/out
+          cmp /tmp/nkbundle-test/demo.lua /tmp/nkbundle-test/out/script.lua
+          cmp /tmp/nkbundle-test/button.bin /tmp/nkbundle-test/out/assets/button.bin
+          cp /tmp/nkbundle-test/demo.nktask /tmp/nkbundle-test/corrupt.nktask
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/nkbundle-test/corrupt.nktask')
+          b=bytearray(p.read_bytes())
+          b[-2] ^= 0x01
+          p.write_bytes(b)
+          PY
+          if /tmp/nktouch-lua-host lua/nkbundle.lua inspect /tmp/nkbundle-test/corrupt.nktask; then
+            echo 'corrupt bundle was unexpectedly accepted' >&2
+            exit 1
+          fi
+
+      - name: Build bundled Lua 5.4.9 with nkcore for iOS arm64
+        run: |
+          set -euxo pipefail
+          SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
+          COMMON_NK=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' ! -name 'linit.c' -print | sort | tr '\n' ' ')
+          COMMON_LUAC=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' ! -name 'linit.c' -print | sort | tr '\n' ' ')
+          LUA_FLAGS="-Os -arch arm64 -miphoneos-version-min=15.0 -isysroot $SDKROOT -Ilua-src/src -DLUA_USE_POSIX -Dl_system=nktouch_lua_system -Dl_popen=nktouch_lua_popen -Dl_pclose=nktouch_lua_pclose -include $GITHUB_WORKSPACE/runtime/lua-ios-shim.h"
+          xcrun --sdk iphoneos clang $LUA_FLAGS $COMMON_NK runtime/linit-nktouch.c runtime/nkcore.c runtime/lua-ios-shim.c lua-src/src/lua.c -lm -Wl,-dead_strip -o runtime/lua54
+          xcrun --sdk iphoneos clang $LUA_FLAGS $COMMON_LUAC runtime/lua-ios-shim.c lua-src/src/luac.c -lm -Wl,-dead_strip -o runtime/luac54
+          chmod 755 runtime/lua54 runtime/luac54 runtime/nktouch-lua
+          file runtime/lua54 runtime/luac54
+          strings runtime/lua54 | grep -q 'Lua 5.4'
+          strings runtime/lua54 | grep -q 'nkcore'
+          strings runtime/lua54 | grep -q '0.6.3'
+          ldid -S runtime/lua54
+          ldid -S runtime/luac54
+
+      - name: Run V0.7.3 Task Bundle contract tests
+        run: |
+          python3 -m unittest tests/test_v064_contract.py -v
+          python3 -m unittest tests/test_v072_contract.py -v
+          python3 -m unittest tests/test_v073_contract.py -v
+
+      - name: Apply NKTouch v0.7.3 Task Bundle layer
+        run: bash scripts/prepare-v073.sh upstream
+
+      - name: Validate NKTouch v0.7.3 package sources
+        run: |
+          set -euxo pipefail
+          bash -n runtime/nktouchctl
+          bash -n runtime/nktouchctl-v7
+          bash -n runtime/nktouch-lua
+          bash -n runtime/nkrecorder
+          bash -n runtime/nkeditor
+          bash -n runtime/nkbundle
+          bash -n scripts/prepare-v070.sh
+          bash -n scripts/prepare-v071.sh
+          bash -n scripts/prepare-v072.sh
+          bash -n scripts/prepare-v073.sh
+          python3 -m py_compile runtime/nktouchctl.py
+          test -x runtime/nktouch-native
+          test -x runtime/nktask
+          test -x runtime/lua54
+          test -x runtime/luac54
+          grep -q '#define VERSION "0.7.0"' runtime/nktask.c
+          grep -q 'VERSION="0.7.3"' runtime/nktouchctl-v7
+          grep -q 'VERSION="0.7.3"' runtime/nkbundle
+          grep -q 'local VERSION = "0.7.3"' lua/nkbundle.lua
+          grep -q 'VERSION="0.7.2"' runtime/nkeditor
+          grep -q 'VERSION="0.7.1"' runtime/nkrecorder
+          grep -q 'VERSION="0.6.4"' runtime/nktouchctl
+          grep -q 'NKCORE_VERSION "0.6.3"' runtime/nkcore.c
+          grep -q 'M.VERSION="0.6.4"' lua/nktouch.lua
+          grep -q '^#define TASK_TOUCH_RECORDING_START 14$' upstream/pccontrol/Task.h
+          grep -q '^#define TASK_TOUCH_RECORDING_STOP 15$' upstream/pccontrol/Task.h
+          grep -q '^#define TASK_TEXT_RECOGNIZER 27$' upstream/pccontrol/Task.h
+          grep -q '^#define TASK_PROMPT_INPUT 29$' upstream/pccontrol/Task.h
+          grep -q '^#define TASK_SCREENSHOT 30$' upstream/pccontrol/Task.h
+          test -x upstream/layout/usr/bin/nktouchctl
+          test -x upstream/layout/usr/bin/nktask
+          test -x upstream/layout/usr/bin/nkrecorder
+          test -x upstream/layout/usr/bin/nkeditor
+          test -x upstream/layout/usr/bin/nkbundle
+          test -x upstream/layout/usr/libexec/nktouch/nktouchctl-core
+          test -x upstream/layout/usr/bin/nktouch-lua
+          test -x upstream/layout/usr/libexec/nktouch/lua54
+          test -x upstream/layout/usr/libexec/nktouch/luac54
+          test -f upstream/layout/usr/share/nktouch/nkbundle.lua
+          grep -q 'NKTouch 0.7.3 Task Bundle' upstream/layout/usr/share/doc/nktouch/VERSION
+          grep -q 'Bundle format: NKTASK1' upstream/layout/usr/share/doc/nktouch/VERSION
+          grep -q 'OCR remains explicit/on-demand only' upstream/layout/usr/share/doc/nktouch/VERSION
+
+      - name: Run upstream Python tests
+        working-directory: upstream
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Build iOS application
+        working-directory: upstream
+        run: |
+          set -o pipefail
+          xcodebuild -project zxtouch/zxtouch.xcodeproj -target zxtouch -sdk iphoneos -configuration Release SYMROOT="$(pwd)/app-build" ONLY_ACTIVE_ARCH=NO ARCHS="arm64 arm64e" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO AD_HOC_CODE_SIGNING_ALLOWED=YES PRODUCT_BUNDLE_IDENTIFIER=com.zjx.zxtouch 2>&1 | tee xcode_build.log
+
+      - name: Brand and sign application
+        working-directory: upstream
+        run: |
+          APP=$(find ./app-build -name "zxtouch.app" -type d | head -1)
+          test -n "$APP"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName NKTouch" "$APP/Info.plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string NKTouch" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName NKTouch" "$APP/Info.plist" 2>/dev/null || true
+          ldid -Szxtouch/app-entitlements.plist "$APP/zxtouch"
+          EXT="$APP/PlugIns/shortcutext.appex/shortcutext"; if [ -f "$EXT" ]; then ldid -Szxtouch/shortcutext-entitlements.plist "$EXT"; fi
+          rm -rf layout/Applications/zxtouch.app
+          cp -r "$APP" layout/Applications/zxtouch.app
+
+      - name: Setup rootless Theos
+        working-directory: upstream
+        run: bash -c "$(curl -fsSL https://raw.githubusercontent.com/roothide/theos/master/bin/install-theos)"
+        env:
+          THEOS: ${{ github.workspace }}/upstream/theos
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build NKTouch v0.7.3 rootless package
+        working-directory: upstream
+        run: make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
+        env:
+          THEOS: ${{ github.workspace }}/upstream/theos
+
+      - name: Inspect and collect .deb
+        working-directory: upstream
+        run: |
+          mkdir -p ../artifacts
+          DEB=$(ls -t packages/*.deb | head -1)
+          cp "$DEB" "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb"
+          dpkg-deb -I "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" || true
+          dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nkbundle|nkeditor|nktouch-api|nkrecorder|nktask|nktouchctl-core|nktouch-native|nktouchctl|nktouch-lua|lua54|luac54|nktouch.lua|NKStatus|zxtouch.app|VERSION|LUA_README' || true
+          ls -lah ../artifacts
+
+      - name: Upload NKTouch v0.7.3 Task Bundle rootless deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: NKTouch-v0.7.3-task-bundle-rootless
+          path: artifacts/*.deb
+          if-no-files-found: error
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NKTouch-v0.7.3-task-bundle-build-logs
+          path: upstream/xcode_build.log
+          if-no-files-found: ignore
