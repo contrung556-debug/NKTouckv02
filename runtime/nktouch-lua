@@ -13,8 +13,8 @@ if [ "${1:-}" = "--plain" ]; then
     exec "$LUA" "$@"
 fi
 
-# Default mode preloads NKTouch and installs the small AutoTouch compatibility layer.
-# Scripts can use either the global `nk` object or helpers such as tap()/inputText()/usleep().
+# Default mode preloads the proven V6.4 native API, then attaches V7 extensions.
+# Scripts keep the global `nk` object; V7.4 adds nk.http and nk.json on demand.
 exec "$LUA" \
-  -e 'local m=require("nktouch"); _G.nk=m; m.installAutoTouchCompat()' \
+  -e 'local m=require("nktouch_v7"); _G.nk=m; m.installAutoTouchCompat()' \
   "$@"
