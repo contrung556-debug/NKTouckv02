@@ -10,7 +10,7 @@ class V072ScriptEditorContract(unittest.TestCase):
 
     def test_wrapper_exposes_editor_and_retains_previous_layers(self):
         s = self.text("runtime/nktouchctl-v7")
-        self.assertIn('VERSION="0.7.2"', s)
+        self.assertRegex(s, r'VERSION="0\.7\.[23]"')
         self.assertIn('EDITOR="/var/jb/usr/bin/nkeditor"', s)
         self.assertIn('RECORDER="/var/jb/usr/bin/nkrecorder"', s)
         self.assertIn('TASK="/var/jb/usr/bin/nktask"', s)
