@@ -37,22 +37,36 @@ p.write_text(s)
 PY
 fi
 
-# Upstream's recorder sends the recording directory asynchronously on the same
-# socket and Task.xm then sends the normal "0\r\n" response. That creates two
-# unframed responses for task 14 and can make a CLI client reject an otherwise
-# successful start. NKTouch discovers the freshly created .bdl directory from
-# disk, so task 14 should have one normal framed response only.
+# Upstream's recorder used to write the recording directory asynchronously to
+# the same socket after Task.xm had already returned the normal task-14 reply.
+# That creates two responses on one request. NKTouch discovers the freshly
+# created .bdl directory from disk, so Task.xm should own the only socket reply.
 RECORD="$SRC/pccontrol/Record.xm"
 python3 - "$RECORD" <<'PY'
 from pathlib import Path
 import sys
 p=Path(sys.argv[1]); s=p.read_text()
-old='            notifyClient((UInt8*)[scriptDirectory UTF8String], requestClient);'
-new='''            // NKTouch v0.7.1: Task.xm owns the single socket response for task 14.\n            // nkrecorder discovers this synchronously-created bundle from disk.\n            (void)requestClient;'''
-if old in s:
-    s=s.replace(old,new,1)
-elif 'NKTouch v0.7.1: Task.xm owns the single socket response for task 14.' not in s:
-    raise SystemExit('Unable to patch legacy recorder socket response')
+marker='NKTouch v0.7.1: Task.xm owns the single socket response for task 14.'
+if marker not in s:
+    lines=s.splitlines()
+    hits=[]
+    for i,line in enumerate(lines):
+        compact=''.join(line.split())
+        if ('notifyClient' in line and 'scriptDirectory' in line and
+                'requestClient' in line and 'UTF8String' in line):
+            hits.append(i)
+    if len(hits) != 1:
+        candidates=[f'{i+1}: {line}' for i,line in enumerate(lines)
+                    if 'scriptDirectory' in line or ('notifyClient' in line and 'requestClient' in line)]
+        raise SystemExit('Unable to uniquely patch legacy recorder socket response. Candidates:\n' + '\n'.join(candidates[:20]))
+    i=hits[0]
+    indent=lines[i][:len(lines[i])-len(lines[i].lstrip())]
+    lines[i:i+1]=[
+        indent + '// ' + marker,
+        indent + '// nkrecorder discovers this synchronously-created bundle from disk.',
+        indent + '(void)requestClient;',
+    ]
+    s='\n'.join(lines) + ('\n' if s.endswith('\n') else '')
 p.write_text(s)
 PY
 
@@ -101,7 +115,7 @@ grep -q '^#define TASK_COLOR_SEARCHER 28$' "$SRC/pccontrol/Task.h"
 grep -q '^#define TASK_PROMPT_INPUT 29$' "$SRC/pccontrol/Task.h"
 grep -q '^#define TASK_SCREENSHOT 30$' "$SRC/pccontrol/Task.h"
 grep -q 'NKTouch v0.7.1: Task.xm owns the single socket response for task 14.' "$RECORD"
-! grep -q 'notifyClient((UInt8\*)\[scriptDirectory UTF8String\], requestClient);' "$RECORD"
+! grep -Eq 'notifyClient.*scriptDirectory.*requestClient' "$RECORD"
 
 echo "--- NKTouch v0.7.1 Recorder V2 package ---"
 cat "$SRC/control"
