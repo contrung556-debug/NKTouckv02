@@ -1,9 +1,8 @@
-// NKTouch v0.3 native control client
+// NKTouch v0.4 native control client
 // SPDX-License-Identifier: GPL-3.0-or-later
-//
-// Talks directly to the local ZXTouch SpringBoard service on 127.0.0.1:6000.
-// Protocol is compatible with the pinned GPL ZXTouch task/socket format.
-
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include <arpa/inet.h>
 #include <errno.h>
 #include <math.h>
@@ -17,412 +16,211 @@
 #include <time.h>
 #include <unistd.h>
 
-#define NK_HOST "127.0.0.1"
-#define NK_PORT 6000
-#define NK_VERSION "0.3.0"
-#define NK_FINGER 1
-#define NK_RECV_TIMEOUT_SEC 2
-
+#define NK_VERSION "0.4.0"
+#define PORT 6000
+#define FINGER 1
 #define TASK_TOUCH 10
 #define TASK_OPEN_APP 11
 #define TASK_RECORD_START 14
 #define TASK_RECORD_STOP 15
 #define TASK_FORCE_STOP 20
-#define TASK_DEVICE_INFO 25
-
-#define DEVICE_INFO_SCREEN_SIZE 1
-#define DEVICE_INFO_RUNTIME_STATUS 32
-
+#define TASK_TEXT 24
+#define TASK_DEVICE 25
+#define TASK_SCREENSHOT 29
 #define TOUCH_UP 0
 #define TOUCH_DOWN 1
 #define TOUCH_MOVE 2
+#define MAX_TEXT 16384
 
-static void usage(FILE *out) {
-    fprintf(out,
-        "NKTouch native v%s\n"
-        "Usage:\n"
-        "  nktouch-native ping\n"
-        "  nktouch-native tap <x> <y>\n"
-        "  nktouch-native hold <x> <y> <ms>\n"
-        "  nktouch-native swipe <x1> <y1> <x2> <y2> <ms>\n"
-        "  nktouch-native openapp <bundle-id>\n"
-        "  nktouch-native record start|stop\n"
-        "  nktouch-native stop\n"
-        "  nktouch-native screen\n"
-        "  nktouch-native foreground\n"
-        "  nktouch-native version\n", NK_VERSION);
-}
-
-static void fail_errno(const char *what) {
-    fprintf(stderr, "NKTouch native: %s: %s\n", what, strerror(errno));
+static void usage(FILE *f) {
+    fprintf(f,
+      "NKTouch native v%s\n"
+      "tap x y | hold x y ms | swipe x1 y1 x2 y2 ms | openapp bundle-id\n"
+      "record start|stop | stop | ping | version\n"
+      "text TEXT | keyboard show|hide | cursor OFFSET | delete COUNT | paste TEXT\n"
+      "clipboard-get | clipboard-set TEXT | screenshot\n"
+      "screen | foreground | orientation | scale | device | battery | runtime\n", NK_VERSION);
 }
 
 static int parse_double(const char *s, const char *name, double *out) {
-    char *end = NULL;
-    errno = 0;
-    double v = strtod(s, &end);
-    if (errno || !end || *end != '\0' || !isfinite(v)) {
-        fprintf(stderr, "NKTouch native: invalid %s: %s\n", name, s);
+    char *e = NULL; errno = 0; double v = strtod(s, &e);
+    if (errno || !e || *e || !isfinite(v)) {
+        fprintf(stderr, "NKTouch: invalid %s: %s\n", name, s); return -1;
+    }
+    *out = v; return 0;
+}
+static int parse_long(const char *s, const char *name, long lo, long hi, long *out) {
+    char *e = NULL; errno = 0; long v = strtol(s, &e, 10);
+    if (errno || !e || *e || v < lo || v > hi) {
+        fprintf(stderr, "NKTouch: invalid %s: %s\n", name, s); return -1;
+    }
+    *out = v; return 0;
+}
+static int validate_text(const char *s) {
+    size_t n = strlen(s);
+    if (n > MAX_TEXT || strchr(s, '\r') || strchr(s, '\n') || strstr(s, ";;")) {
+        fprintf(stderr, "NKTouch: text must be <= %d bytes and cannot contain CR/LF or ';;'\n", MAX_TEXT);
         return -1;
     }
-    *out = v;
     return 0;
 }
-
-static int parse_ms(const char *s, int *out) {
-    char *end = NULL;
-    errno = 0;
-    long v = strtol(s, &end, 10);
-    if (errno || !end || *end != '\0' || v < 0 || v > 300000) {
-        fprintf(stderr, "NKTouch native: invalid ms: %s (0..300000)\n", s);
-        return -1;
-    }
-    *out = (int)v;
-    return 0;
-}
-
-static int scale_coord(double v, const char *name, int *scaled) {
-    if (v < 0.0 || v > 9999.9) {
-        fprintf(stderr, "NKTouch native: %s out of protocol range: %.3f\n", name, v);
-        return -1;
-    }
-    long n = lround(v * 10.0);
-    if (n < 0 || n > 99999) {
-        fprintf(stderr, "NKTouch native: %s cannot be encoded: %.3f\n", name, v);
-        return -1;
-    }
-    *scaled = (int)n;
-    return 0;
-}
-
 static int connect_core(void) {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) {
-        fail_errno("socket");
-        return -1;
-    }
-
+    if (fd < 0) { perror("NKTouch socket"); return -1; }
 #ifdef SO_NOSIGPIPE
-    int one = 1;
-    (void)setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+    int one = 1; (void)setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
 #endif
-
-    struct timeval tv;
-    tv.tv_sec = NK_RECV_TIMEOUT_SEC;
-    tv.tv_usec = 0;
+    struct timeval tv = {3, 0};
     (void)setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     (void)setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(NK_PORT);
-    if (inet_pton(AF_INET, NK_HOST, &addr.sin_addr) != 1) {
-        fprintf(stderr, "NKTouch native: invalid core address\n");
-        close(fd);
-        return -1;
-    }
-
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
-        fprintf(stderr, "NKTouch native: cannot connect to %s:%d: %s\n",
-                NK_HOST, NK_PORT, strerror(errno));
-        close(fd);
-        return -1;
+    struct sockaddr_in a; memset(&a, 0, sizeof(a));
+    a.sin_family = AF_INET; a.sin_port = htons(PORT);
+    (void)inet_pton(AF_INET, "127.0.0.1", &a.sin_addr);
+    if (connect(fd, (struct sockaddr *)&a, sizeof(a)) != 0) {
+        fprintf(stderr, "NKTouch: cannot connect 127.0.0.1:%d: %s\n", PORT, strerror(errno));
+        close(fd); return -1;
     }
     return fd;
 }
-
-static int send_all(int fd, const char *buf, size_t len) {
-    size_t sent = 0;
-    while (sent < len) {
-        ssize_t n = send(fd, buf + sent, len - sent, 0);
-        if (n < 0) {
-            if (errno == EINTR) continue;
-            fail_errno("send");
-            return -1;
-        }
-        if (n == 0) {
-            fprintf(stderr, "NKTouch native: socket closed while sending\n");
-            return -1;
-        }
-        sent += (size_t)n;
+static int send_all(int fd, const char *p, size_t n) {
+    while (n) {
+        ssize_t w = send(fd, p, n, 0);
+        if (w < 0) { if (errno == EINTR) continue; perror("NKTouch send"); return -1; }
+        if (!w) return -1;
+        p += w; n -= (size_t)w;
     }
     return 0;
 }
-
 static int recv_line(int fd, char *buf, size_t cap) {
-    if (cap < 2) return -1;
-    size_t used = 0;
-    while (used + 1 < cap) {
-        ssize_t n = recv(fd, buf + used, 1, 0);
-        if (n < 0) {
-            if (errno == EINTR) continue;
-            fprintf(stderr, "NKTouch native: core response timeout/error: %s\n", strerror(errno));
-            return -1;
-        }
-        if (n == 0) break;
-        if (buf[used++] == '\n') break;
+    size_t i = 0;
+    while (i + 1 < cap) {
+        ssize_t r = recv(fd, buf + i, 1, 0);
+        if (r < 0) { if (errno == EINTR) continue; perror("NKTouch recv"); return -1; }
+        if (!r) break;
+        if (buf[i++] == '\n') break;
     }
-    buf[used] = '\0';
-    return used ? 0 : -1;
+    buf[i] = 0;
+    while (i && (buf[i-1] == '\n' || buf[i-1] == '\r')) buf[--i] = 0;
+    return i ? 0 : -1;
 }
-
-static void trim_line(char *s) {
-    size_t n = strlen(s);
-    while (n > 0 && (s[n - 1] == '\r' || s[n - 1] == '\n')) {
-        s[--n] = '\0';
-    }
+static char *payload(char *r) {
+    if (!strncmp(r, "0;;", 3)) return r + 3;
+    return r[0] == '0' ? r + 1 : r;
 }
-
-static char *response_payload(char *response) {
-    if (strncmp(response, "0;;", 3) == 0) return response + 3;
-    if (response[0] == '0') return response + 1;
-    return response;
-}
-
-static int send_task_response(int fd, int task, const char *payload,
-                              char *response, size_t response_cap) {
-    char packet[1024];
-    int n = snprintf(packet, sizeof(packet), "%02d%s\r\n", task, payload ? payload : "");
-    if (n <= 0 || (size_t)n >= sizeof(packet)) {
-        fprintf(stderr, "NKTouch native: task payload too long\n");
-        return -1;
-    }
-    if (send_all(fd, packet, (size_t)n) != 0) return -1;
-    if (recv_line(fd, response, response_cap) != 0) return -1;
-    trim_line(response);
-    if (response[0] != '0') {
-        fprintf(stderr, "NKTouch native: core rejected task %02d: %s\n", task, response);
-        return -1;
-    }
+static int request(int task, const char *body, char *reply, size_t reply_cap) {
+    int fd = connect_core(); if (fd < 0) return -1;
+    size_t len = strlen(body ? body : ""), cap = len + 16;
+    char *packet = malloc(cap);
+    if (!packet) { close(fd); return -1; }
+    int n = snprintf(packet, cap, "%02d%s\r\n", task, body ? body : "");
+    int ok = (n > 0 && (size_t)n < cap) ? send_all(fd, packet, (size_t)n) : -1;
+    free(packet);
+    if (!ok) ok = recv_line(fd, reply, reply_cap);
+    close(fd);
+    if (ok) return -1;
+    if (reply[0] != '0') { fprintf(stderr, "NKTouch: core error: %s\n", reply); return -1; }
     return 0;
 }
-
-static int send_touch(int fd, int type, int finger, double x, double y) {
-    if (type < TOUCH_UP || type > TOUCH_MOVE || finger < 0 || finger > 19) {
-        fprintf(stderr, "NKTouch native: invalid touch event\n");
-        return -1;
-    }
-
-    int sx = 0, sy = 0;
-    if (scale_coord(x, "x", &sx) != 0 || scale_coord(y, "y", &sy) != 0) return -1;
-
-    // Upstream format:
-    // task(2) + count(1) + type(1) + finger(2) + x*10(5) + y*10(5) + CRLF
-    char packet[64];
-    int n = snprintf(packet, sizeof(packet), "101%d%02d%05d%05d\r\n",
-                     type, finger, sx, sy);
-    if (n <= 0 || (size_t)n >= sizeof(packet)) return -1;
-    return send_all(fd, packet, (size_t)n);
+static int action(int task, const char *body) {
+    char r[4096];
+    if (request(task, body, r, sizeof(r))) return 5;
+    puts("ok"); return 0;
 }
-
-static long long monotonic_us(void) {
-    struct timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
-    return (long long)ts.tv_sec * 1000000LL + ts.tv_nsec / 1000LL;
+static int query(int task, const char *body) {
+    char r[32768];
+    if (request(task, body, r, sizeof(r))) return 5;
+    puts(payload(r)); return 0;
 }
-
-static void sleep_us_safe(long long us) {
+static int coord(double v, int *out) {
+    if (v < 0 || v > 9999.9) return -1;
+    long n = lround(v * 10.0); if (n < 0 || n > 99999) return -1;
+    *out = (int)n; return 0;
+}
+static int touch(int fd, int type, double x, double y) {
+    int sx, sy; char p[64];
+    if (coord(x, &sx) || coord(y, &sy)) { fprintf(stderr, "NKTouch: coordinate out of range\n"); return -1; }
+    int n = snprintf(p, sizeof(p), "101%d%02d%05d%05d\r\n", type, FINGER, sx, sy);
+    return (n > 0 && (size_t)n < sizeof(p)) ? send_all(fd, p, (size_t)n) : -1;
+}
+static long long now_us(void) {
+    struct timespec t; if (clock_gettime(CLOCK_MONOTONIC, &t)) return 0;
+    return (long long)t.tv_sec * 1000000LL + t.tv_nsec / 1000LL;
+}
+static void sleep_us(long long us) {
     if (us <= 0) return;
-    struct timespec req;
-    req.tv_sec = (time_t)(us / 1000000LL);
-    req.tv_nsec = (long)((us % 1000000LL) * 1000LL);
-    while (nanosleep(&req, &req) != 0 && errno == EINTR) {}
+    struct timespec t = {(time_t)(us/1000000LL), (long)((us%1000000LL)*1000LL)};
+    while (nanosleep(&t, &t) && errno == EINTR) {}
 }
-
-static void sleep_until_us(long long target) {
-    long long now = monotonic_us();
-    if (target > now) sleep_us_safe(target - now);
+static int tap_cmd(int ac, char **av, int hold) {
+    if (ac != (hold ? 3 : 2)) return 2;
+    double x,y; long ms = 45;
+    if (parse_double(av[0],"x",&x) || parse_double(av[1],"y",&y)) return 2;
+    if (hold && parse_long(av[2],"ms",0,300000,&ms)) return 2;
+    int fd=connect_core(); if(fd<0)return 4;
+    int ok=touch(fd,TOUCH_DOWN,x,y); if(!ok){sleep_us(ms*1000LL);ok=touch(fd,TOUCH_UP,x,y);}
+    close(fd); if(ok)return 5; puts("ok"); return 0;
 }
-
-static int cmd_tap(int argc, char **argv) {
-    if (argc != 2) return 2;
-    double x, y;
-    if (parse_double(argv[0], "x", &x) || parse_double(argv[1], "y", &y)) return 2;
-    int fd = connect_core();
-    if (fd < 0) return 4;
-    int ok = send_touch(fd, TOUCH_DOWN, NK_FINGER, x, y);
-    if (ok == 0) {
-        sleep_us_safe(45000);
-        ok = send_touch(fd, TOUCH_UP, NK_FINGER, x, y);
+static int swipe_cmd(int ac, char **av) {
+    if(ac!=5)return 2;
+    double x1,y1,x2,y2;
+    long ms;
+    if(parse_double(av[0],"x1",&x1)||parse_double(av[1],"y1",&y1)||
+       parse_double(av[2],"x2",&x2)||parse_double(av[3],"y2",&y2)||
+       parse_long(av[4],"ms",32,300000,&ms)) return 2;
+    int fd=connect_core(); if(fd<0)return 4;
+    if(touch(fd,TOUCH_DOWN,x1,y1)){close(fd);return 5;}
+    int steps=(int)(ms/16); if(steps<2)steps=2; if(steps>120)steps=120;
+    long long start=now_us(), dur=ms*1000LL;
+    for(int i=1;i<steps;i++){
+        long long target=start+(dur*i)/steps, wait=target-now_us(); if(wait>0)sleep_us(wait);
+        double t=(double)i/steps;
+        if(touch(fd,TOUCH_MOVE,x1+(x2-x1)*t,y1+(y2-y1)*t)){close(fd);return 5;}
     }
-    close(fd);
-    if (ok != 0) return 5;
-    puts("ok");
-    return 0;
+    long long wait=start+dur-now_us(); if(wait>0)sleep_us(wait);
+    int ok=touch(fd,TOUCH_UP,x2,y2); close(fd); if(ok)return 5; puts("ok"); return 0;
 }
-
-static int cmd_hold(int argc, char **argv) {
-    if (argc != 3) return 2;
-    double x, y;
-    int ms;
-    if (parse_double(argv[0], "x", &x) || parse_double(argv[1], "y", &y) || parse_ms(argv[2], &ms)) return 2;
-    int fd = connect_core();
-    if (fd < 0) return 4;
-    int ok = send_touch(fd, TOUCH_DOWN, NK_FINGER, x, y);
-    if (ok == 0) {
-        sleep_us_safe((long long)ms * 1000LL);
-        ok = send_touch(fd, TOUCH_UP, NK_FINGER, x, y);
-    }
-    close(fd);
-    if (ok != 0) return 5;
-    puts("ok");
-    return 0;
+static int text_action(int sub, const char *text) {
+    if(validate_text(text)) return 2;
+    size_t cap=strlen(text)+32; char *b=malloc(cap); if(!b)return 5;
+    int n=snprintf(b,cap,"%d;;%s",sub,text);
+    int rc=(n>0&&(size_t)n<cap)?action(TASK_TEXT,b):5; free(b); return rc;
 }
-
-static int cmd_swipe(int argc, char **argv) {
-    if (argc != 5) return 2;
-    double x1, y1, x2, y2;
-    int ms;
-    if (parse_double(argv[0], "x1", &x1) || parse_double(argv[1], "y1", &y1) ||
-        parse_double(argv[2], "x2", &x2) || parse_double(argv[3], "y2", &y2) ||
-        parse_ms(argv[4], &ms)) return 2;
-    if (ms < 32) ms = 32;
-
-    int fd = connect_core();
-    if (fd < 0) return 4;
-    if (send_touch(fd, TOUCH_DOWN, NK_FINGER, x1, y1) != 0) {
-        close(fd);
-        return 5;
-    }
-
-    int steps = ms / 16;
-    if (steps < 2) steps = 2;
-    if (steps > 120) steps = 120;
-    long long start = monotonic_us();
-    long long duration_us = (long long)ms * 1000LL;
-
-    for (int i = 1; i < steps; ++i) {
-        double t = (double)i / (double)steps;
-        sleep_until_us(start + (duration_us * i) / steps);
-        double x = x1 + (x2 - x1) * t;
-        double y = y1 + (y2 - y1) * t;
-        if (send_touch(fd, TOUCH_MOVE, NK_FINGER, x, y) != 0) {
-            close(fd);
-            return 5;
-        }
-    }
-
-    sleep_until_us(start + duration_us);
-    int ok = send_touch(fd, TOUCH_UP, NK_FINGER, x2, y2);
-    close(fd);
-    if (ok != 0) return 5;
-    puts("ok");
-    return 0;
+static int number_action(int sub, const char *s, const char *name, long lo, long hi) {
+    long v; char b[64]; if(parse_long(s,name,lo,hi,&v))return 2;
+    (void)snprintf(b,sizeof(b),"%d;;%ld",sub,v); return action(TASK_TEXT,b);
 }
-
-static int cmd_simple_task(int task, const char *payload) {
-    int fd = connect_core();
-    if (fd < 0) return 4;
-    char response[1024];
-    int ok = send_task_response(fd, task, payload, response, sizeof(response));
-    close(fd);
-    if (ok != 0) return 5;
-    puts("ok");
-    return 0;
-}
-
-static int cmd_screen(void) {
-    int fd = connect_core();
-    if (fd < 0) return 4;
-    char response[1024];
-    int ok = send_task_response(fd, TASK_DEVICE_INFO, "1", response, sizeof(response));
-    close(fd);
-    if (ok != 0) return 5;
-    char *payload = response_payload(response);
-    printf("{\"ok\":true,\"result\":\"%s\"}\n", payload);
-    return 0;
-}
-
-static int cmd_foreground(void) {
-    int fd = connect_core();
-    if (fd < 0) return 4;
-    char response[1024];
-    int ok = send_task_response(fd, TASK_DEVICE_INFO, "32", response, sizeof(response));
-    close(fd);
-    if (ok != 0) return 5;
-
-    char *payload = response_payload(response);
-    char *sep = strstr(payload, ";;");
-    if (sep) *sep = '\0';
-    printf("{\"ok\":true,\"result\":\"%s\"}\n", payload);
-    return 0;
+static int device_query(int sub) { char b[16]; (void)snprintf(b,sizeof(b),"%d",sub); return query(TASK_DEVICE,b); }
+static int foreground(void) {
+    char r[4096]; if(request(TASK_DEVICE,"32",r,sizeof(r)))return 5;
+    char *p=payload(r), *s=strstr(p,";;"); if(s)*s=0; puts(p); return 0;
 }
 
 int main(int argc, char **argv) {
-    signal(SIGPIPE, SIG_IGN);
-
-    if (argc < 2) {
-        usage(stderr);
-        return 2;
-    }
-
-    const char *cmd = argv[1];
-    if (strcmp(cmd, "version") == 0) {
-        printf("%s\n", NK_VERSION);
-        return 0;
-    }
-    if (strcmp(cmd, "ping") == 0) {
-        int fd = connect_core();
-        if (fd < 0) return 4;
-        close(fd);
-        puts("ok");
-        return 0;
-    }
-    if (strcmp(cmd, "tap") == 0) {
-        int rc = cmd_tap(argc - 2, argv + 2);
-        if (rc == 2) fprintf(stderr, "Usage: nktouch-native tap <x> <y>\n");
-        return rc;
-    }
-    if (strcmp(cmd, "hold") == 0) {
-        int rc = cmd_hold(argc - 2, argv + 2);
-        if (rc == 2) fprintf(stderr, "Usage: nktouch-native hold <x> <y> <ms>\n");
-        return rc;
-    }
-    if (strcmp(cmd, "swipe") == 0) {
-        int rc = cmd_swipe(argc - 2, argv + 2);
-        if (rc == 2) fprintf(stderr, "Usage: nktouch-native swipe <x1> <y1> <x2> <y2> <ms>\n");
-        return rc;
-    }
-    if (strcmp(cmd, "openapp") == 0) {
-        if (argc != 3 || argv[2][0] == '\0' || strlen(argv[2]) > 500) {
-            fprintf(stderr, "Usage: nktouch-native openapp <bundle-id>\n");
-            return 2;
-        }
-        return cmd_simple_task(TASK_OPEN_APP, argv[2]);
-    }
-    if (strcmp(cmd, "record") == 0) {
-        if (argc != 3) {
-            fprintf(stderr, "Usage: nktouch-native record start|stop\n");
-            return 2;
-        }
-        if (strcmp(argv[2], "start") == 0) return cmd_simple_task(TASK_RECORD_START, "");
-        if (strcmp(argv[2], "stop") == 0) return cmd_simple_task(TASK_RECORD_STOP, "");
-        fprintf(stderr, "Usage: nktouch-native record start|stop\n");
-        return 2;
-    }
-    if (strcmp(cmd, "stop") == 0) {
-        if (argc != 2) {
-            fprintf(stderr, "Usage: nktouch-native stop\n");
-            return 2;
-        }
-        return cmd_simple_task(TASK_FORCE_STOP, "");
-    }
-    if (strcmp(cmd, "screen") == 0) {
-        if (argc != 2) {
-            fprintf(stderr, "Usage: nktouch-native screen\n");
-            return 2;
-        }
-        return cmd_screen();
-    }
-    if (strcmp(cmd, "foreground") == 0) {
-        if (argc != 2) {
-            fprintf(stderr, "Usage: nktouch-native foreground\n");
-            return 2;
-        }
-        return cmd_foreground();
-    }
-
-    usage(stderr);
-    return 2;
+    signal(SIGPIPE,SIG_IGN);
+    if(argc<2){usage(stderr);return 2;}
+    const char *c=argv[1];
+    if(!strcmp(c,"version")){if(argc!=2)return 2;puts(NK_VERSION);return 0;}
+    if(!strcmp(c,"ping")){if(argc!=2)return 2;int fd=connect_core();if(fd<0)return 4;close(fd);puts("ok");return 0;}
+    if(!strcmp(c,"tap"))return tap_cmd(argc-2,argv+2,0);
+    if(!strcmp(c,"hold"))return tap_cmd(argc-2,argv+2,1);
+    if(!strcmp(c,"swipe"))return swipe_cmd(argc-2,argv+2);
+    if(!strcmp(c,"openapp")){if(argc!=3||!argv[2][0]||strlen(argv[2])>500)return 2;return action(TASK_OPEN_APP,argv[2]);}
+    if(!strcmp(c,"record")){if(argc!=3)return 2;if(!strcmp(argv[2],"start"))return action(TASK_RECORD_START,"");if(!strcmp(argv[2],"stop"))return action(TASK_RECORD_STOP,"");return 2;}
+    if(!strcmp(c,"stop")){if(argc!=2)return 2;return action(TASK_FORCE_STOP,"");}
+    if(!strcmp(c,"text")){if(argc!=3)return 2;return text_action(1,argv[2]);}
+    if(!strcmp(c,"keyboard")){if(argc!=3)return 2;if(!strcmp(argv[2],"show"))return action(TASK_TEXT,"2;;1");if(!strcmp(argv[2],"hide"))return action(TASK_TEXT,"2;;0");return 2;}
+    if(!strcmp(c,"cursor")){if(argc!=3)return 2;return number_action(3,argv[2],"offset",-100000,100000);}
+    if(!strcmp(c,"delete")){if(argc!=3)return 2;return number_action(4,argv[2],"count",0,100000);}
+    if(!strcmp(c,"paste")){if(argc!=3)return 2;return text_action(5,argv[2]);}
+    if(!strcmp(c,"clipboard-get")){if(argc!=2)return 2;return query(TASK_TEXT,"6");}
+    if(!strcmp(c,"clipboard-set")){if(argc!=3)return 2;return text_action(7,argv[2]);}
+    if(!strcmp(c,"screenshot")){if(argc!=2)return 2;return query(TASK_SCREENSHOT,"");}
+    if(!strcmp(c,"screen")){if(argc!=2)return 2;return device_query(1);}
+    if(!strcmp(c,"foreground")){if(argc!=2)return 2;return foreground();}
+    if(!strcmp(c,"orientation")){if(argc!=2)return 2;return device_query(2);}
+    if(!strcmp(c,"scale")){if(argc!=2)return 2;return device_query(3);}
+    if(!strcmp(c,"device")){if(argc!=2)return 2;return device_query(30);}
+    if(!strcmp(c,"battery")){if(argc!=2)return 2;return device_query(31);}
+    if(!strcmp(c,"runtime")){if(argc!=2)return 2;return device_query(32);}
+    usage(stderr);return 2;
 }
