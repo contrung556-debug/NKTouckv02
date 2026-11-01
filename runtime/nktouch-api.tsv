@@ -50,3 +50,12 @@ nk.isDirect|nk.isDirect()|diagnostic|Check whether embedded direct nkcore is act
 nk.benchmark|nk.benchmark(iterations)|diagnostic|Compare direct reads with CLI reads|local r = must(nk.benchmark(20))
 nk.stress|nk.stress(iterations)|diagnostic|Run bounded read-only stress test|local r = must(nk.stress(100))
 nk.installAutoTouchCompat|nk.installAutoTouchCompat()|compat|Install a small AutoTouch-compatible global API shim|nk.installAutoTouchCompat()
+nk.http.request|nk.http.request(opts)|network|Explicit one-shot HTTP/HTTPS request; no automatic retry|local r,e,c=nk.http.request{method="GET",url="https://example.com",timeout_ms=5000}
+nk.http.get|nk.http.get(url, opts)|network|HTTP GET with bounded response size|local r=assert(nk.http.get("https://example.com"))
+nk.http.post|nk.http.post(url, bodyOrTable, opts)|network|HTTP POST string body or JSON table|local r=assert(nk.http.post("https://example.com/api",{ok=true},{decode_json=true}))
+nk.http.download|nk.http.download(url, path, opts)|network|Stream response to a file without keeping it in Lua memory|assert(nk.http.download("https://example.com/file","/var/mobile/file.bin"))
+nk.http.upload|nk.http.upload(url, path, opts)|network|Send a local file as the request body|assert(nk.http.upload("https://example.com/upload","/var/mobile/shot.jpg",{headers={["Content-Type"]="image/jpeg"}}))
+nk.json.encode|nk.json.encode(value)|json|Encode Lua values as JSON with bounded nesting|local s=assert(nk.json.encode({ok=true}))
+nk.json.decode|nk.json.decode(text)|json|Decode JSON with explicit json.null sentinel|local t=assert(nk.json.decode('{"ok":true}'))
+nk.json.array|nk.json.array(table)|json|Tag an empty or explicit Lua table as JSON array|local s=assert(nk.json.encode({items=nk.json.array({})}))
+nk.json.object|nk.json.object(table)|json|Tag a Lua table as JSON object|local s=assert(nk.json.encode(nk.json.object({})))
