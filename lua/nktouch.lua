@@ -1,8 +1,9 @@
--- NKTouch v0.6.1 Stable Lua compatibility/helper API
+-- NKTouch v0.6.2 standalone Lua compatibility/helper API
 -- SPDX-License-Identifier: GPL-3.0-or-later
 local M={}
-M.VERSION="0.6.1"
+M.VERSION="0.6.2"
 M.NATIVE_VERSION="0.6.0"
+M.LUA_VERSION="5.4.9"
 local CTL="/var/jb/usr/bin/nktouchctl"
 
 local function shq(s)
@@ -164,9 +165,11 @@ function M.installAutoTouchCompat()
   _G.setTopStatus=M.status
   _G.hideTopStatus=M.hide
   _G.tap=M.tap
+  _G.swipe=M.swipe
   _G.inputText=M.inputText
   _G.log=M.log
   _G.usleep=function(us) return M.sleep(math.floor((tonumber(us) or 0)/1000)) end
+  _G.sleep=function(sec) return M.sleep(math.floor((tonumber(sec) or 0)*1000)) end
   _G.getColor=function(x,y)
     local c=M.getColor(x,y)
     if not c then return nil end
