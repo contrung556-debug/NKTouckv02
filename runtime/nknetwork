@@ -1,0 +1,64 @@
+#!/var/jb/bin/sh
+set -u
+VERSION="0.7.4"
+HTTP="/var/jb/usr/libexec/nktouch/nkhttp"
+LUA="/var/jb/usr/bin/nktouch-lua"
+LIB="/var/jb/usr/share/nktouch/lua"
+
+need(){ [ -x "$HTTP" ] || { echo "NKTouch Network: missing native HTTP helper" >&2; exit 4; }; [ -x "$LUA" ] || { echo "NKTouch Network: missing Lua runtime" >&2; exit 4; }; }
+
+cmd="${1:-help}"; [ "$#" -gt 0 ] && shift || true
+case "$cmd" in
+  version) echo "$VERSION" ;;
+  doctor)
+    need
+    [ -f "$LIB/nkjson.lua" ] || { echo "json=missing"; exit 4; }
+    [ -f "$LIB/nknet.lua" ] || { echo "network_lua=missing"; exit 4; }
+    "$HTTP" version >/dev/null 2>&1 || { echo "native_http=failed"; exit 7; }
+    "$LUA" --plain -e 'local j=require("nkjson"); local s,e=j.encode({ok=true,n=7}); assert(s,e); local t,d=j.decode(s); assert(t,d); assert(t.ok==true and t.n==7); local n=require("nknet"); assert(n.VERSION=="0.7.4")' || { echo "network_lua=failed"; exit 7; }
+    echo "network=$VERSION"
+    echo "native_http=$($HTTP version 2>/dev/null || echo unknown)"
+    echo "json=ok"
+    echo "mode=on-demand"
+    echo "tls=system-validation"
+    echo "max_request_mib=16"
+    echo "max_response_mib=32"
+    echo "result=PASS"
+    ;;
+  request)
+    [ "$#" -ge 2 ] && [ "$#" -le 3 ] || { echo "usage: nktouchctl network request <METHOD> <URL> [timeout-ms]" >&2; exit 2; }
+    need
+    method="$1"; url="$2"; timeout="${3:-15000}"
+    exec "$LUA" --plain -e '
+      local net=require("nknet")
+      local r,e,c=net.request{method=arg[1],url=arg[2],timeout_ms=tonumber(arg[3]) or 15000}
+      if not r then io.stderr:write((c or "NETWORK")..": "..tostring(e).."\n"); os.exit(7) end
+      io.write("status="..tostring(r.status).."\n")
+      io.write("bytes="..tostring(r.bytes).."\n")
+      if r.content_type then io.write("content_type="..r.content_type.."\n") end
+      if r.body then io.write(r.body) end
+    ' "$method" "$url" "$timeout"
+    ;;
+  help|-h|--help)
+    cat <<'HELP'
+NKTouch v0.7.4 Network/API
+
+  nktouchctl network doctor
+  nktouchctl network request <METHOD> <URL> [timeout-ms]
+
+Lua API (recommended):
+  nk.http.get(url, opts)
+  nk.http.post(url, bodyOrTable, opts)
+  nk.http.request{method=..., url=..., headers=..., body/json/body_file=..., timeout_ms=...}
+  nk.http.download(url, path, opts)
+  nk.http.upload(url, path, opts)
+  nk.json.encode(value)
+  nk.json.decode(text)
+
+Network calls are explicit/on-demand only. Authorization headers and request bodies are
+written to private temporary files and are not placed in nkhttp process arguments.
+HTTPS uses iOS system certificate validation. There is no insecure TLS bypass.
+HELP
+    ;;
+  *) echo "NKTouch Network: unknown command: $cmd" >&2; exit 2 ;;
+esac
