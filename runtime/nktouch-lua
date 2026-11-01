@@ -1,0 +1,20 @@
+#!/var/jb/bin/sh
+set -eu
+
+LUA="/var/jb/usr/libexec/nktouch/lua54"
+LIB="/var/jb/usr/share/nktouch/lua"
+
+[ -x "$LUA" ] || { echo "NKTouch: bundled Lua runtime missing: $LUA" >&2; exit 4; }
+
+export LUA_PATH="$LIB/?.lua;$LIB/?/init.lua;;"
+
+if [ "${1:-}" = "--plain" ]; then
+    shift
+    exec "$LUA" "$@"
+fi
+
+# Default mode preloads NKTouch and installs the small AutoTouch compatibility layer.
+# Scripts can use either the global `nk` object or helpers such as tap()/inputText()/usleep().
+exec "$LUA" \
+  -e 'local m=require("nktouch"); _G.nk=m; m.installAutoTouchCompat()' \
+  "$@"
