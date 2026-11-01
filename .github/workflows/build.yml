@@ -1,1 +1,124 @@
+name: Build NKTouch v0.2
 
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-rootless:
+    runs-on: macos-latest
+    env:
+      UPSTREAM_REPO: https://github.com/epic0001/zxtouchrootless.git
+      UPSTREAM_SHA: a602da112ef1a688fb2601424443abb1ccc28c63
+      NK_VERSION: 0.2.0
+
+    steps:
+      - name: Checkout NKTouch v0.2 layer
+        uses: actions/checkout@v4
+
+      - name: Fetch pinned GPL automation core
+        run: |
+          git init upstream
+          git -C upstream remote add origin "$UPSTREAM_REPO"
+          git -C upstream fetch --depth 1 origin "$UPSTREAM_SHA"
+          git -C upstream checkout --detach FETCH_HEAD
+          git -C upstream submodule update --init --recursive
+          echo "Pinned upstream: $(git -C upstream rev-parse HEAD)"
+
+      - name: Apply NKTouch v0.2 layer
+        run: bash scripts/prepare-v02.sh upstream
+
+      - name: Validate NKTouch helper sources
+        run: |
+          bash -n runtime/nktouchctl
+          python3 -m py_compile runtime/nktouchctl.py
+          grep -q 'NKStatusOverlayStart' upstream/pccontrol/Tweak.xm
+          grep -q 'NKStatusOverlay.xm' upstream/pccontrol/Makefile
+
+      - name: Run upstream Python tests
+        working-directory: upstream
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Build iOS application
+        working-directory: upstream
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project zxtouch/zxtouch.xcodeproj \
+            -target zxtouch \
+            -sdk iphoneos \
+            -configuration Release \
+            SYMROOT="$(pwd)/app-build" \
+            ONLY_ACTIVE_ARCH=NO \
+            ARCHS="arm64 arm64e" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            PRODUCT_BUNDLE_IDENTIFIER=com.zjx.zxtouch \
+            2>&1 | tee xcode_build.log
+
+      - name: Brand and sign application
+        working-directory: upstream
+        run: |
+          APP=$(find ./app-build -name "zxtouch.app" -type d | head -1)
+          test -n "$APP"
+          echo "App: $APP"
+
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName NKTouch" "$APP/Info.plist" 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string NKTouch" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName NKTouch" "$APP/Info.plist" 2>/dev/null || true
+
+          brew install ldid 2>/dev/null || true
+          ldid -Szxtouch/app-entitlements.plist "$APP/zxtouch"
+
+          EXT="$APP/PlugIns/shortcutext.appex/shortcutext"
+          if [ -f "$EXT" ]; then
+            ldid -Szxtouch/shortcutext-entitlements.plist "$EXT"
+          fi
+
+          rm -rf layout/Applications/zxtouch.app
+          cp -r "$APP" layout/Applications/zxtouch.app
+
+      - name: Setup rootless Theos
+        working-directory: upstream
+        run: |
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/roothide/theos/master/bin/install-theos)"
+        env:
+          THEOS: ${{ github.workspace }}/upstream/theos
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build NKTouch v0.2 rootless package
+        working-directory: upstream
+        run: make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
+        env:
+          THEOS: ${{ github.workspace }}/upstream/theos
+
+      - name: Inspect and collect .deb
+        working-directory: upstream
+        run: |
+          mkdir -p ../artifacts
+          DEB=$(ls -t packages/*.deb | head -1)
+          cp "$DEB" "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb"
+          dpkg-deb -I "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" || true
+          dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nktouchctl|NKStatus|nktouch.lua|zxtouch.app' || true
+          ls -lah ../artifacts
+
+      - name: Upload NKTouch v0.2 rootless deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: NKTouch-v0.2-rootless
+          path: artifacts/*.deb
+          if-no-files-found: error
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NKTouch-v0.2-build-logs
+          path: upstream/xcode_build.log
+          if-no-files-found: ignore
