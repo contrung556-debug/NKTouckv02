@@ -1,14 +1,16 @@
 #!/var/jb/bin/sh
 set -u
 
-VERSION="0.7.1"
+VERSION="0.7.2"
 CORE="/var/jb/usr/libexec/nktouch/nktouchctl-core"
 TASK="/var/jb/usr/bin/nktask"
 RECORDER="/var/jb/usr/bin/nkrecorder"
+EDITOR="/var/jb/usr/bin/nkeditor"
 
 need_core(){ [ -x "$CORE" ] || { echo "NKTouch v$VERSION: missing core runtime $CORE" >&2; exit 4; }; }
 need_task(){ [ -x "$TASK" ] || { echo "NKTouch v$VERSION: missing task engine $TASK" >&2; exit 4; }; }
 need_recorder(){ [ -x "$RECORDER" ] || { echo "NKTouch v$VERSION: missing Recorder V2 $RECORDER" >&2; exit 4; }; }
+need_editor(){ [ -x "$EDITOR" ] || { echo "NKTouch v$VERSION: missing Script Editor $EDITOR" >&2; exit 4; }; }
 
 cmd="${1:-help}"
 [ "$#" -gt 0 ] && shift || true
@@ -22,6 +24,10 @@ case "$cmd" in
     need_recorder
     exec "$RECORDER" "$@"
     ;;
+  editor|script)
+    need_editor
+    exec "$EDITOR" "$@"
+    ;;
   version)
     echo "$VERSION"
     ;;
@@ -32,6 +38,7 @@ case "$cmd" in
     rc=$?
     if [ -x "$TASK" ]; then echo "task-engine=$($TASK version 2>/dev/null || echo unknown)"; else echo "task-engine=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     if [ -x "$RECORDER" ]; then echo "recorder=$($RECORDER version 2>/dev/null || echo unknown)"; else echo "recorder=missing"; [ "$rc" -eq 0 ] && rc=4; fi
+    if [ -x "$EDITOR" ]; then echo "editor=$($EDITOR version 2>/dev/null || echo unknown)"; else echo "editor=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     exit "$rc"
     ;;
   doctor)
@@ -40,7 +47,8 @@ case "$cmd" in
     rc1=$?
     if [ -x "$TASK" ]; then "$TASK" doctor; rc2=$?; else echo task_engine=missing; rc2=4; fi
     if [ -x "$RECORDER" ]; then "$RECORDER" doctor; rc3=$?; else echo recorder=missing; rc3=4; fi
-    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ]
+    if [ -x "$EDITOR" ]; then "$EDITOR" doctor; rc4=$?; else echo editor=missing; rc4=4; fi
+    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ] && [ "$rc4" -eq 0 ]
     ;;
   selftest)
     need_core
@@ -48,11 +56,25 @@ case "$cmd" in
     rc1=$?
     if [ -x "$TASK" ]; then "$TASK" doctor >/tmp/nktask-selftest.$$ 2>&1; rc2=$?; cat /tmp/nktask-selftest.$$; rm -f /tmp/nktask-selftest.$$; else echo task_engine=missing; rc2=4; fi
     if [ -x "$RECORDER" ]; then "$RECORDER" doctor >/tmp/nkrecorder-selftest.$$ 2>&1; rc3=$?; cat /tmp/nkrecorder-selftest.$$; rm -f /tmp/nkrecorder-selftest.$$; else echo recorder=missing; rc3=4; fi
-    if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ]; then echo v7_result=PASS; exit 0; else echo v7_result=FAIL; exit 1; fi
+    if [ -x "$EDITOR" ]; then "$EDITOR" doctor >/tmp/nkeditor-selftest.$$ 2>&1; rc4=$?; cat /tmp/nkeditor-selftest.$$; rm -f /tmp/nkeditor-selftest.$$; else echo editor=missing; rc4=4; fi
+    if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ] && [ "$rc4" -eq 0 ]; then echo v7_result=PASS; exit 0; else echo v7_result=FAIL; exit 1; fi
     ;;
   help|-h|--help)
     cat <<'HELP'
-NKTouch v0.7.1 Recorder V2 + Script/Task Engine
+NKTouch v0.7.2 Script Editor + Recorder V2 + Task Engine
+
+Script Editor:
+  nktouchctl editor new <name> [blank|tap|image|color|ocr]
+  nktouchctl editor list
+  nktouchctl editor show <name>
+  nktouchctl editor edit <name>
+  nktouchctl editor append <name> <lua-code...>
+  nktouchctl editor check <name>
+  nktouchctl editor api [query]
+  nktouchctl editor complete [prefix]
+  nktouchctl editor snippet <api> [script-name]
+  nktouchctl editor run <name> [--timeout SEC] [-- args...]
+  nktouchctl editor status|pause|resume|stop|logs ...
 
 Task manager:
   nktouchctl task start <script.lua> [--timeout SEC] [-- args...]
@@ -72,10 +94,10 @@ Recorder V2:
   nktouchctl recorder list
   nktouchctl recorder doctor
 
-V7.1 keeps the V7.0 single-active-task safety rule. Recorder V2 converts
-real HID timing into editable Lua using nk.tap/nk.hold/nk.swipe/nk.sleep.
-Keyboard typing is replayed as recorded screen taps; text is not guessed.
-OCR remains on-demand only and is never started by the recorder.
+V7.2 keeps the V7.0 single-active-task safety rule and the V7.1 HID recorder.
+Editor-generated and imported scripts are syntax-checked before execution.
+API completion/help is local and does not need network access.
+OCR remains explicit/on-demand only; the editor never starts OCR in background.
 
 Existing V6.4 native/Lua commands remain available unchanged.
 HELP
