@@ -1,155 +1,186 @@
-# NKTouch v0.6.4 Hardened Direct Runtime
+# NKTouch v0.7.0 Script/Task Engine
 
-NKTouch v0.6.4 keeps the proven V6.3 direct Lua architecture and hardens the runtime before V7. The SpringBoard protocol and embedded `nkcore` remain unchanged; reliability improvements are added around direct read-only operations so we do not risk duplicate taps, swipes, app launches, or text input.
+NKTouch V7 starts with a deliberately small task-management layer instead of inventing a second flow language. Lua remains the automation language; V7.0 makes Lua scripts easier and safer to run, pause, resume, stop, inspect, and reuse.
 
-## What V6.4 adds
+## Product direction
 
-- Runtime version `0.6.4` on top of tested `nkcore 0.6.3`
-- Read-only direct calls classify errors as `CONNECT`, `TRANSPORT`, `TIMEOUT`, `NOT_FOUND`, `CORE`, `INVALID`, or `UNKNOWN`
-- Transient read-only transport failures reconnect/retry with a bounded count (`NKTOUCH_READ_RETRIES`, default 2, max 4)
-- Side-effecting calls remain single-attempt only: tap, hold, swipe, text, paste, app launch, clipboard write, toast, and post-detection taps are never auto-retried
-- `waitApp`, image/color waits, and OCR text waits inherit the hardened read primitives
-- `nktouchctl benchmark [N]` compares direct Lua reads with CLI subprocess reads
-- `nktouchctl stress [N]` performs repeated read-only socket calls and reports failures, throughput, and Lua memory delta
-- `selftest` now includes a small read-only direct stress probe
-- CI executes the V6.4 Lua helper on a host-built Lua+nkcore binary before cross-compiling for iOS
-- New V6.4 contract tests enforce retry safety and unchanged protocol IDs
+V7 is script-first:
+
+```text
+Recorder (later) -> Lua script -> Task Engine -> hardened Lua runtime -> nkcore -> SpringBoard core
+```
+
+Users who know Lua can write scripts directly. Recorder V2 will later generate the same Lua, so beginner and advanced users share one runtime instead of maintaining two automation engines.
+
+## V7.0 adds
+
+- Native `nktask` supervisor
+- Background Lua task execution
+- One active screen-control task at a time to prevent competing taps/swipes
+- `start`, `status`, `pause`, `resume`, `stop`, `list`, and `logs`
+- Optional wall-clock timeout per task
+- Timeout does not count time while the task is paused
+- Lua syntax validation with bundled `luac` before a task is started
+- Separate task state and log files under `/var/mobile/Library/NKTouch/tasks`
+- Completed task history retained by task ID
+- Task stdout/stderr captured to its own log
+- Status overlay updates for running/paused/completed/stopped/timeout/failure
+- Existing V6.4 hardened direct-Lua runtime retained unchanged
+- Existing safety rule retained: side-effecting native actions are never automatically retried
+- OCR remains an explicit on-demand API; V7.0 does not run OCR in the background
 
 ## Versions
 
 ```text
-NKTouch runtime: 0.6.4
-Native CLI:      0.6.0
-Embedded nkcore: 0.6.3
-Bundled Lua:     5.4.9
+NKTouch package/runtime: 0.7.0
+Task engine:             0.7.0
+V6.4 Lua API:            retained
+Native CLI:              0.6.0
+Embedded nkcore:         0.6.3
+Bundled Lua:             5.4.9
 ```
 
-Keeping `nkcore` at 0.6.3 is intentional: V6.3 passed device testing, including direct color reads and `selftest`. V6.4 hardens the Lua runtime around that tested native protocol implementation instead of changing the core again.
+## Task commands
 
-## Architecture
+Start a script:
+
+```sh
+nktouchctl task start /var/mobile/test.lua
+```
+
+Start with a timeout and script arguments:
+
+```sh
+nktouchctl task start /var/mobile/test.lua --timeout 3600 -- arg1 arg2
+```
+
+Inspect the active task:
+
+```sh
+nktouchctl task status
+```
+
+Pause and resume:
+
+```sh
+nktouchctl task pause
+nktouchctl task resume
+```
+
+Stop:
+
+```sh
+nktouchctl task stop
+```
+
+Task history and logs:
+
+```sh
+nktouchctl task list
+nktouchctl task logs TASK_ID 100
+nktouchctl task status TASK_ID
+```
+
+`nktask ...` can also be called directly with the same subcommands.
+
+## State model
+
+A task moves through these states:
 
 ```text
-.lua script
-   |
-   v
-bundled Lua 5.4.9
-   |
-   +--> nktouch.lua 0.6.4
-   |       |
-   |       +--> read-only: classify -> bounded retry/reconnect
-   |       +--> side effects: exactly one attempt
-   |       |
-   |       v
-   +--> embedded nkcore 0.6.3
-           |
-           v
-     TCP 127.0.0.1:6000
-           |
-           v
-     ZXTouch GPL core
+starting -> running -> success
+                  -> failed
+                  -> timeout
+running -> paused -> running
+running/paused -> stopping -> stopped
 ```
 
-## First device test
+Each task stores:
+
+```text
+id
+state
+script
+log
+child_pid
+started_at
+ended_at
+timeout_sec
+exit_code
+signal
+```
+
+## Why only one active task?
+
+The restriction is intentional for V7.0. Two scripts controlling the same screen could tap different buttons, type into the wrong field, or fight over the foreground app. Finished task history can contain many tasks, but only one screen-control task may be active.
+
+## OCR policy
+
+OCR is not a service or watcher in V7.0. A script calls it only when needed:
+
+```lua
+local text = nk.ocr(100, 200, 500, 120)
+```
+
+No task-manager loop automatically invokes OCR. This keeps RAM/CPU use predictable and leaves the decision to script authors.
+
+## Existing V6.4 capabilities retained
+
+- Tap / hold / swipe
+- App launch / foreground / wait-app
+- Text / keyboard / cursor / delete / paste / clipboard
+- Screenshot
+- Image matching and tap-image
+- Color read/search/wait/tap
+- OCR and wait-text when explicitly called
+- Direct embedded `nkcore`
+- Read-only bounded reconnect/retry
+- No automatic retry for side-effecting actions
+- `doctor`, `selftest`, `benchmark`, `stress`
+
+## Health check
 
 ```sh
 nktouchctl backend
-nktouchctl lua-version
 nktouchctl doctor full
 nktouchctl selftest
+nktouchctl task doctor
 ```
 
-Healthy output should include:
+The V7 wrapper reports the task-engine health in addition to the existing V6.4 runtime checks.
 
-```text
-version=0.6.4
-lua_api=ok:0.6.3:direct-hardened
-lua_direct=ok
-lua_stress=ok
-result=PASS
-```
+## Roadmap after V7.0
 
-## Benchmark
+- V7.1 Recorder V2: record touch/text/timing and generate Lua
+- V7.2 Script editor: syntax check, autocomplete, run controls, inline API help
+- V7.3 Import/export task bundles
+- V7.4 HTTP/HTTPS + JSON networking
 
-```sh
-nktouchctl benchmark 20
-```
-
-It reports total/per-call time for direct Lua and CLI reads plus the observed speedup and Lua memory delta. The benchmark only reads screen metadata; it does not tap or type.
-
-## Stress test
-
-```sh
-nktouchctl stress 100
-```
-
-The stress test repeatedly reads screen/foreground state and reports:
-
-```text
-iterations=100
-failures=0
-elapsed_ms=...
-ops_per_sec=...
-memory_delta_kb=...
-```
-
-Use a larger count only after the default test passes. The maximum accepted count is 2000.
-
-## Error handling
-
-Direct read APIs keep the familiar return style while adding a third error code:
-
-```lua
-local value, message, code = nk.screen()
-if not value then
-    print(code, message)
-end
-```
-
-You can also classify an error explicitly:
-
-```lua
-local e = nk.classifyError("connect failed")
-print(e.code, e.transient) -- CONNECT true
-```
-
-## Safety rule
-
-V6.4 never automatically repeats an operation that can change user state. For example, a failed `nk.tap()` returns the error instead of trying a second tap. Automatic reconnect/retry is reserved for read-only operations such as screen/device queries, OCR, image/color lookup, and clipboard reads.
+A drag-and-drop flow builder is intentionally deferred until the script/task experience is proven.
 
 ## Build
 
 Branch:
 
 ```text
-v0.6.4-hardening
+v0.7.0-task-engine
 ```
 
 Artifact:
 
 ```text
-NKTouch-v0.6.4-hardening-rootless
+NKTouch-v0.7.0-task-engine-rootless
 ```
 
 Package:
 
 ```text
-com.nk.nktouch_0.6.4_rootless.deb
+com.nk.nktouch_0.7.0_rootless.deb
 ```
 
 ## Protocol safety
 
-The pinned core task IDs are unchanged:
-
-```text
-22 toast
-23 color picker
-27 OCR
-28 color search
-29 prompt input
-30 screenshot
-```
-
-V6.4 introduces no new SpringBoard task ID.
+V7.0 adds orchestration only. The SpringBoard task IDs remain unchanged, including OCR `27` and screenshot `30`.
 
 ## License
 
