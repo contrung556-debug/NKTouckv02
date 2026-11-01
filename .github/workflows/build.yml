@@ -58,8 +58,9 @@ jobs:
           set -euxo pipefail
           SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
           COMMON=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' -print | sort | tr '\n' ' ')
-          xcrun --sdk iphoneos clang -Os -arch arm64 -miphoneos-version-min=15.0 -isysroot "$SDKROOT" -DLUA_USE_POSIX $COMMON lua-src/src/lua.c -lm -Wl,-dead_strip -o runtime/lua54
-          xcrun --sdk iphoneos clang -Os -arch arm64 -miphoneos-version-min=15.0 -isysroot "$SDKROOT" -DLUA_USE_POSIX $COMMON lua-src/src/luac.c -lm -Wl,-dead_strip -o runtime/luac54
+          LUA_FLAGS="-Os -arch arm64 -miphoneos-version-min=15.0 -isysroot $SDKROOT -DLUA_USE_POSIX -Dl_system=nktouch_lua_system -Dl_popen=nktouch_lua_popen -Dl_pclose=nktouch_lua_pclose -include $GITHUB_WORKSPACE/runtime/lua-ios-shim.h"
+          xcrun --sdk iphoneos clang $LUA_FLAGS $COMMON runtime/lua-ios-shim.c lua-src/src/lua.c -lm -Wl,-dead_strip -o runtime/lua54
+          xcrun --sdk iphoneos clang $LUA_FLAGS $COMMON runtime/lua-ios-shim.c lua-src/src/luac.c -lm -Wl,-dead_strip -o runtime/luac54
           chmod 755 runtime/lua54 runtime/luac54 runtime/nktouch-lua
           file runtime/lua54 runtime/luac54
           strings runtime/lua54 | grep -q 'Lua 5.4'
@@ -88,6 +89,7 @@ jobs:
           grep -q 'M.VERSION="0.6.2"' lua/nktouch.lua
           grep -q 'M.LUA_VERSION="5.4.9"' lua/nktouch.lua
           grep -q 'require("nktouch")' runtime/nktouch-lua
+          grep -q 'posix_spawn' runtime/lua-ios-shim.c
           grep -q '^#define TASK_SHOW_TOAST 22$' upstream/pccontrol/Task.h
           grep -q '^#define TASK_COLOR_PICKER 23$' upstream/pccontrol/Task.h
           grep -q '^#define TASK_TEXT_RECOGNIZER 27$' upstream/pccontrol/Task.h
