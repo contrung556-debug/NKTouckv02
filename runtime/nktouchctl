@@ -8,6 +8,9 @@ HEARTBEAT_FILE="$BASE/heartbeat"
 NATIVE="/var/jb/usr/libexec/nktouch/nktouch-native"
 PY="/var/jb/usr/bin/python3"
 HELPER="/var/jb/usr/share/nktouch/nktouchctl.py"
+SELF="/var/jb/usr/bin/nktouchctl"
+SH="/var/jb/bin/sh"
+[ -x "$SH" ] || SH="/bin/sh"
 
 mkdir -p "$BASE"
 
@@ -49,8 +52,51 @@ run_native_first() {
 
 run_native_only() {
   subcmd="$1"; shift || true
-  [ -x "$NATIVE" ] || { echo "NKTouch v0.4: thiếu native backend $NATIVE" >&2; exit 4; }
+  [ -x "$NATIVE" ] || { echo "NKTouch v0.5: thiếu native backend $NATIVE" >&2; exit 4; }
   exec "$NATIVE" "$subcmd" "$@"
+}
+
+run_script() {
+  script="${1:-}"
+  [ -n "$script" ] || { echo "Usage: nktouchctl run <script.sh> [args...]" >&2; exit 2; }
+  shift || true
+  [ -f "$script" ] && [ -r "$script" ] || { echo "NKTouch: cannot read script: $script" >&2; exit 2; }
+  export NKTOUCHCTL="$SELF"
+  export NKTOUCH_HOME="$BASE"
+  exec "$SH" "$script" "$@"
+}
+
+check_script() {
+  script="${1:-}"
+  [ -n "$script" ] && [ -f "$script" ] || { echo "Usage: nktouchctl check <script.sh>" >&2; exit 2; }
+  "$SH" -n "$script"
+  echo "ok"
+}
+
+doctor() {
+  fail=0
+  echo "version=0.5.0"
+  if [ -x "$NATIVE" ]; then
+    nv="$("$NATIVE" version 2>/dev/null || echo unknown)"
+    echo "native=ok:$nv"
+  else
+    echo "native=missing"
+    fail=1
+  fi
+  if [ -x "$NATIVE" ] && "$NATIVE" ping >/dev/null 2>&1; then
+    echo "core=ok"
+  else
+    echo "core=unreachable"
+    fail=1
+  fi
+  if [ -x "$NATIVE" ]; then
+    screen="$("$NATIVE" screen 2>/dev/null || true)"
+    fg="$("$NATIVE" foreground 2>/dev/null || true)"
+    [ -n "$screen" ] && echo "screen=$screen" || echo "screen=unavailable"
+    [ -n "$fg" ] && echo "foreground=$fg" || echo "foreground=unknown"
+  fi
+  echo "state_dir=$BASE"
+  return "$fail"
 }
 
 cmd="${1:-help}"; shift || true
@@ -65,35 +111,41 @@ case "$cmd" in
   state) if [ -f "$STATUS_FILE" ]; then cat "$STATUS_FILE"; else echo "hide|0||0"; fi ;;
   logs) tail -n "${1:-50}" "$LOG_FILE" 2>/dev/null || true ;;
   backend)
-    if [ -x "$NATIVE" ]; then printf 'native %s\n' "$($NATIVE version 2>/dev/null || echo unknown)"
+    if [ -x "$NATIVE" ]; then printf 'native %s\n' "$("$NATIVE" version 2>/dev/null || echo unknown)"
     elif [ -x "$PY" ] && [ -f "$HELPER" ]; then echo "python-fallback"
     else echo "unavailable"; exit 4; fi ;;
   ping)
     if [ -x "$NATIVE" ]; then exec "$NATIVE" ping; fi
     need_python; exec "$PY" "$HELPER" screen ;;
+  doctor) doctor ;;
+  run) run_script "$@" ;;
+  check) check_script "$@" ;;
   tap|hold|swipe|openapp|stop|screen|foreground) run_native_first "$cmd" "$@" ;;
   record) run_native_first record "$@" ;;
-  text|keyboard|cursor|delete|paste|clipboard-get|clipboard-set|screenshot|orientation|scale|device|battery|runtime)
+  sleep|text|keyboard|cursor|delete|paste|clipboard-get|clipboard-set|screenshot|orientation|scale|device|battery|runtime|find-image|wait-image|tap-image|ocr|wait-app)
     run_native_only "$cmd" "$@" ;;
   native) run_native_only "$@" ;;
   help|-h|--help)
     cat <<'HELP'
-NKTouch v0.4 native automation
+NKTouch v0.5 native automation runtime
 
-Status:
+Status / health:
   nktouchctl status <0-100> <message>
   nktouchctl success|warning|error <message>
   nktouchctl hide | heartbeat | log <message> | state | logs [lines]
+  nktouchctl ping | backend | doctor
 
 Touch / app:
   nktouchctl tap <x> <y>
   nktouchctl hold <x> <y> <ms>
   nktouchctl swipe <x1> <y1> <x2> <y2> <ms>
   nktouchctl openapp <bundle-id>
+  nktouchctl wait-app <bundle-id> <timeout_ms> [interval_ms]
+  nktouchctl sleep <ms>
   nktouchctl record start|stop
   nktouchctl stop
 
-Keyboard / clipboard (native):
+Keyboard / clipboard:
   nktouchctl text "hello"
   nktouchctl keyboard show|hide
   nktouchctl cursor <-N|N>
@@ -102,19 +154,24 @@ Keyboard / clipboard (native):
   nktouchctl clipboard-get
   nktouchctl clipboard-set "text"
 
-Screen / device (native):
-  nktouchctl screenshot
-  nktouchctl screen
-  nktouchctl foreground
-  nktouchctl orientation
-  nktouchctl scale
-  nktouchctl device
-  nktouchctl battery
-  nktouchctl runtime
+Vision:
+  nktouchctl screenshot [output.jpg]
+  nktouchctl find-image <template> [maxTry confidence scale]
+  nktouchctl wait-image <template> <timeout_ms> [interval_ms confidence]
+  nktouchctl tap-image <template> <timeout_ms> [interval_ms confidence]
+  nktouchctl ocr <x> <y> <width> <height> [languages]
 
-Health:
-  nktouchctl ping
-  nktouchctl backend
+Device:
+  nktouchctl screen | foreground | orientation | scale
+  nktouchctl device | battery | runtime
+
+Script runner (no Python required):
+  nktouchctl check <script.sh>
+  nktouchctl run <script.sh> [args...]
+
+Inside scripts use:
+  "$NKTOUCHCTL" tap 120 400
+  "$NKTOUCHCTL" wait-image /var/mobile/template.png 5000
 HELP
     ;;
   *) echo "NKTouch: unknown command '$cmd'" >&2; echo "Run: nktouchctl help" >&2; exit 2 ;;
