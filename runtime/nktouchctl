@@ -5,6 +5,7 @@ BASE="/var/mobile/Library/NKTouch"
 STATUS_FILE="$BASE/status.state"
 LOG_FILE="$BASE/events.log"
 HEARTBEAT_FILE="$BASE/heartbeat"
+NATIVE="/var/jb/usr/libexec/nktouch/nktouch-native"
 PY="/var/jb/usr/bin/python3"
 HELPER="/var/jb/usr/share/nktouch/nktouchctl.py"
 
@@ -47,13 +48,26 @@ append_log() {
 
 need_python() {
   if [ ! -x "$PY" ]; then
-    echo "NKTouch: Python 3 chưa có. Cài Procursus python3 trong Sileo để dùng lệnh touch/app/record." >&2
+    echo "NKTouch: lệnh này hiện vẫn cần Python 3. Tap/hold/swipe/openapp/record/stop ở v0.3 chạy native và không cần Python." >&2
     exit 3
   fi
   if [ ! -f "$HELPER" ]; then
     echo "NKTouch: thiếu helper $HELPER" >&2
     exit 4
   fi
+}
+
+run_native_first() {
+  subcmd="$1"
+  shift || true
+  if [ -x "$NATIVE" ]; then
+    exec "$NATIVE" "$subcmd" "$@"
+  fi
+
+  # Upgrade safety: packages missing the native binary can still use the old
+  # Python helper instead of becoming unusable.
+  need_python
+  exec "$PY" "$HELPER" "$subcmd" "$@"
 }
 
 cmd="${1:-help}"
@@ -89,17 +103,44 @@ case "$cmd" in
   logs)
     tail -n "${1:-50}" "$LOG_FILE" 2>/dev/null || true
     ;;
-  tap|hold|swipe|openapp|foreground|screen|stop)
+  backend)
+    if [ -x "$NATIVE" ]; then
+      printf 'native %s\n' "$($NATIVE version 2>/dev/null || echo unknown)"
+    elif [ -x "$PY" ] && [ -f "$HELPER" ]; then
+      echo "python-fallback"
+    else
+      echo "unavailable"
+      exit 4
+    fi
+    ;;
+  ping)
+    if [ -x "$NATIVE" ]; then
+      exec "$NATIVE" ping
+    fi
+    need_python
+    # Import/connect is exercised by a harmless screen query on fallback.
+    exec "$PY" "$HELPER" screen
+    ;;
+  tap|hold|swipe|openapp|stop)
+    run_native_first "$cmd" "$@"
+    ;;
+  record)
+    run_native_first record "$@"
+    ;;
+  screen|foreground)
     need_python
     exec "$PY" "$HELPER" "$cmd" "$@"
     ;;
-  record)
-    need_python
-    exec "$PY" "$HELPER" record "$@"
+  native)
+    if [ ! -x "$NATIVE" ]; then
+      echo "NKTouch: native backend chưa được cài ở $NATIVE" >&2
+      exit 4
+    fi
+    exec "$NATIVE" "$@"
     ;;
   help|-h|--help)
     cat <<'HELP'
-NKTouch v0.2
+NKTouch v0.3 native-first
 
 Status:
   nktouchctl status <0-100> <message>
@@ -112,15 +153,22 @@ Status:
   nktouchctl state
   nktouchctl logs [lines]
 
-Automation helpers (Python 3 required):
+Native automation (Python 3 NOT required):
   nktouchctl tap <x> <y>
   nktouchctl hold <x> <y> <ms>
   nktouchctl swipe <x1> <y1> <x2> <y2> <ms>
   nktouchctl openapp <bundle-id>
-  nktouchctl foreground
-  nktouchctl screen
   nktouchctl record start|stop
   nktouchctl stop
+  nktouchctl ping
+  nktouchctl backend
+
+Compatibility helpers (currently Python fallback):
+  nktouchctl foreground
+  nktouchctl screen
+
+Debug/native passthrough:
+  nktouchctl native <native-command> [...]
 HELP
     ;;
   *)
