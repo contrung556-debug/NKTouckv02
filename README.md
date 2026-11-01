@@ -1,128 +1,116 @@
-# NKTouch v0.7.0 Script/Task Engine
+# NKTouch v0.7.1 Recorder V2
 
-NKTouch V7 starts with a deliberately small task-management layer instead of inventing a second flow language. Lua remains the automation language; V7.0 makes Lua scripts easier and safer to run, pause, resume, stop, inspect, and reuse.
-
-## Product direction
-
-V7 is script-first:
+NKTouch V7 remains script-first: Lua is the automation language, V7.0 provides the task supervisor, and V7.1 adds a recorder that turns real screen gestures into editable Lua instead of introducing a second automation language.
 
 ```text
-Recorder (later) -> Lua script -> Task Engine -> hardened Lua runtime -> nkcore -> SpringBoard core
+Recorder V2 -> Lua script -> Task Engine -> hardened Lua runtime -> nkcore -> SpringBoard core
 ```
 
-Users who know Lua can write scripts directly. Recorder V2 will later generate the same Lua, so beginner and advanced users share one runtime instead of maintaining two automation engines.
+## V7.1 adds
 
-## V7.0 adds
-
-- Native `nktask` supervisor
-- Background Lua task execution
-- One active screen-control task at a time to prevent competing taps/swipes
-- `start`, `status`, `pause`, `resume`, `stop`, `list`, and `logs`
-- Optional wall-clock timeout per task
-- Timeout does not count time while the task is paused
-- Lua syntax validation with bundled `luac` before a task is started
-- Separate task state and log files under `/var/mobile/Library/NKTouch/tasks`
-- Completed task history retained by task ID
-- Task stdout/stderr captured to its own log
-- Status overlay updates for running/paused/completed/stopped/timeout/failure
-- Existing V6.4 hardened direct-Lua runtime retained unchanged
-- Existing safety rule retained: side-effecting native actions are never automatically retried
-- OCR remains an explicit on-demand API; V7.0 does not run OCR in the background
+- Recorder V2 using the existing HID recorder tasks `14` / `15`
+- `nktouchctl recorder start|status|stop|export|latest|list|doctor`
+- Raw HID timing converted to `nk.tap`, `nk.hold`, `nk.swipe`, and `nk.sleep`
+- Recorder startup delay trimmed; delays between gestures retained
+- Tap vs hold classification with movement and duration thresholds
+- Swipe duration preserved and bounded by native safety limits
+- Generated scripts are normal editable `.lua` files under `/var/mobile/Library/NKTouch/recordings`
+- Existing `.bdl` / `.raw` recordings can be exported again without recording a new session
+- Fix for the legacy recorder start double-response: Task 14 now has one framed socket response for NKTouch builds
+- Keyboard typing is replayed from the physical taps that were recorded; Recorder V2 deliberately does not guess semantic text or keyboard layout
+- OCR remains explicit/on-demand only; Recorder V2 never launches OCR
 
 ## Versions
 
 ```text
-NKTouch package/runtime: 0.7.0
-Task engine:             0.7.0
+NKTouch package/runtime: 0.7.1
+Recorder V2:            0.7.1
+Task engine:             0.7.0 retained
 V6.4 Lua API:            retained
 Native CLI:              0.6.0
 Embedded nkcore:         0.6.3
 Bundled Lua:             5.4.9
 ```
 
-## Task commands
+## Record and replay
 
-Start a script:
-
-```sh
-nktouchctl task start /var/mobile/test.lua
-```
-
-Start with a timeout and script arguments:
+Start recording:
 
 ```sh
-nktouchctl task start /var/mobile/test.lua --timeout 3600 -- arg1 arg2
+nktouchctl recorder start
 ```
 
-Inspect the active task:
+Perform the taps, long presses, swipes, and keyboard taps you want to capture, then stop and export automatically:
+
+```sh
+nktouchctl recorder stop my-flow
+```
+
+The generated script is saved as:
+
+```text
+/var/mobile/Library/NKTouch/recordings/my-flow.lua
+```
+
+Inspect recorder state and recent scripts:
+
+```sh
+nktouchctl recorder status
+nktouchctl recorder latest
+nktouchctl recorder list
+```
+
+Export an older recording manually:
+
+```sh
+nktouchctl recorder export /var/mobile/Library/ZXTouch/scripts/recording/YYMMDDHHMMSS.bdl recovered-flow
+```
+
+Run the exported script through the V7 task engine:
+
+```sh
+nktouchctl task start /var/mobile/Library/NKTouch/recordings/my-flow.lua
+```
+
+Pause, resume, inspect, or stop it:
 
 ```sh
 nktouchctl task status
-```
-
-Pause and resume:
-
-```sh
 nktouchctl task pause
 nktouchctl task resume
-```
-
-Stop:
-
-```sh
+nktouchctl task logs
 nktouchctl task stop
 ```
 
-Task history and logs:
+## Generated Lua
 
-```sh
-nktouchctl task list
-nktouchctl task logs TASK_ID 100
-nktouchctl task status TASK_ID
-```
-
-`nktask ...` can also be called directly with the same subcommands.
-
-## State model
-
-A task moves through these states:
-
-```text
-starting -> running -> success
-                  -> failed
-                  -> timeout
-running -> paused -> running
-running/paused -> stopping -> stopped
-```
-
-Each task stores:
-
-```text
-id
-state
-script
-log
-child_pid
-started_at
-ended_at
-timeout_sec
-exit_code
-signal
-```
-
-## Why only one active task?
-
-The restriction is intentional for V7.0. Two scripts controlling the same screen could tap different buttons, type into the wrong field, or fight over the foreground app. Finished task history can contain many tasks, but only one screen-control task may be active.
-
-## OCR policy
-
-OCR is not a service or watcher in V7.0. A script calls it only when needed:
+Recorder V2 generates normal Lua such as:
 
 ```lua
-local text = nk.ocr(100, 200, 500, 120)
+local nk = require("nktouch")
+
+nk.tap(120.0, 300.0)
+nk.sleep(500)
+nk.swipe(100.0, 700.0, 100.0, 250.0, 320)
 ```
 
-No task-manager loop automatically invokes OCR. This keeps RAM/CPU use predictable and leaves the decision to script authors.
+The exporter keeps inter-gesture timing, classifies stationary long presses as `nk.hold`, and uses a single high-level `nk.swipe` for a recorded drag. Raw point count remains in comments so a future higher-fidelity path recorder can upgrade the same format without breaking scripts.
+
+## Keyboard behavior
+
+The HID recorder sees finger movement, not the semantic character produced by the active keyboard. V7.1 therefore records keyboard typing as the exact screen taps the user performed. It does **not** infer `nk.text("...")`, because doing so would be wrong when the keyboard layout, language, shift state, prediction bar, or third-party keyboard changes.
+
+## Task Engine retained from V7.0
+
+- Native `nktask` supervisor
+- Background Lua task execution
+- One active screen-control task at a time to prevent competing taps/swipes
+- `start`, `status`, `pause`, `resume`, `stop`, `list`, and `logs`
+- Optional wall-clock timeout per task
+- Timeout does not count paused time
+- Lua syntax validation with bundled `luac` before launch
+- Per-task state, history, and stdout/stderr logs under `/var/mobile/Library/NKTouch/tasks`
+- Side-effecting actions are never automatically retried
 
 ## Existing V6.4 capabilities retained
 
@@ -134,8 +122,7 @@ No task-manager loop automatically invokes OCR. This keeps RAM/CPU use predictab
 - Color read/search/wait/tap
 - OCR and wait-text when explicitly called
 - Direct embedded `nkcore`
-- Read-only bounded reconnect/retry
-- No automatic retry for side-effecting actions
+- Bounded retry for safe read-only operations
 - `doctor`, `selftest`, `benchmark`, `stress`
 
 ## Health check
@@ -145,42 +132,51 @@ nktouchctl backend
 nktouchctl doctor full
 nktouchctl selftest
 nktouchctl task doctor
+nktouchctl recorder doctor
 ```
 
-The V7 wrapper reports the task-engine health in addition to the existing V6.4 runtime checks.
+## State paths
 
-## Roadmap after V7.0
+```text
+/var/mobile/Library/NKTouch/tasks       task state/history/logs
+/var/mobile/Library/NKTouch/recorder    active recorder marker/state
+/var/mobile/Library/NKTouch/recordings  generated Lua scripts
+```
 
-- V7.1 Recorder V2: record touch/text/timing and generate Lua
+The underlying GPL recorder still creates its raw `.bdl` bundles in the upstream-compatible ZXTouch recording directory; NKTouch reads those bundles and exports the editable Lua result into the NKTouch state tree.
+
+## Roadmap after V7.1
+
 - V7.2 Script editor: syntax check, autocomplete, run controls, inline API help
 - V7.3 Import/export task bundles
 - V7.4 HTTP/HTTPS + JSON networking
+- Later recorder work can add higher-fidelity curved paths and optional semantic input hooks only when they can be made reliable
 
-A drag-and-drop flow builder is intentionally deferred until the script/task experience is proven.
+A drag-and-drop flow builder remains deferred until the script/task/recorder foundation is proven on real devices.
 
 ## Build
 
 Branch:
 
 ```text
-v0.7.0-task-engine
+v0.7.1-recorder-v2
 ```
 
 Artifact:
 
 ```text
-NKTouch-v0.7.0-task-engine-rootless
+NKTouch-v0.7.1-recorder-v2-rootless
 ```
 
 Package:
 
 ```text
-com.nk.nktouch_0.7.0_rootless.deb
+com.nk.nktouch_0.7.1_rootless.deb
 ```
 
 ## Protocol safety
 
-V7.0 adds orchestration only. The SpringBoard task IDs remain unchanged, including OCR `27` and screenshot `30`.
+V7.1 does not allocate new SpringBoard task IDs. It reuses recorder start/stop `14`/`15`; OCR remains `27`, prompt input remains `29`, and screenshot remains `30`.
 
 ## License
 
