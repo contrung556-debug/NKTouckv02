@@ -72,8 +72,11 @@ run_native_read(){
     [ "$tries" -gt 4 ] 2>/dev/null && tries=4 || true
     i=1
     while :; do
-        if "$NATIVE" "$subcmd" "$@"; then return 0; fi
-        rc=$?
+        if "$NATIVE" "$subcmd" "$@"; then
+            return 0
+        else
+            rc=$?
+        fi
         case "$rc" in 4|5) ;; *) return "$rc";; esac
         [ "$i" -ge "$tries" ] && return "$rc"
         i=$((i + 1))
