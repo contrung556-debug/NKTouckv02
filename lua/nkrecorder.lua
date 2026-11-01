@@ -7,11 +7,6 @@ local TAP_MOVE_THRESHOLD = 18.0
 local HOLD_THRESHOLD_MS = 450
 local MAX_ACTION_MS = 300000
 
-local function die(msg)
-  io.stderr:write("nkrecorder: ", tostring(msg), "\n")
-  os.exit(2)
-end
-
 local function round(n)
   return math.floor((tonumber(n) or 0) + 0.5)
 end
@@ -42,8 +37,6 @@ local function parse_raw(path)
       if kind then
         local x, y = tonumber(xs) / 10.0, tonumber(ys) / 10.0
         if kind == "1" then
-          -- A duplicate DOWN means the old gesture was incomplete. Replace it
-          -- instead of inventing an UP event that was never recorded.
           if active[finger] then ignored = ignored + 1 end
           active[finger] = {
             finger = finger,
@@ -65,7 +58,7 @@ local function parse_raw(path)
             if kind == "0" then
               local duration_ms = math.max(1, round(g.duration_us / 1000.0))
               local idle_ms = math.max(0, round(g.idle_us / 1000.0))
-              if #gestures == 0 then idle_ms = 0 end -- trim recorder startup delay
+              if #gestures == 0 then idle_ms = 0 end
 
               local action
               if g.max_distance <= TAP_MOVE_THRESHOLD then
@@ -189,11 +182,8 @@ local function main(argv)
   return 0
 end
 
-if ... == nil then
-  -- Kept for require() compatibility in host tests.
-else
-  os.exit(main(arg))
-end
+local invoked_as_script = arg and type(arg[0]) == "string" and arg[0]:match("nkrecorder%.lua$")
+if invoked_as_script then os.exit(main(arg)) end
 
 return {
   VERSION = VERSION,
