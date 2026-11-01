@@ -18,12 +18,12 @@ python3 - "$SRC/control" <<'PY'
 from pathlib import Path
 import sys
 p=Path(sys.argv[1]); s=p.read_text()
-s=s.replace('Version: 0.7.3','Version: 0.7.4')
+s=s.replace('Version: 0.7.3','Version: 0.7.4.1')
 s=s.replace(
     'Description: NKTouch v0.7.3 Task Bundle with Script Editor, Recorder V2, task engine and hardened direct Lua runtime (GPL ZXTouch core)',
-    'Description: NKTouch v0.7.4 Network/API with Task Bundle, Script Editor, Recorder V2, task engine and hardened direct Lua runtime (GPL ZXTouch core)'
+    'Description: NKTouch v0.7.4.1 UI/UX polish over v0.7.4 Network/API with Task Bundle, Script Editor, Recorder V2, task engine and hardened direct Lua runtime (GPL ZXTouch core)'
 )
-if 'Version: 0.7.4' not in s: raise SystemExit('Unable to set package version 0.7.4')
+if 'Version: 0.7.4.1' not in s: raise SystemExit('Unable to set package version 0.7.4.1')
 p.write_text(s)
 PY
 
@@ -37,8 +37,8 @@ p=Path(sys.argv[1])
 workspace=Path(sys.argv[2]).read_text()
 s=p.read_text()
 
-s=s.replace('NKTouch 0.7.3','NKTouch 0.7.4')
-s=s.replace('ZXTouch GPL core • NKTouch Task Bundle','ZXTouch GPL core • NKTouch Network/API')
+s=s.replace('NKTouch 0.7.3','NKTouch 0.7.4.1')
+s=s.replace('ZXTouch GPL core • NKTouch Task Bundle','ZXTouch GPL core • NKTouch UI/UX 7.4.1')
 
 if 'NKTouch Lua Workspace UX layer (V7.4)' not in s:
     icon_marker='- (NSString *)iconNameForCellTitle:(NSString *)title {\n'
@@ -116,8 +116,9 @@ p.write_text(s)
 PY
 
 cat > "$SRC/layout/usr/share/doc/nktouch/VERSION" <<'EOF'
-NKTouch 0.7.4 Network/API
-Lua Workspace: native on-device Edit -> Check -> Run -> Logs UX
+NKTouch 0.7.4.1 UI/UX
+NKTouch 0.7.4 Network/API core retained
+Lua Workspace: neon native dashboard -> library -> editor/logs/results
 V7.3 Task Bundle retained
 V7.2 Script Editor retained
 V7.1 Recorder V2 retained
@@ -135,7 +136,7 @@ JSON: bundled bounded pure-Lua codec with explicit json.null
 OCR remains explicit/on-demand only
 EOF
 
-# V7.4 adds local helpers/UI only. It allocates no SpringBoard protocol IDs.
+# V7.4.1 is a UI patch. It allocates no new SpringBoard protocol IDs.
 grep -q '^#define TASK_TOUCH_RECORDING_START 14$' "$SRC/pccontrol/Task.h"
 grep -q '^#define TASK_TOUCH_RECORDING_STOP 15$' "$SRC/pccontrol/Task.h"
 grep -q '^#define TASK_TEXT_RECOGNIZER 27$' "$SRC/pccontrol/Task.h"
@@ -155,6 +156,6 @@ if [[ -f "$SETTINGS" ]]; then
     grep -q 'Edit • Check • Run • Logs' "$SETTINGS"
 fi
 
-echo "--- NKTouch v0.7.4 Network/API package ---"
+echo "--- NKTouch v0.7.4.1 UI/UX package ---"
 cat "$SRC/control"
 cat "$SRC/layout/usr/share/doc/nktouch/VERSION"
