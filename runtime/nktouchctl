@@ -6,6 +6,8 @@ STATUS_FILE="$BASE/status.state"
 LOG_FILE="$BASE/events.log"
 HEARTBEAT_FILE="$BASE/heartbeat"
 NATIVE="/var/jb/usr/libexec/nktouch/nktouch-native"
+RUNNER="/var/jb/usr/bin/nktouch-run"
+LUA_BIN="/var/jb/usr/libexec/nktouch/lua"
 PY="/var/jb/usr/bin/python3"
 HELPER="/var/jb/usr/share/nktouch/nktouchctl.py"
 
@@ -63,8 +65,7 @@ run_native_first() {
     exec "$NATIVE" "$subcmd" "$@"
   fi
 
-  # Emergency compatibility path for an incomplete/old upgrade only. A normal
-  # v0.3 install always contains the native binary and never needs Python.
+  # Emergency compatibility path for an incomplete/old upgrade only.
   need_python
   exec "$PY" "$HELPER" "$subcmd" "$@"
 }
@@ -112,6 +113,20 @@ case "$cmd" in
       exit 4
     fi
     ;;
+  lua-version)
+    if [ ! -x "$LUA_BIN" ]; then
+      echo "NKTouch: Lua runtime chưa được cài ở $LUA_BIN" >&2
+      exit 4
+    fi
+    exec "$LUA_BIN" -v
+    ;;
+  run)
+    if [ ! -x "$RUNNER" ]; then
+      echo "NKTouch: Lua runner chưa được cài ở $RUNNER" >&2
+      exit 4
+    fi
+    exec "$RUNNER" "$@"
+    ;;
   ping)
     if [ -x "$NATIVE" ]; then
       exec "$NATIVE" ping
@@ -134,7 +149,12 @@ case "$cmd" in
     ;;
   help|-h|--help)
     cat <<'HELP'
-NKTouch v0.3 native-first
+NKTouch v0.4 native + standalone Lua
+
+Lua runtime (AutoTouch/Python NOT required):
+  nktouchctl run <script.lua> [args...]
+  nktouchctl lua-version
+  nktouch-run <script.lua> [args...]
 
 Status:
   nktouchctl status <0-100> <message>
