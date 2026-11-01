@@ -1,0 +1,131 @@
+#!/var/jb/bin/sh
+set -eu
+
+BASE="/var/mobile/Library/NKTouch"
+STATUS_FILE="$BASE/status.state"
+LOG_FILE="$BASE/events.log"
+HEARTBEAT_FILE="$BASE/heartbeat"
+PY="/var/jb/usr/bin/python3"
+HELPER="/var/jb/usr/share/nktouch/nktouchctl.py"
+
+mkdir -p "$BASE"
+
+now() {
+  /var/jb/usr/bin/date +%s 2>/dev/null || date +%s
+}
+
+sanitize() {
+  # Keep the status protocol one-line and pipe-safe.
+  printf '%s' "$*" | tr '\r\n|' '   '
+}
+
+write_status() {
+  style="$1"
+  percent="$2"
+  shift 2
+  msg="$(sanitize "$*")"
+  case "$percent" in
+    ''|*[!0-9]*) percent=0 ;;
+  esac
+  [ "$percent" -lt 0 ] 2>/dev/null && percent=0 || true
+  [ "$percent" -gt 100 ] 2>/dev/null && percent=100 || true
+  tmp="$STATUS_FILE.tmp.$$"
+  printf '%s|%s|%s|%s\n' "$style" "$percent" "$msg" "$(now)" > "$tmp"
+  mv -f "$tmp" "$STATUS_FILE"
+  chmod 666 "$STATUS_FILE" 2>/dev/null || true
+}
+
+append_log() {
+  mkdir -p "$BASE"
+  printf '%s %s\n' "$(now)" "$(sanitize "$*")" >> "$LOG_FILE"
+  chmod 666 "$LOG_FILE" 2>/dev/null || true
+  size=$(wc -c < "$LOG_FILE" 2>/dev/null || echo 0)
+  if [ "$size" -gt 524288 ] 2>/dev/null; then
+    tail -n 500 "$LOG_FILE" > "$LOG_FILE.tmp" && mv -f "$LOG_FILE.tmp" "$LOG_FILE"
+  fi
+}
+
+need_python() {
+  if [ ! -x "$PY" ]; then
+    echo "NKTouch: Python 3 chưa có. Cài Procursus python3 trong Sileo để dùng lệnh touch/app/record." >&2
+    exit 3
+  fi
+  if [ ! -f "$HELPER" ]; then
+    echo "NKTouch: thiếu helper $HELPER" >&2
+    exit 4
+  fi
+}
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+  status)
+    pct="${1:-0}"; shift || true
+    write_status normal "$pct" "$*"
+    ;;
+  success)
+    write_status success 100 "$*"
+    ;;
+  warning|warn)
+    write_status warning 0 "$*"
+    ;;
+  error|fail)
+    write_status error 0 "$*"
+    ;;
+  hide)
+    write_status hide 0 ""
+    ;;
+  heartbeat)
+    printf '%s\n' "$(now)" > "$HEARTBEAT_FILE"
+    chmod 666 "$HEARTBEAT_FILE" 2>/dev/null || true
+    ;;
+  log)
+    append_log "$*"
+    ;;
+  state)
+    if [ -f "$STATUS_FILE" ]; then cat "$STATUS_FILE"; else echo "hide|0||0"; fi
+    ;;
+  logs)
+    tail -n "${1:-50}" "$LOG_FILE" 2>/dev/null || true
+    ;;
+  tap|hold|swipe|openapp|foreground|screen|stop)
+    need_python
+    exec "$PY" "$HELPER" "$cmd" "$@"
+    ;;
+  record)
+    need_python
+    exec "$PY" "$HELPER" record "$@"
+    ;;
+  help|-h|--help)
+    cat <<'HELP'
+NKTouch v0.2
+
+Status:
+  nktouchctl status <0-100> <message>
+  nktouchctl success <message>
+  nktouchctl warning <message>
+  nktouchctl error <message>
+  nktouchctl hide
+  nktouchctl heartbeat
+  nktouchctl log <message>
+  nktouchctl state
+  nktouchctl logs [lines]
+
+Automation helpers (Python 3 required):
+  nktouchctl tap <x> <y>
+  nktouchctl hold <x> <y> <ms>
+  nktouchctl swipe <x1> <y1> <x2> <y2> <ms>
+  nktouchctl openapp <bundle-id>
+  nktouchctl foreground
+  nktouchctl screen
+  nktouchctl record start|stop
+  nktouchctl stop
+HELP
+    ;;
+  *)
+    echo "NKTouch: unknown command '$cmd'" >&2
+    echo "Run: nktouchctl help" >&2
+    exit 2
+    ;;
+esac
