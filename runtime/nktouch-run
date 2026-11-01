@@ -1,0 +1,21 @@
+#!/var/jb/bin/sh
+set -eu
+
+LUA="/var/jb/usr/libexec/nktouch/lua"
+LUA_DIR="/var/jb/usr/share/nktouch/lua"
+
+if [ ! -x "$LUA" ]; then
+  echo "NKTouch: Lua runtime chưa được cài: $LUA" >&2
+  exit 4
+fi
+
+if [ "$#" -lt 1 ]; then
+  echo "Usage: nktouch-run <script.lua> [args...]" >&2
+  exit 2
+fi
+
+export PATH="/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:${PATH:-}"
+export LUA_PATH="$LUA_DIR/?.lua;$LUA_DIR/?/init.lua;;"
+export LUA_INIT="@$LUA_DIR/bootstrap.lua"
+
+exec "$LUA" "$@"
