@@ -1,4 +1,4 @@
-// NKTouch v0.5 native automation client
+// NKTouch v0.6 native automation client
 // SPDX-License-Identifier: GPL-3.0-or-later
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
@@ -16,7 +16,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define NK_VERSION "0.5.0"
+#define NK_VERSION "0.6.0"
 #define PORT 6000
 #define FINGER 1
 #define TASK_TOUCH 10
@@ -25,9 +25,12 @@
 #define TASK_RECORD_STOP 15
 #define TASK_FORCE_STOP 20
 #define TASK_TEMPLATE_MATCH 21
+#define TASK_TOAST 22
+#define TASK_COLOR_PICKER 23
 #define TASK_TEXT 24
 #define TASK_DEVICE 25
 #define TASK_OCR 27
+#define TASK_COLOR_SEARCH 28
 #define TASK_SCREENSHOT 30
 #define TOUCH_UP 0
 #define TOUCH_DOWN 1
@@ -41,10 +44,14 @@ static void usage(FILE *f) {
       "tap x y | hold x y ms | swipe x1 y1 x2 y2 ms | openapp bundle-id\n"
       "record start|stop | stop | ping | version | sleep MS\n"
       "text TEXT | keyboard show|hide | cursor OFFSET | delete COUNT | paste TEXT\n"
-      "clipboard-get | clipboard-set TEXT\n"
+      "clipboard-get | clipboard-set TEXT | toast TYPE SECONDS MESSAGE | toast hide\n"
       "screenshot [PATH] | find-image PATH [maxTry confidence scale]\n"
       "wait-image PATH TIMEOUT_MS [INTERVAL_MS confidence] | tap-image PATH TIMEOUT_MS [INTERVAL_MS confidence]\n"
-      "ocr x y width height [languages] | wait-app bundle-id TIMEOUT_MS [INTERVAL_MS]\n"
+      "pixel x y | find-color x y w h rMin rMax gMin gMax bMin bMax [skip]\n"
+      "wait-color x y w h rMin rMax gMin gMax bMin bMax TIMEOUT_MS [INTERVAL_MS skip]\n"
+      "tap-color x y w h rMin rMax gMin gMax bMin bMax TIMEOUT_MS [INTERVAL_MS skip]\n"
+      "ocr x y width height [languages] | wait-text x y w h NEEDLE TIMEOUT_MS [INTERVAL_MS languages]\n"
+      "wait-app bundle-id TIMEOUT_MS [INTERVAL_MS]\n"
       "screen | foreground | orientation | scale | device | battery | runtime\n", NK_VERSION);
 }
 
@@ -363,6 +370,27 @@ static int wait_app_cmd(int ac, char **av) {
     }
 }
 
+static int build_ocr_body(double x, double y, double w, double h, const char *lang, char **out) {
+    if (validate_text(lang)) return -1;
+    size_t cap = strlen(lang) + 192;
+    char *body = malloc(cap); if (!body) return -1;
+    int n = snprintf(body, cap, "1;;%.2f,,%.2f,,%.2f,,%.2f;;;;0.03125;;0;;%s;;1;;", x,y,w,h,lang);
+    if (n <= 0 || (size_t)n >= cap) { free(body); return -1; }
+    *out = body; return 0;
+}
+
+static int ocr_value(double x, double y, double w, double h, const char *lang, char *out, size_t out_cap, int noisy) {
+    char *body = NULL, r[32768];
+    if (build_ocr_body(x,y,w,h,lang,&body)) return -1;
+    int rc = request_internal(TASK_OCR, body, r, sizeof(r), noisy);
+    free(body);
+    if (rc) return -1;
+    char *p = payload(r);
+    if (strlen(p) + 1 > out_cap) return -1;
+    memcpy(out, p, strlen(p) + 1);
+    return 0;
+}
+
 static int ocr_cmd(int ac, char **av) {
     if (ac < 4 || ac > 5) return 2;
     double x,y,w,h;
@@ -370,13 +398,114 @@ static int ocr_cmd(int ac, char **av) {
         parse_double(av[2],"width",&w)||parse_double(av[3],"height",&h)||
         x < 0 || y < 0 || w <= 0 || h <= 0) return 2;
     const char *lang = ac == 5 ? av[4] : "";
-    if (validate_text(lang)) return 2;
-    size_t cap = strlen(lang) + 192; char *body = malloc(cap);
-    if (!body) return 5;
-    int n = snprintf(body, cap, "1;;%.2f,,%.2f,,%.2f,,%.2f;;;;0.03125;;0;;%s;;1;;",
-                     x,y,w,h,lang);
-    int rc = (n > 0 && (size_t)n < cap) ? query(TASK_OCR, body) : 5;
-    free(body); return rc;
+    char out[32768];
+    if (ocr_value(x,y,w,h,lang,out,sizeof(out),1)) return 5;
+    puts(out); return 0;
+}
+
+static int pixel_cmd(int ac, char **av) {
+    if (ac != 2) return 2;
+    long x,y;
+    if (parse_long(av[0],"x",0,10000,&x) || parse_long(av[1],"y",0,10000,&y)) return 2;
+    char body[64], r[256];
+    (void)snprintf(body,sizeof(body),"%ld;;%ld",x,y);
+    if (request(TASK_COLOR_PICKER,body,r,sizeof(r))) return 5;
+    long red,green,blue;
+    if (sscanf(payload(r),"%ld;;%ld;;%ld",&red,&green,&blue) != 3) return 5;
+    printf("%ld;;%ld;;%ld\n",red,green,blue); return 0;
+}
+
+static int parse_color_args(int ac, char **av, int with_timeout,
+                            long *x,long *y,long *w,long *h,
+                            long *rmin,long *rmax,long *gmin,long *gmax,long *bmin,long *bmax,
+                            long *timeout,long *interval,long *skip) {
+    int min_ac = with_timeout ? 11 : 10;
+    int max_ac = with_timeout ? 13 : 11;
+    if (ac < min_ac || ac > max_ac) return -1;
+    if (parse_long(av[0],"x",0,10000,x)||parse_long(av[1],"y",0,10000,y)||
+        parse_long(av[2],"width",0,10000,w)||parse_long(av[3],"height",0,10000,h)||
+        parse_long(av[4],"rMin",0,255,rmin)||parse_long(av[5],"rMax",0,255,rmax)||
+        parse_long(av[6],"gMin",0,255,gmin)||parse_long(av[7],"gMax",0,255,gmax)||
+        parse_long(av[8],"bMin",0,255,bmin)||parse_long(av[9],"bMax",0,255,bmax)) return -1;
+    if (*rmin>*rmax || *gmin>*gmax || *bmin>*bmax) return -1;
+    *timeout = 0; *interval = 200; *skip = 0;
+    if (with_timeout) {
+        if (parse_long(av[10],"timeout_ms",0,300000,timeout)) return -1;
+        if (ac >= 12 && parse_long(av[11],"interval_ms",50,10000,interval)) return -1;
+        if (ac >= 13 && parse_long(av[12],"skip",0,1000,skip)) return -1;
+    } else if (ac >= 11 && parse_long(av[10],"skip",0,1000,skip)) return -1;
+    return 0;
+}
+
+static int find_color_once(long x,long y,long w,long h,long rmin,long rmax,long gmin,long gmax,long bmin,long bmax,long skip,
+                           long *ox,long *oy,long *ored,long *ogreen,long *oblue,int noisy) {
+    char body[256], r[512];
+    int n = snprintf(body,sizeof(body),"1;;%ld;;%ld;;%ld;;%ld;;%ld;;%ld;;%ld;;%ld;;%ld;;%ld;;%ld",
+                     x,y,w,h,rmin,rmax,gmin,gmax,bmin,bmax,skip);
+    if (n <= 0 || (size_t)n >= sizeof(body)) return -1;
+    if (request_internal(TASK_COLOR_SEARCH,body,r,sizeof(r),noisy)) return -1;
+    if (sscanf(payload(r),"%ld;;%ld;;%ld;;%ld;;%ld",ox,oy,ored,ogreen,oblue) != 5) return -1;
+    return (*ox >= 0 && *oy >= 0) ? 0 : -1;
+}
+
+static int find_color_cmd(int ac, char **av) {
+    long x,y,w,h,rmin,rmax,gmin,gmax,bmin,bmax,timeout,interval,skip;
+    if (parse_color_args(ac,av,0,&x,&y,&w,&h,&rmin,&rmax,&gmin,&gmax,&bmin,&bmax,&timeout,&interval,&skip)) return 2;
+    long ox,oy,r,g,b;
+    if (find_color_once(x,y,w,h,rmin,rmax,gmin,gmax,bmin,bmax,skip,&ox,&oy,&r,&g,&b,1)) return 6;
+    printf("%ld;;%ld;;%ld;;%ld;;%ld\n",ox,oy,r,g,b); return 0;
+}
+
+static int wait_color_common(int ac, char **av, int tap_after) {
+    long x,y,w,h,rmin,rmax,gmin,gmax,bmin,bmax,timeout,interval,skip;
+    if (parse_color_args(ac,av,1,&x,&y,&w,&h,&rmin,&rmax,&gmin,&gmax,&bmin,&bmax,&timeout,&interval,&skip)) return 2;
+    long long deadline = now_us() + timeout * 1000LL;
+    for (;;) {
+        long ox,oy,r,g,b;
+        if (!find_color_once(x,y,w,h,rmin,rmax,gmin,gmax,bmin,bmax,skip,&ox,&oy,&r,&g,&b,0)) {
+            if (tap_after) {
+                int rc=tap_point((double)ox,(double)oy,45); if(rc)return rc; puts("ok");
+            } else printf("%ld;;%ld;;%ld;;%ld;;%ld\n",ox,oy,r,g,b);
+            return 0;
+        }
+        if (now_us() >= deadline) { fprintf(stderr,"NKTouch: timeout waiting for color\n"); return 7; }
+        sleep_us(interval * 1000LL);
+    }
+}
+
+static int toast_type(const char *s) {
+    if (!strcmp(s,"error") || !strcmp(s,"1")) return 1;
+    if (!strcmp(s,"warning") || !strcmp(s,"warn") || !strcmp(s,"2")) return 2;
+    if (!strcmp(s,"message") || !strcmp(s,"info") || !strcmp(s,"3")) return 3;
+    if (!strcmp(s,"success") || !strcmp(s,"4")) return 4;
+    return -1;
+}
+
+static int toast_cmd(int ac, char **av) {
+    if (ac == 1 && !strcmp(av[0],"hide")) return action(TASK_TOAST,"0;;;;0;;0");
+    if (ac != 3 || validate_text(av[2])) return 2;
+    int type = toast_type(av[0]); long seconds;
+    if (type < 0 || parse_long(av[1],"seconds",1,60,&seconds)) return 2;
+    size_t cap = strlen(av[2]) + 64; char *body = malloc(cap); if(!body)return 5;
+    int n=snprintf(body,cap,"%d;;%s;;%ld;;0",type,av[2],seconds);
+    int rc=(n>0&&(size_t)n<cap)?action(TASK_TOAST,body):5; free(body); return rc;
+}
+
+static int wait_text_cmd(int ac, char **av) {
+    if (ac < 6 || ac > 8 || !av[4][0] || strlen(av[4]) > MAX_TEXT) return 2;
+    double x,y,w,h; long timeout,interval=300;
+    if(parse_double(av[0],"x",&x)||parse_double(av[1],"y",&y)||parse_double(av[2],"width",&w)||parse_double(av[3],"height",&h)||
+       x<0||y<0||w<=0||h<=0||parse_long(av[5],"timeout_ms",0,300000,&timeout)) return 2;
+    if(ac>=7 && parse_long(av[6],"interval_ms",100,10000,&interval)) return 2;
+    const char *lang = ac>=8 ? av[7] : "";
+    if(validate_text(lang)) return 2;
+    long long deadline=now_us()+timeout*1000LL;
+    for(;;){
+        char out[32768];
+        if(!ocr_value(x,y,w,h,lang,out,sizeof(out),0) && strstr(out,av[4])) { puts(out); return 0; }
+        if(now_us()>=deadline){fprintf(stderr,"NKTouch: timeout waiting for text: %s\n",av[4]);return 7;}
+        sleep_us(interval*1000LL);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -399,11 +528,17 @@ int main(int argc, char **argv) {
     if(!strcmp(c,"paste")){if(argc!=3)return 2;return text_action(5,argv[2]);}
     if(!strcmp(c,"clipboard-get")){if(argc!=2)return 2;return query(TASK_TEXT,"6");}
     if(!strcmp(c,"clipboard-set")){if(argc!=3)return 2;return text_action(7,argv[2]);}
+    if(!strcmp(c,"toast"))return toast_cmd(argc-2,argv+2);
     if(!strcmp(c,"screenshot"))return screenshot_cmd(argc-2,argv+2);
     if(!strcmp(c,"find-image"))return find_image_cmd(argc-2,argv+2);
     if(!strcmp(c,"wait-image"))return wait_image_common(argc-2,argv+2,0);
     if(!strcmp(c,"tap-image"))return wait_image_common(argc-2,argv+2,1);
+    if(!strcmp(c,"pixel"))return pixel_cmd(argc-2,argv+2);
+    if(!strcmp(c,"find-color"))return find_color_cmd(argc-2,argv+2);
+    if(!strcmp(c,"wait-color"))return wait_color_common(argc-2,argv+2,0);
+    if(!strcmp(c,"tap-color"))return wait_color_common(argc-2,argv+2,1);
     if(!strcmp(c,"ocr"))return ocr_cmd(argc-2,argv+2);
+    if(!strcmp(c,"wait-text"))return wait_text_cmd(argc-2,argv+2);
     if(!strcmp(c,"wait-app"))return wait_app_cmd(argc-2,argv+2);
     if(!strcmp(c,"screen")){if(argc!=2)return 2;return device_query(1);}
     if(!strcmp(c,"foreground")){if(argc!=2)return 2;return foreground();}
