@@ -1,18 +1,34 @@
-# NKTouch v0.6 Vision
+# NKTouch v0.6.1 Stable
 
-NKTouch is a rootless iOS automation project for jailbroken devices. v0.6 builds on the V5 native runtime and adds native color vision, text waits and toast feedback while keeping the pinned GPL ZXTouch SpringBoard engine.
+NKTouch is a rootless iOS automation project for jailbroken devices. v0.6.1 is a hardening release built on the proven V6 native engine. It keeps V6 vision/color/OCR features intact and focuses on safer retries, diagnostics, cleanup and a more predictable Lua API.
 
-## v0.6 highlights
+## What changed from V6
 
-- Everything from V5: native touch, app control, keyboard, clipboard, screenshot, image matching, OCR, waits and script runner
-- Native `pixel` color picker through upstream task 23
-- Native `find-color`, `wait-color` and `tap-color` through upstream task 28
-- `wait-text` polls the native OCR engine until requested text appears or timeout occurs
-- Native toast feedback through upstream task 22
-- Lua helpers for color vision, text waits and toast
-- AutoTouch compatibility helper now exposes `getColor(x,y)` as packed `0xRRGGBB`
-- Protocol guard verifies task IDs 22/23/27/28/29/30 against the pinned core
-- Touch/image/color coordinates use the same physical-pixel coordinate system used by the SpringBoard core
+- Runtime wrapper version `0.6.1`; native engine remains the tested `0.6.0` engine
+- Read-only transport failures can retry a small bounded number of times
+- Side-effecting actions such as tap, text, paste, open-app and tap-image/tap-color are never auto-retried
+- `doctor quick` for fast health checks
+- `doctor full` additionally verifies screenshot capture and temporary-file writing
+- `selftest` performs non-destructive runtime checks and reports `result=PASS` or `result=FAIL`
+- `cleanup` removes only NKTouch-owned diagnostic/temp files
+- Runtime state now has a dedicated `/var/mobile/Library/NKTouch/tmp` directory
+- Lua `os.execute`/`io.popen` results are normalized to predictable success/error values
+- Lua helpers added for `selftest`, `cleanup` and doctor modes
+- Generated Python bytecode is removed from the repository and ignored
+- CI includes a V6.1 runtime contract test and protocol guards
+
+## Existing V6 capabilities retained
+
+- Native touch, hold and swipe
+- App launch / foreground / wait-app
+- Keyboard, text, cursor, delete, paste and clipboard
+- Screenshot
+- Image matching: `find-image`, `wait-image`, `tap-image`
+- OCR and `wait-text`
+- Color picker/search: `pixel`, `find-color`, `wait-color`, `tap-color`
+- Toast feedback
+- Shell script runner
+- Lua compatibility helpers
 
 ## Architecture
 
@@ -20,145 +36,118 @@ NKTouch is a rootless iOS automation project for jailbroken devices. v0.6 builds
 Lua / shell script
       |
       v
- nktouchctl
+ nktouchctl 0.6.1 Stable
       |
       v
- native C client --> TCP 127.0.0.1:6000 --> ZXTouch SpringBoard core
-                                         |-> touch / keyboard
-                                         |-> image match / screenshot
-                                         |-> OCR / wait-text
-                                         |-> color picker / color search
-                                         `-> toast
+ native C engine 0.6.0 --> TCP 127.0.0.1:6000 --> ZXTouch SpringBoard core
 ```
+
+The stable wrapper intentionally does not auto-retry commands that may cause duplicate user actions.
 
 ## Build
 
-Branch: `v0.6-vision`
+Branch:
+
+```text
+v0.6.1-stable
+```
 
 Artifact:
 
 ```text
-NKTouch-v0.6-vision-rootless
+NKTouch-v0.6.1-stable-rootless
 ```
 
 Package:
 
 ```text
-com.nk.nktouch_0.6.0_rootless.deb
+com.nk.nktouch_0.6.1_rootless.deb
 ```
 
-## Quick test
+## Recommended health test
 
 ```sh
 nktouchctl backend
 nktouchctl ping
 nktouchctl doctor
-nktouchctl pixel 100 100
+nktouchctl doctor full
+nktouchctl selftest
 ```
 
-Expected backend:
+Expected backend format:
 
 ```text
-native 0.6.0
+native 0.6.0 (runtime 0.6.1)
 ```
 
-## Color vision
-
-Read one pixel:
-
-```sh
-nktouchctl pixel 100 100
-```
-
-Output:
+A healthy full self-test ends with:
 
 ```text
-red;;green;;blue
+result=PASS
 ```
 
-Find a color range inside a region:
+## Cleanup
 
-```sh
-nktouchctl find-color 0 0 1170 2532 200 255 200 255 200 255 2
-```
-
-Output on success:
+NKTouch diagnostics use:
 
 ```text
-x;;y;;red;;green;;blue
+/var/mobile/Library/NKTouch/tmp
 ```
 
-Wait for or tap the first matching pixel:
+Clean only NKTouch diagnostic/temp files with:
 
 ```sh
-nktouchctl wait-color 0 0 1170 2532 200 255 200 255 200 255 5000 200 2
-nktouchctl tap-color  0 0 1170 2532 200 255 200 255 200 255 5000 200 2
+nktouchctl cleanup
 ```
 
-## Text wait
+The command does not delete user screenshots or template images stored elsewhere.
 
-Wait until OCR in a region contains text:
+## Retry behavior
+
+Read-only operations such as screen/device queries, OCR, pixel/color queries and screenshots can retry transport errors. Default attempts: 2.
+
+Override for debugging:
 
 ```sh
-nktouchctl wait-text 0 0 1170 2532 "Tiếp tục" 5000 300 "vi-VN,,en-US"
+NKTOUCH_READ_RETRIES=1 nktouchctl screen
 ```
 
-A timeout exits non-zero, making it suitable for shell-script flow control.
+Allowed range is clamped to 1-4 attempts.
 
-## Toast
+The following categories are deliberately single-attempt:
 
-```sh
-nktouchctl toast success 2 "Hoàn tất"
-nktouchctl toast warning 2 "Đang chờ"
-nktouchctl toast hide
+```text
+tap / hold / swipe / openapp / text / paste / clipboard-set
+tap-image / tap-color / toast / record / stop
 ```
 
-Types: `error`, `warning`, `message`, `success`.
+This prevents a transient acknowledgement failure from turning into a double tap or duplicate text entry.
 
-## Existing image/OCR APIs
+## Vision examples
 
 ```sh
 nktouchctl screenshot /var/mobile/shot.jpg
 nktouchctl find-image /var/mobile/button.png
 nktouchctl wait-image /var/mobile/button.png 5000 250 0.85
 nktouchctl tap-image /var/mobile/button.png 5000 250 0.85
-nktouchctl ocr 0 0 1170 2532 "vi-VN,,en-US"
+nktouchctl pixel 100 100
+nktouchctl ocr 0 0 750 1334 "vi-VN,,en-US"
+nktouchctl wait-text 0 0 750 1334 "Tiếp tục" 5000 300 "vi-VN,,en-US"
 ```
 
-## Lua example
+## Lua health example
 
 ```lua
 local nk = dofile('/var/jb/usr/share/nktouch/lua/nktouch.lua')
 
-nk.toast('message', 'Đang tìm nút', 2)
+local report = nk.doctor('full')
+print(report or 'doctor failed')
 
-local c = nk.getColor(100, 100)
-if c then
-    nk.log(string.format('RGB %d %d %d', c.red, c.green, c.blue))
-end
-
-local hit = nk.waitColor(0, 0, 1170, 2532,
-    200, 255, 200, 255, 200, 255,
-    5000, 200, 2)
-
-if hit then
-    nk.tap(hit.x, hit.y)
-end
-
-local text = nk.waitText(0, 0, 1170, 2532,
-    'Tiếp tục', 5000, 300, 'vi-VN,,en-US')
-
-if text then nk.success('Đã thấy chữ') end
+local test = nk.selftest()
+print(test or 'selftest failed')
 ```
 
-## Script runtime
-
-```sh
-nktouchctl check /var/mobile/task.sh
-nktouchctl run /var/mobile/task.sh
-```
-
-No Python 3 is required for V6 native APIs or shell-script execution.
+`nk.VERSION` is `0.6.1`. `nk.NATIVE_VERSION` documents the stable native engine baseline as `0.6.0`.
 
 ## Protocol safety
 
@@ -173,7 +162,7 @@ The pinned core defines:
 30 screenshot
 ```
 
-V6's build fails if these task IDs move, preventing the screenshot collision that existed in V4.
+The build fails if these IDs move. V6.1 does not introduce a new protocol task ID.
 
 ## License
 
