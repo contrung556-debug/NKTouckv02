@@ -11,22 +11,13 @@ HELPER="/var/jb/usr/share/nktouch/nktouchctl.py"
 
 mkdir -p "$BASE"
 
-now() {
-  /var/jb/usr/bin/date +%s 2>/dev/null || date +%s
-}
-
-sanitize() {
-  printf '%s' "$*" | tr '\r\n|' '   '
-}
+now() { /var/jb/usr/bin/date +%s 2>/dev/null || date +%s; }
+sanitize() { printf '%s' "$*" | tr '\r\n|' '   '; }
 
 write_status() {
-  style="$1"
-  percent="$2"
-  shift 2
+  style="$1"; percent="$2"; shift 2
   msg="$(sanitize "$*")"
-  case "$percent" in
-    ''|*[!0-9]*) percent=0 ;;
-  esac
+  case "$percent" in ''|*[!0-9]*) percent=0 ;; esac
   [ "$percent" -lt 0 ] 2>/dev/null && percent=0 || true
   [ "$percent" -gt 100 ] 2>/dev/null && percent=100 || true
   tmp="$STATUS_FILE.tmp.$$"
@@ -36,7 +27,6 @@ write_status() {
 }
 
 append_log() {
-  mkdir -p "$BASE"
   printf '%s %s\n' "$(now)" "$(sanitize "$*")" >> "$LOG_FILE"
   chmod 666 "$LOG_FILE" 2>/dev/null || true
   size=$(wc -c < "$LOG_FILE" 2>/dev/null || echo 0)
@@ -46,126 +36,86 @@ append_log() {
 }
 
 need_python() {
-  if [ ! -x "$PY" ]; then
-    echo "NKTouch: native backend bị thiếu và máy cũng không có Python fallback." >&2
-    exit 3
-  fi
-  if [ ! -f "$HELPER" ]; then
-    echo "NKTouch: thiếu helper fallback $HELPER" >&2
-    exit 4
-  fi
+  [ -x "$PY" ] || { echo "NKTouch: native backend bị thiếu và máy cũng không có Python fallback." >&2; exit 3; }
+  [ -f "$HELPER" ] || { echo "NKTouch: thiếu helper fallback $HELPER" >&2; exit 4; }
 }
 
 run_native_first() {
-  subcmd="$1"
-  shift || true
-  if [ -x "$NATIVE" ]; then
-    exec "$NATIVE" "$subcmd" "$@"
-  fi
-
-  # Emergency compatibility path for an incomplete/old upgrade only. A normal
-  # v0.3 install always contains the native binary and never needs Python.
+  subcmd="$1"; shift || true
+  if [ -x "$NATIVE" ]; then exec "$NATIVE" "$subcmd" "$@"; fi
   need_python
   exec "$PY" "$HELPER" "$subcmd" "$@"
 }
 
-cmd="${1:-help}"
-shift || true
+run_native_only() {
+  subcmd="$1"; shift || true
+  [ -x "$NATIVE" ] || { echo "NKTouch v0.4: thiếu native backend $NATIVE" >&2; exit 4; }
+  exec "$NATIVE" "$subcmd" "$@"
+}
 
+cmd="${1:-help}"; shift || true
 case "$cmd" in
-  status)
-    pct="${1:-0}"; shift || true
-    write_status normal "$pct" "$*"
-    ;;
-  success)
-    write_status success 100 "$*"
-    ;;
-  warning|warn)
-    write_status warning 0 "$*"
-    ;;
-  error|fail)
-    write_status error 0 "$*"
-    ;;
-  hide)
-    write_status hide 0 ""
-    ;;
-  heartbeat)
-    printf '%s\n' "$(now)" > "$HEARTBEAT_FILE"
-    chmod 666 "$HEARTBEAT_FILE" 2>/dev/null || true
-    ;;
-  log)
-    append_log "$*"
-    ;;
-  state)
-    if [ -f "$STATUS_FILE" ]; then cat "$STATUS_FILE"; else echo "hide|0||0"; fi
-    ;;
-  logs)
-    tail -n "${1:-50}" "$LOG_FILE" 2>/dev/null || true
-    ;;
+  status) pct="${1:-0}"; shift || true; write_status normal "$pct" "$*" ;;
+  success) write_status success 100 "$*" ;;
+  warning|warn) write_status warning 0 "$*" ;;
+  error|fail) write_status error 0 "$*" ;;
+  hide) write_status hide 0 "" ;;
+  heartbeat) printf '%s\n' "$(now)" > "$HEARTBEAT_FILE"; chmod 666 "$HEARTBEAT_FILE" 2>/dev/null || true ;;
+  log) append_log "$*" ;;
+  state) if [ -f "$STATUS_FILE" ]; then cat "$STATUS_FILE"; else echo "hide|0||0"; fi ;;
+  logs) tail -n "${1:-50}" "$LOG_FILE" 2>/dev/null || true ;;
   backend)
-    if [ -x "$NATIVE" ]; then
-      printf 'native %s\n' "$($NATIVE version 2>/dev/null || echo unknown)"
-    elif [ -x "$PY" ] && [ -f "$HELPER" ]; then
-      echo "python-fallback"
-    else
-      echo "unavailable"
-      exit 4
-    fi
-    ;;
+    if [ -x "$NATIVE" ]; then printf 'native %s\n' "$($NATIVE version 2>/dev/null || echo unknown)"
+    elif [ -x "$PY" ] && [ -f "$HELPER" ]; then echo "python-fallback"
+    else echo "unavailable"; exit 4; fi ;;
   ping)
-    if [ -x "$NATIVE" ]; then
-      exec "$NATIVE" ping
-    fi
-    need_python
-    exec "$PY" "$HELPER" screen
-    ;;
-  tap|hold|swipe|openapp|stop|screen|foreground)
-    run_native_first "$cmd" "$@"
-    ;;
-  record)
-    run_native_first record "$@"
-    ;;
-  native)
-    if [ ! -x "$NATIVE" ]; then
-      echo "NKTouch: native backend chưa được cài ở $NATIVE" >&2
-      exit 4
-    fi
-    exec "$NATIVE" "$@"
-    ;;
+    if [ -x "$NATIVE" ]; then exec "$NATIVE" ping; fi
+    need_python; exec "$PY" "$HELPER" screen ;;
+  tap|hold|swipe|openapp|stop|screen|foreground) run_native_first "$cmd" "$@" ;;
+  record) run_native_first record "$@" ;;
+  text|keyboard|cursor|delete|paste|clipboard-get|clipboard-set|screenshot|orientation|scale|device|battery|runtime)
+    run_native_only "$cmd" "$@" ;;
+  native) run_native_only "$@" ;;
   help|-h|--help)
     cat <<'HELP'
-NKTouch v0.3 native-first
+NKTouch v0.4 native automation
 
 Status:
   nktouchctl status <0-100> <message>
-  nktouchctl success <message>
-  nktouchctl warning <message>
-  nktouchctl error <message>
-  nktouchctl hide
-  nktouchctl heartbeat
-  nktouchctl log <message>
-  nktouchctl state
-  nktouchctl logs [lines]
+  nktouchctl success|warning|error <message>
+  nktouchctl hide | heartbeat | log <message> | state | logs [lines]
 
-Native automation (Python 3 NOT required):
+Touch / app:
   nktouchctl tap <x> <y>
   nktouchctl hold <x> <y> <ms>
   nktouchctl swipe <x1> <y1> <x2> <y2> <ms>
   nktouchctl openapp <bundle-id>
   nktouchctl record start|stop
   nktouchctl stop
+
+Keyboard / clipboard (native):
+  nktouchctl text "hello"
+  nktouchctl keyboard show|hide
+  nktouchctl cursor <-N|N>
+  nktouchctl delete <count>
+  nktouchctl paste "text"
+  nktouchctl clipboard-get
+  nktouchctl clipboard-set "text"
+
+Screen / device (native):
+  nktouchctl screenshot
   nktouchctl screen
   nktouchctl foreground
+  nktouchctl orientation
+  nktouchctl scale
+  nktouchctl device
+  nktouchctl battery
+  nktouchctl runtime
+
+Health:
   nktouchctl ping
   nktouchctl backend
-
-Debug/native passthrough:
-  nktouchctl native <native-command> [...]
 HELP
     ;;
-  *)
-    echo "NKTouch: unknown command '$cmd'" >&2
-    echo "Run: nktouchctl help" >&2
-    exit 2
-    ;;
+  *) echo "NKTouch: unknown command '$cmd'" >&2; echo "Run: nktouchctl help" >&2; exit 2 ;;
 esac
