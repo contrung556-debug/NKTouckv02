@@ -1,244 +1,244 @@
-# NKTouch v0.7.2 Script Editor
+# NKTouch v0.7.4 Network/API
 
-NKTouch V7 stays script-first. V7.0 added the single-active-task supervisor, V7.1 added Recorder V2, and V7.2 adds an on-device Script Editor workspace so scripts can be created, checked, inspected, edited, completed from the local API catalog, and launched without a computer.
+NKTouch V7 remains script-first and on-demand. V7.4 adds native HTTP/HTTPS and JSON APIs for Lua scripts while preserving the V7.0 Task Engine, V7.1 Recorder V2, V7.2 Script Editor, V7.3 Task Bundle format, and the existing V6.4 automation API.
 
 ```text
-Recorder V2 -> Lua script -> Script Editor -> Task Engine -> hardened Lua runtime -> nkcore -> SpringBoard core
+Lua script
+  -> nk.http / nk.json
+  -> native Foundation HTTP helper
+  -> system TLS validation
+
+Lua script
+  -> existing nk.* automation API
+  -> nkcore / SpringBoard automation core
 ```
 
-## V7.2 adds
+## V7.4 adds
 
-- `nktouchctl editor ...` and alias `nktouchctl script ...`
-- Managed scripts under `/var/mobile/Library/NKTouch/scripts`
-- Safe script names that cannot escape the managed workspace
-- Starter templates: `blank`, `tap`, `image`, `color`, `ocr`
-- Mandatory `luac` syntax validation before a managed script is executed
-- Syntax validation after generated templates, imports, snippets, and append edits
-- Automatic rollback of append/snippet edits if they introduce Lua syntax errors
-- Local searchable NKTouch API catalog; no network required
-- Prefix completion with `editor complete`
-- Ready-to-paste examples with `editor snippet`
-- Run/status/pause/resume/stop/logs controls delegated to the proven V7.0 task engine
-- Interactive editing through `nano`, `micro`, `vim`, or `vi` when one is already installed
-- Recorder V2 and all previous native APIs retained unchanged
-- OCR remains explicit/on-demand only; the editor does not run OCR in the background
+- `nk.http.request(opts)` for explicit HTTP/HTTPS requests
+- `nk.http.get(url, opts)`
+- `nk.http.post(url, body, opts)`
+- `nk.http.download(url, path, opts)`
+- `nk.http.upload(url, path, opts)`
+- `nk.json.encode(value)` / `nk.json.decode(text)`
+- `nk.json.array(table)` / `nk.json.object(table)` to disambiguate empty or tagged tables
+- Native iOS Foundation networking; runtime requests do not depend on curl or Python
+- Streamed response writes with a hard 32 MiB ceiling
+- Request bodies limited to 16 MiB
+- Per-request timeout and response-size limits
+- HTTP methods: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
+- System TLS certificate validation with no trust bypass
+- HTTPS redirects are never downgraded to cleartext HTTP
+- Cookies are not persisted automatically
+- No automatic request retry
+- Temporary request metadata is not printed with authorization headers or tokens
+- OCR remains explicit/on-demand only
 
-## Versions
+## Versions retained
 
 ```text
-NKTouch package/runtime: 0.7.2
-Script Editor:           0.7.2
+NKTouch package/runtime: 0.7.4
+Network/API:             0.7.4
+Task Bundle:             0.7.3 retained
+Script Editor:           0.7.2 retained
 Recorder V2:             0.7.1 retained
-Task engine:             0.7.0 retained
+Task Engine:             0.7.0 retained
 V6.4 Lua API:            retained
-Native CLI:              0.6.0
 Embedded nkcore:         0.6.3
 Bundled Lua:             5.4.9
 ```
 
-## First script
+## Load V7.4 from Lua
 
-Create a blank script:
+```lua
+local nk = require("nktouch_v7")
 
-```sh
-nktouchctl editor new demo blank
+assert(nk.NETWORK_VERSION == "0.7.4")
+assert(nk.http.VERSION == "0.7.4")
+assert(nk.json.VERSION == "0.7.4")
 ```
 
-Or start from a template:
+The normal `nktouch-lua` runner preloads the V7 wrapper, so managed scripts keep the existing `nk.*` API and also gain `nk.http` and `nk.json`.
 
-```sh
-nktouchctl editor new image-test image
-nktouchctl editor new color-test color
-nktouchctl editor new ocr-test ocr
+## GET JSON
+
+```lua
+local nk = require("nktouch_v7")
+
+local res, err, kind = nk.http.get("https://your-api.example/health", {
+  headers = {
+    ["Accept"] = "application/json",
+  },
+  timeout_ms = 10000,
+  max_bytes = 1024 * 1024,
+  decode_json = true,
+})
+
+if not res then
+  error((kind or "NETWORK") .. ": " .. tostring(err))
+end
+
+print("HTTP", res.status)
+if res.json then
+  print(nk.json.encode(res.json))
+end
 ```
 
-Inspect and syntax-check:
+## POST JSON
 
-```sh
-nktouchctl editor show demo
-nktouchctl editor check demo
+Passing a Lua table as the second argument to `nk.http.post` sends JSON and automatically adds `Content-Type: application/json` unless the caller already supplied a content type.
+
+```lua
+local nk = require("nktouch_v7")
+
+local res, err, kind = nk.http.post("https://your-api.example/items", {
+  name = "demo",
+  enabled = true,
+  tags = nk.json.array({"ios", "lua"}),
+}, {
+  headers = {
+    ["Accept"] = "application/json",
+    ["Authorization"] = "Bearer <token>",
+  },
+  timeout_ms = 15000,
+  decode_json = true,
+})
+
+if not res then
+  error((kind or "NETWORK") .. ": " .. tostring(err))
+end
+
+print("HTTP", res.status, "bytes", res.bytes)
 ```
 
-If `nano`, `micro`, `vim`, or `vi` is installed:
+## Generic request
 
-```sh
-nktouchctl editor edit demo
+```lua
+local res, err, kind = nk.http.request({
+  url = "https://your-api.example/items/123",
+  method = "PATCH",
+  headers = { ["Accept"] = "application/json" },
+  json = { enabled = false },
+  timeout_ms = 15000,
+  max_bytes = 2 * 1024 * 1024,
+  decode_json = true,
+})
 ```
 
-The editor automatically checks syntax again when the interactive editor exits.
+`body`, `json`, and `body_file` are explicit request-body choices. `body` and `json` cannot be combined, and `body_file` cannot be combined with either of them.
 
-## API help and completion
+## Response object
 
-List the local API catalog:
+Successful transport returns a response table even for HTTP error statuses:
 
-```sh
-nktouchctl editor api
+```text
+res.ok            true for HTTP 2xx/3xx
+res.status        HTTP status code
+res.bytes         response body bytes written
+res.content_type  MIME type when available
+res.url           final URL after allowed redirects
+res.body          response body for in-memory requests
+res.json          decoded JSON when decode_json=true
+res.path          destination path for download requests
 ```
 
-Search by API name, signature, category, or description:
+Transport, validation, file, limit, and JSON failures return:
 
-```sh
-nktouchctl editor api image
-nktouchctl editor api swipe
-nktouchctl editor api clipboard
+```lua
+nil, message, kind
 ```
 
-Prefix completion:
+The `kind` value identifies categories such as `INVALID`, `IO`, `LIMIT`, `JSON`, `EXISTS`, or `NETWORK`.
 
-```sh
-nktouchctl editor complete nk.wait
-nktouchctl editor complete nk.tap
+## Download and upload
+
+```lua
+local nk = require("nktouch_v7")
+
+local r1 = assert(nk.http.download(
+  "https://your-api.example/file.bin",
+  "/var/mobile/Library/NKTouch/file.bin",
+  { max_bytes = 32 * 1024 * 1024 }
+))
+
+local r2 = assert(nk.http.upload(
+  "https://your-api.example/upload",
+  "/var/mobile/Library/NKTouch/file.bin",
+  { method = "PUT", headers = { ["Content-Type"] = "application/octet-stream" } }
+))
 ```
 
-Print a ready-to-paste example:
+Downloads do not overwrite an existing destination unless `overwrite=true` is explicitly set.
+
+## Local health check
+
+V7.4 does not make a background or external probe during doctor checks.
 
 ```sh
-nktouchctl editor snippet tap
-nktouchctl editor snippet waitImage
-```
-
-Append a catalog snippet to a managed script and syntax-check it immediately:
-
-```sh
-nktouchctl editor snippet tap demo
-```
-
-## Quick editing without a text editor
-
-Append one Lua line:
-
-```sh
-nktouchctl editor append demo 'must(nk.tap(120, 450))'
-```
-
-If the appended line causes a syntax error, V7.2 restores the previous script automatically.
-
-Clone or import scripts:
-
-```sh
-nktouchctl editor clone demo demo-copy
-nktouchctl editor import /var/mobile/Library/NKTouch/recordings/my-flow.lua recorded-flow
-```
-
-Delete requires an explicit flag:
-
-```sh
-nktouchctl editor delete demo-copy --yes
-```
-
-## Run controls
-
-Run a managed script:
-
-```sh
-nktouchctl editor run demo --timeout 30
-```
-
-Inspect or control the current task:
-
-```sh
-nktouchctl editor status
-nktouchctl editor pause
-nktouchctl editor resume
-nktouchctl editor logs
-nktouchctl editor stop
-```
-
-V7.2 checks the Lua syntax before handing the script to `nktask`. The V7.0 rule still applies: only one screen-control task can be active at a time.
-
-## Recorder V2 workflow retained
-
-```sh
-nktouchctl recorder start
-# perform taps / holds / swipes
-nktouchctl recorder stop my-flow
-nktouchctl editor import /var/mobile/Library/NKTouch/recordings/my-flow.lua my-flow
-nktouchctl editor check my-flow
-nktouchctl editor run my-flow --timeout 30
-```
-
-Recorder V2 continues to replay keyboard input as the physical taps that were recorded instead of guessing semantic characters.
-
-## Health check
-
-```sh
+nktouchctl network doctor
+nktouchctl network version
 nktouchctl backend
 nktouchctl doctor full
 nktouchctl selftest
-nktouchctl editor doctor
-nktouchctl recorder doctor
-nktouchctl task doctor
 ```
 
-Expected V7.2 backend adds an editor line while retaining the older layers:
+The network doctor reports the local helper state, system TLS validation mode, and on-demand behavior only.
 
-```text
-runtime=0.7.2
-task-engine=0.7.0
-recorder=0.7.1
-editor=0.7.2
+## Existing V7 workflow retained
+
+```sh
+# Recorder V2
+nktouchctl recorder start
+nktouchctl recorder stop my-flow
+
+# Script Editor
+nktouchctl editor import /var/mobile/Library/NKTouch/recordings/my-flow.lua my-flow
+nktouchctl editor check my-flow
+
+# V7.3 bundle
+nktouchctl bundle export my-flow /var/mobile/Library/NKTouch/my-flow.nktask
+
+# Run through the Task Engine
+nktouchctl editor run my-flow --timeout 30
 ```
 
-## State paths
+Only one screen-control task can be active at a time. Network calls occur only when the running Lua script calls `nk.http`.
 
-```text
-/var/mobile/Library/NKTouch/scripts      managed Script Editor workspace
-/var/mobile/Library/NKTouch/tasks        task state/history/logs
-/var/mobile/Library/NKTouch/recorder     active recorder marker/state
-/var/mobile/Library/NKTouch/recordings   Recorder V2 generated Lua scripts
-```
+## Security choices
 
-## Safety choices
+- System trust validation is used for HTTPS; V7.4 contains no certificate/trust bypass.
+- HTTPS redirects cannot downgrade to HTTP.
+- Request headers and bearer/API tokens are not echoed by the network wrapper.
+- Cookies are not persisted automatically by the Foundation session.
+- Response size and request body size are bounded.
+- No automatic retry is performed, which avoids repeating side-effecting POST/PATCH/DELETE requests unexpectedly.
+- OCR is not coupled to networking and remains explicit/on-demand only.
 
-- Managed script names reject path separators and traversal-like names.
-- Generated/imported scripts are syntax-checked before they enter normal run flow.
-- Side-effecting native actions remain non-retryable by the direct Lua runtime.
-- API help/completion is local metadata and does not execute a script.
-- OCR templates are examples only; OCR runs only when the user explicitly executes a script that calls `nk.ocr` or `nk.waitText`.
-- V7.2 does not expose arbitrary shell execution through the editor command set.
+## Protocol safety
 
-## Existing V6.4 capabilities retained
-
-- Tap / hold / swipe
-- App launch / foreground / wait-app
-- Text / keyboard / cursor / delete / paste / clipboard
-- Screenshot
-- Image matching and tap-image
-- Color read/search/wait/tap
-- Explicit OCR and wait-text
-- Direct embedded `nkcore`
-- Bounded retry for safe read-only operations
-- `doctor`, `selftest`, `benchmark`, `stress`
-
-## Roadmap after V7.2
-
-- V7.3 Import/export task bundles
-- V7.4 HTTP/HTTPS + JSON networking
-- Later: richer visual script UI once the script/recorder/task foundation is proven on real devices
+V7.4 allocates no new SpringBoard task IDs. Existing protocol IDs remain unchanged, including recorder start/stop `14`/`15`, OCR `27`, prompt input `29`, and screenshot `30`.
 
 ## Build
 
 Branch:
 
 ```text
-v0.7.2-script-editor
+v0.7.4-network-api
 ```
 
 Artifact:
 
 ```text
-NKTouch-v0.7.2-script-editor-rootless
+NKTouch-v0.7.4-network-api-rootless
 ```
 
 Package:
 
 ```text
-com.nk.nktouch_0.7.2_rootless.deb
+com.nk.nktouch_0.7.4_rootless.deb
 ```
 
-## Protocol safety
-
-V7.2 allocates no new SpringBoard task IDs. Recorder remains `14`/`15`, OCR remains `27`, prompt input remains `29`, and screenshot remains `30`.
+The V7.4 workflow compiles the native HTTP helper for iOS arm64, smoke-tests JSON and the Lua network wrapper, runs retained V7 contract tests, builds the iOS app, and produces the rootless package.
 
 ## License
 
