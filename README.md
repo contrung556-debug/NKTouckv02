@@ -1,25 +1,160 @@
-# NKTouch v0.6.1 Stable
+# NKTouch v0.6.2 Standalone Lua
 
-NKTouch is a rootless iOS automation project for jailbroken devices. v0.6.1 is a hardening release built on the proven V6 native engine. It keeps V6 vision/color/OCR features intact and focuses on safer retries, diagnostics, cleanup and a more predictable Lua API.
+NKTouch v0.6.2 completes the next foundation step before V7: Lua scripts can now run directly from the NKTouch package on a jailbroken rootless iPhone. AutoTouch and Python 3 are not required for the normal standalone Lua/native automation path.
 
-## What changed from V6
+## What V6.2 adds
 
-- Runtime wrapper version `0.6.1`; native engine remains the tested `0.6.0` engine
-- Read-only transport failures can retry a small bounded number of times
-- Side-effecting actions such as tap, text, paste, open-app and tap-image/tap-color are never auto-retried
-- `doctor quick` for fast health checks
-- `doctor full` additionally verifies screenshot capture and temporary-file writing
-- `selftest` performs non-destructive runtime checks and reports `result=PASS` or `result=FAIL`
-- `cleanup` removes only NKTouch-owned diagnostic/temp files
-- Runtime state now has a dedicated `/var/mobile/Library/NKTouch/tmp` directory
-- Lua `os.execute`/`io.popen` results are normalized to predictable success/error values
-- Lua helpers added for `selftest`, `cleanup` and doctor modes
-- Generated Python bytecode is removed from the repository and ignored
-- CI includes a V6.1 runtime contract test and protocol guards
+- Bundled, pinned Lua `5.4.9` interpreter compiled for iOS arm64
+- Bundled `luac` syntax checker
+- `nktouch-lua` standalone launcher
+- `nktouchctl lua <script.lua>` to execute Lua scripts directly
+- `nktouchctl lua -e '<code>'` for quick Lua commands
+- `nktouchctl lua-check <script.lua>` for syntax validation before running
+- `nktouchctl lua-version`
+- The launcher automatically loads `require('nktouch')` as global `nk`
+- A small AutoTouch compatibility layer is installed automatically: `tap`, `swipe`, `inputText`, `usleep`, `sleep`, `getColor`, `log`, `setTopStatus`, `hideTopStatus`
+- `doctor full` now verifies that the bundled Lua interpreter and NKTouch Lua API both load
+- `selftest` verifies the standalone Lua runtime without performing touch/input side effects
+- Lua source archive is checksum-pinned in CI and its upstream README/license notice is bundled in the package
 
-## Existing V6 capabilities retained
+## Versions
 
-- Native touch, hold and swipe
+```text
+NKTouch runtime: 0.6.2
+Native engine:   0.6.0
+Bundled Lua:     5.4.9
+```
+
+The native engine intentionally remains on the tested V6 baseline while the runtime layer is improved around it.
+
+## Architecture
+
+```text
+.lua script
+   |
+   v
+nktouchctl lua / nktouch-lua
+   |
+   +--> bundled Lua 5.4.9
+   |      |
+   |      +--> global nk / AutoTouch compatibility helpers
+   |                 |
+   |                 v
+   +-----------> nktouchctl
+                     |
+                     v
+             native C engine 0.6.0
+                     |
+                     v
+             TCP 127.0.0.1:6000
+                     |
+                     v
+              ZXTouch GPL core
+```
+
+## Build
+
+Branch:
+
+```text
+v0.6.2-lua
+```
+
+Artifact:
+
+```text
+NKTouch-v0.6.2-lua-rootless
+```
+
+Package:
+
+```text
+com.nk.nktouch_0.6.2_rootless.deb
+```
+
+## First health test
+
+```sh
+nktouchctl backend
+nktouchctl lua-version
+nktouchctl doctor
+nktouchctl doctor full
+nktouchctl selftest
+```
+
+A healthy device should finish with:
+
+```text
+lua_runtime=ok
+result=PASS
+```
+
+## Run a standalone Lua script
+
+Create `/var/mobile/test.lua`:
+
+```lua
+print('NKTouch Lua:', nk.VERSION)
+print('Bundled Lua:', nk.LUA_VERSION)
+
+local screen = nk.screen()
+print('screen:', screen or 'unknown')
+
+nk.log('Standalone Lua is running')
+```
+
+Run it:
+
+```sh
+nktouchctl lua /var/mobile/test.lua
+```
+
+No AutoTouch process is involved.
+
+## AutoTouch-style compatibility
+
+The default launcher preloads the compatibility helpers, so a simple script can use:
+
+```lua
+tap(200, 400)
+usleep(500000)
+inputText('Xin chào từ NKTouch')
+```
+
+For new scripts, prefer the explicit API because errors/results are clearer:
+
+```lua
+local ok, code = nk.tap(200, 400)
+if not ok then
+    nk.error('tap failed: '..tostring(code))
+end
+```
+
+## Syntax check before execution
+
+```sh
+nktouchctl lua-check /var/mobile/test.lua
+```
+
+Expected result:
+
+```text
+ok
+```
+
+## Plain Lua mode
+
+If a script should not preload NKTouch globals:
+
+```sh
+/var/jb/usr/bin/nktouch-lua --plain /var/mobile/plain.lua
+```
+
+The NKTouch module is still available through the package path if explicitly required.
+
+## V6/V6.1 capabilities retained
+
+- Native tap, hold and swipe
 - App launch / foreground / wait-app
 - Keyboard, text, cursor, delete, paste and clipboard
 - Screenshot
@@ -28,130 +163,17 @@ NKTouch is a rootless iOS automation project for jailbroken devices. v0.6.1 is a
 - Color picker/search: `pixel`, `find-color`, `wait-color`, `tap-color`
 - Toast feedback
 - Shell script runner
-- Lua compatibility helpers
+- Bounded retries for read-only transport failures
+- No automatic retry for side-effecting actions
+- `doctor`, `selftest`, `cleanup`
 
-## Architecture
+## Important limitation
 
-```text
-Lua / shell script
-      |
-      v
- nktouchctl 0.6.1 Stable
-      |
-      v
- native C engine 0.6.0 --> TCP 127.0.0.1:6000 --> ZXTouch SpringBoard core
-```
-
-The stable wrapper intentionally does not auto-retry commands that may cause duplicate user actions.
-
-## Build
-
-Branch:
-
-```text
-v0.6.1-stable
-```
-
-Artifact:
-
-```text
-NKTouch-v0.6.1-stable-rootless
-```
-
-Package:
-
-```text
-com.nk.nktouch_0.6.1_rootless.deb
-```
-
-## Recommended health test
-
-```sh
-nktouchctl backend
-nktouchctl ping
-nktouchctl doctor
-nktouchctl doctor full
-nktouchctl selftest
-```
-
-Expected backend format:
-
-```text
-native 0.6.0 (runtime 0.6.1)
-```
-
-A healthy full self-test ends with:
-
-```text
-result=PASS
-```
-
-## Cleanup
-
-NKTouch diagnostics use:
-
-```text
-/var/mobile/Library/NKTouch/tmp
-```
-
-Clean only NKTouch diagnostic/temp files with:
-
-```sh
-nktouchctl cleanup
-```
-
-The command does not delete user screenshots or template images stored elsewhere.
-
-## Retry behavior
-
-Read-only operations such as screen/device queries, OCR, pixel/color queries and screenshots can retry transport errors. Default attempts: 2.
-
-Override for debugging:
-
-```sh
-NKTOUCH_READ_RETRIES=1 nktouchctl screen
-```
-
-Allowed range is clamped to 1-4 attempts.
-
-The following categories are deliberately single-attempt:
-
-```text
-tap / hold / swipe / openapp / text / paste / clipboard-set
-tap-image / tap-color / toast / record / stop
-```
-
-This prevents a transient acknowledgement failure from turning into a double tap or duplicate text entry.
-
-## Vision examples
-
-```sh
-nktouchctl screenshot /var/mobile/shot.jpg
-nktouchctl find-image /var/mobile/button.png
-nktouchctl wait-image /var/mobile/button.png 5000 250 0.85
-nktouchctl tap-image /var/mobile/button.png 5000 250 0.85
-nktouchctl pixel 100 100
-nktouchctl ocr 0 0 750 1334 "vi-VN,,en-US"
-nktouchctl wait-text 0 0 750 1334 "Tiếp tục" 5000 300 "vi-VN,,en-US"
-```
-
-## Lua health example
-
-```lua
-local nk = dofile('/var/jb/usr/share/nktouch/lua/nktouch.lua')
-
-local report = nk.doctor('full')
-print(report or 'doctor failed')
-
-local test = nk.selftest()
-print(test or 'selftest failed')
-```
-
-`nk.VERSION` is `0.6.1`. `nk.NATIVE_VERSION` documents the stable native engine baseline as `0.6.0`.
+V6.2 provides a standalone Lua interpreter, but the Lua helper still reaches the native automation engine through `nktouchctl` subprocesses. Direct in-process C bindings are a later optimization. This keeps V6.2 conservative while removing the dependency on AutoTouch for running Lua scripts.
 
 ## Protocol safety
 
-The pinned core defines:
+The pinned core still defines:
 
 ```text
 22 toast
@@ -162,8 +184,8 @@ The pinned core defines:
 30 screenshot
 ```
 
-The build fails if these IDs move. V6.1 does not introduce a new protocol task ID.
+V6.2 introduces no new SpringBoard protocol task ID.
 
 ## License
 
-GPL-3.0. See `LICENSE` and `NOTICE.md`. Upstream ZXTouch attribution is retained.
+NKTouch/ZXTouch code remains GPL-3.0 with upstream attribution retained. The bundled Lua interpreter is built from the official Lua 5.4.9 source archive; its upstream README/license notice is included in the package.
