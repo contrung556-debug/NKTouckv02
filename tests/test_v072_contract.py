@@ -35,8 +35,16 @@ class V072ScriptEditorContract(unittest.TestCase):
         self.assertIn('"$LUAC" -p "$file"', s)
         self.assertIn('refusing to run script with syntax errors', s)
         self.assertLess(s.index('"$LUAC" -p "$file" || { echo "NKTouch Editor: refusing to run script with syntax errors"'), s.index('exec "$TASK" start "$file" "$@"'))
-        self.assertIn('append reverted because syntax check failed', s)
-        self.assertIn('snippet reverted because syntax check failed', s)
+        self.assertIn('append_checked()', s)
+        self.assertIn('mv "$backup" "$file"', s)
+        self.assertIn('script was not left partially edited', s)
+        self.assertIn('rc=$?', s)
+        self.assertIn('exit "$rc"', s)
+
+    def test_template_failures_keep_the_original_exit_status(self):
+        s = self.text("runtime/nkeditor")
+        self.assertIn('emit_template "$template" > "$tmp" || rc=$?', s)
+        self.assertIn('if [ "$rc" -ne 0 ]; then rm -f "$tmp"; exit "$rc"; fi', s)
 
     def test_managed_script_names_block_path_escape(self):
         s = self.text("runtime/nkeditor")
