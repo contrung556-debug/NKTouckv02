@@ -23,8 +23,9 @@ class V073TaskBundleContract(unittest.TestCase):
         self.assertIn('VERSION="0.7.3"', s)
         for command in ('asset)', 'export)', 'inspect)', 'import|install)', 'list)', 'doctor)'):
             self.assertIn(command, s)
-        self.assertIn('/var/mobile/Library/NKTouch/assets', s)
-        self.assertIn('/var/mobile/Library/NKTouch/bundles', s)
+        self.assertIn('ROOT="/var/mobile/Library/NKTouch"', s)
+        self.assertIn('ASSETS="$ROOT/assets"', s)
+        self.assertIn('BUNDLES="$ROOT/bundles"', s)
         self.assertIn('refusing to export script with syntax errors', s)
         self.assertIn('imported script failed syntax check', s)
         self.assertIn('output already exists', s)
