@@ -1,19 +1,18 @@
-# NKTouch v0.3 Native
+# NKTouch v0.4 Native
 
-NKTouch is a rootless iOS automation project for jailbroken devices. v0.3 keeps the proven GPL ZXTouch SpringBoard touch engine internally, but replaces the Python dependency for the public automation CLI with a small compiled native client.
+NKTouch is a rootless iOS automation project for jailbroken devices. v0.4 keeps the pinned GPL ZXTouch SpringBoard engine and expands the native control layer so common automation tasks no longer need Python 3.
 
-## What changed in v0.3
+## v0.4 highlights
 
-- Native C client connects directly to ZXTouch at `127.0.0.1:6000`
-- `tap`, `hold` and `swipe` no longer require Python 3
-- `openapp`, touch recording start/stop and force-stop run through native tasks
-- `screen` and `foreground` now use native ZXTouch device-info task 25
-- `nktouchctl backend` shows which backend is active
-- `nktouchctl ping` checks whether the local automation service is reachable
-- All public `nktouchctl` automation commands work without Python 3 on a normal v0.3 install
-- The old Python helper is bundled only as an emergency compatibility fallback for incomplete upgrades
+- Native `tap`, `hold`, `swipe`, app launch, record and stop
+- Native text input through ZXTouch keyboard task 24
+- Show/hide keyboard, move cursor and delete text
+- Paste text and get/set clipboard
+- Native screenshot command using the existing ZXTouch screenshot engine
+- Native screen size, foreground app, orientation, scale, device info, battery and runtime status
+- Expanded Lua helper with action and query APIs
 - Existing compact status/progress overlay remains integrated
-- Existing Lua API stays compatible
+- Python helper is retained only as an emergency fallback for older V3-compatible commands
 
 ## Architecture
 
@@ -27,53 +26,43 @@ Lua / shell script
  native C client --> TCP 127.0.0.1:6000 --> ZXTouch SpringBoard core
 ```
 
-The native touch and device-info packets follow the pinned GPL ZXTouch source used by this project.
+V4 exposes screenshot through NKTouch task `29`; the actual screenshot implementation remains the screenshot engine already present in the pinned ZXTouch core.
 
-## Build on GitHub
+## Build
 
-Use branch `v0.3-native` and run:
+Use branch `v0.4-native`:
 
-**Actions → Build NKTouch v0.3 Native → Run workflow**
+**Actions → Build NKTouch v0.4 Native → Run workflow**
 
-The workflow:
-
-1. Fetches the pinned ZXTouch rootless source.
-2. Cross-compiles `runtime/nktouch-native.c` for iOS arm64.
-3. Signs the native helper with `ldid`.
-4. Applies the NKTouch v0.3 layer.
-5. Builds the iOS app and rootless tweak package.
-6. Uploads artifact `NKTouch-v0.3-native-rootless`.
-
-The resulting package is:
+Artifact:
 
 ```text
-com.nk.nktouch_0.3.0_rootless.deb
+NKTouch-v0.4-native-rootless
 ```
 
-## Quick test after installation
+Package:
 
-From NewTerm:
+```text
+com.nk.nktouch_0.4.0_rootless.deb
+```
+
+## Quick test
 
 ```sh
 nktouchctl backend
 nktouchctl ping
+nktouchctl screen
+nktouchctl foreground
+nktouchctl battery
 ```
 
 Expected backend:
 
 ```text
-native 0.3.0
+native 0.4.0
 ```
 
-Status overlay:
-
-```sh
-nktouchctl status 25 "Khởi động"
-nktouchctl status 55 "Đang xử lý"
-nktouchctl success "Hoàn tất"
-```
-
-Native touch tests — no Python 3 required:
+Touch:
 
 ```sh
 nktouchctl tap 200 400
@@ -81,16 +70,50 @@ nktouchctl hold 200 400 700
 nktouchctl swipe 200 650 200 250 500
 ```
 
-Native application/control tests:
+Keyboard / clipboard:
 
 ```sh
-nktouchctl openapp com.apple.mobilesafari
-nktouchctl screen
-nktouchctl foreground
-nktouchctl record start
-nktouchctl record stop
-nktouchctl stop
+nktouchctl text "Xin chào"
+nktouchctl keyboard show
+nktouchctl cursor -1
+nktouchctl delete 1
+nktouchctl paste "NKTouch V4"
+nktouchctl clipboard-set "abc123"
+nktouchctl clipboard-get
 ```
+
+Screenshot / device:
+
+```sh
+nktouchctl screenshot
+nktouchctl orientation
+nktouchctl scale
+nktouchctl device
+nktouchctl battery
+nktouchctl runtime
+```
+
+`screenshot` prints the PNG path returned by the SpringBoard screenshot engine.
+
+## Lua helper
+
+```lua
+local nk = dofile('/var/jb/usr/share/nktouch/lua/nktouch.lua')
+
+nk.status(20, 'Bắt đầu')
+nk.tap(200, 400)
+nk.inputText('Xin chào')
+local shot = nk.screenshot()
+local app = nk.foreground()
+local battery = nk.battery()
+nk.success('Xong')
+```
+
+Useful V4 APIs include `text/inputText`, `showKeyboard`, `hideKeyboard`, `moveCursor`, `delete`, `paste`, `getClipboard`, `setClipboard`, `screenshot`, `screen`, `foreground`, `orientation`, `scale`, `device`, `battery`, and `runtime`.
+
+### Protocol note
+
+The ZXTouch socket protocol is line-based and uses `;;` as a field separator. V4 therefore rejects text containing CR/LF or the literal delimiter `;;` instead of sending an ambiguous packet.
 
 ## Files on device
 
@@ -104,21 +127,6 @@ nktouchctl stop
 /var/jb/usr/share/nktouch/lua/nktouch.lua
 ```
 
-`nktouchctl.py` is retained only for upgrade compatibility. It is not required by the normal v0.3 command path.
-
-## Lua helper
-
-```lua
-local nk = dofile('/var/jb/usr/share/nktouch/lua/nktouch.lua')
-
-nk.status(20, 'Bắt đầu')
-nk.tap(200, 400)
-nk.swipe(200, 650, 200, 250, 500)
-nk.success('Xong')
-```
-
-The Lua helper routes its automation calls through `nktouchctl`, which uses the native backend in v0.3.
-
 ## License
 
-GPL-3.0. See `LICENSE` and `NOTICE.md`. The native client implements the socket/task protocol used by the pinned GPL ZXTouch core; upstream attribution remains in `NOTICE.md`.
+GPL-3.0. See `LICENSE` and `NOTICE.md`. Upstream ZXTouch attribution is retained.
