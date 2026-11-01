@@ -1,0 +1,223 @@
+#!/var/jb/bin/sh
+set -u
+
+VERSION="0.7.1"
+PATH="/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin"
+CORE="/var/jb/usr/libexec/nktouch/nktouchctl-core"
+LUA="/var/jb/usr/libexec/nktouch/lua54"
+EXPORTER="/var/jb/usr/share/nktouch/nkrecorder.lua"
+STATE="/var/mobile/Library/NKTouch/recorder"
+OUT="/var/mobile/Library/NKTouch/recordings"
+LEGACY="/var/mobile/Library/ZXTouch/scripts/recording"
+CURRENT="$STATE/current"
+
+mkdir_state() {
+  mkdir -p "$STATE" "$OUT" 2>/dev/null || {
+    echo "NKTouch Recorder: cannot create state directories" >&2
+    exit 4
+  }
+}
+
+need_runtime() {
+  [ -x "$CORE" ] || { echo "NKTouch Recorder: missing core runtime: $CORE" >&2; exit 4; }
+  [ -x "$LUA" ] || { echo "NKTouch Recorder: missing Lua runtime: $LUA" >&2; exit 4; }
+  [ -r "$EXPORTER" ] || { echo "NKTouch Recorder: missing exporter: $EXPORTER" >&2; exit 4; }
+}
+
+latest_bdl() {
+  [ -d "$LEGACY" ] || return 1
+  # shellcheck disable=SC2086
+  set -- "$LEGACY"/*.bdl
+  [ -d "$1" ] || return 1
+  ls -1dt "$LEGACY"/*.bdl 2>/dev/null | head -n 1
+}
+
+raw_for_bdl() {
+  bdl="$1"
+  [ -d "$bdl" ] || return 1
+  set -- "$bdl"/*.raw
+  [ -f "$1" ] || return 1
+  printf '%s\n' "$1"
+}
+
+latest_output() {
+  set -- "$OUT"/*.lua
+  [ -f "$1" ] || return 1
+  ls -1t "$OUT"/*.lua 2>/dev/null | head -n 1
+}
+
+safe_name() {
+  printf '%s' "$1" | tr -cd 'A-Za-z0-9._-'
+}
+
+wait_for_new_bdl() {
+  before="$1"
+  i=0
+  while [ "$i" -lt 30 ]; do
+    now="$(latest_bdl 2>/dev/null || true)"
+    if [ -n "$now" ] && [ "$now" != "$before" ]; then
+      printf '%s\n' "$now"
+      return 0
+    fi
+    "$CORE" sleep 50 >/dev/null 2>&1 || true
+    i=$((i + 1))
+  done
+  return 1
+}
+
+wait_raw_stable() {
+  raw="$1"
+  previous="-1"
+  stable=0
+  i=0
+  while [ "$i" -lt 30 ]; do
+    if [ -f "$raw" ]; then
+      size="$(wc -c < "$raw" 2>/dev/null | tr -d ' ')"
+    else
+      size="0"
+    fi
+    if [ "$size" = "$previous" ]; then stable=$((stable + 1)); else stable=0; previous="$size"; fi
+    [ "$stable" -ge 2 ] && return 0
+    "$CORE" sleep 100 >/dev/null 2>&1 || true
+    i=$((i + 1))
+  done
+  return 0
+}
+
+export_raw() {
+  raw="$1"
+  out="$2"
+  [ -f "$raw" ] || { echo "NKTouch Recorder: raw recording not found: $raw" >&2; return 5; }
+  "$LUA" "$EXPORTER" export "$raw" "$out"
+}
+
+cmd="${1:-help}"
+[ "$#" -gt 0 ] && shift || true
+
+case "$cmd" in
+  version)
+    echo "$VERSION"
+    ;;
+  doctor)
+    mkdir_state
+    need_runtime
+    echo "recorder=$VERSION"
+    echo "core=ok"
+    echo "lua=ok"
+    echo "exporter=ok"
+    echo "state=$STATE"
+    echo "output=$OUT"
+    echo "result=PASS"
+    ;;
+  start)
+    [ "$#" -eq 0 ] || { echo "usage: nktouchctl recorder start" >&2; exit 2; }
+    mkdir_state
+    need_runtime
+    if [ -s "$CURRENT" ]; then
+      echo "NKTouch Recorder: recording marker already exists; run 'recorder stop' first" >&2
+      exit 3
+    fi
+    before="$(latest_bdl 2>/dev/null || true)"
+    "$CORE" record start >/dev/null
+    bdl="$(wait_for_new_bdl "$before" 2>/dev/null || true)"
+    if [ -z "$bdl" ]; then
+      # The recorder creates its bundle synchronously, so failure to discover a
+      # new one means the start did not establish a usable recording session.
+      "$CORE" record stop >/dev/null 2>&1 || true
+      echo "NKTouch Recorder: started core recorder but could not locate new .bdl bundle" >&2
+      exit 5
+    fi
+    printf '%s\n' "$bdl" > "$CURRENT"
+    date '+%Y-%m-%dT%H:%M:%S%z' > "$STATE/started_at" 2>/dev/null || true
+    echo "state=recording"
+    echo "bundle=$bdl"
+    ;;
+  stop)
+    [ "$#" -le 1 ] || { echo "usage: nktouchctl recorder stop [name]" >&2; exit 2; }
+    mkdir_state
+    need_runtime
+    [ -s "$CURRENT" ] || { echo "NKTouch Recorder: no active recording marker" >&2; exit 3; }
+    bdl="$(cat "$CURRENT")"
+    "$CORE" record stop >/dev/null
+    raw="$(raw_for_bdl "$bdl" 2>/dev/null || true)"
+    [ -n "$raw" ] || { rm -f "$CURRENT"; echo "NKTouch Recorder: bundle has no raw recording: $bdl" >&2; exit 5; }
+    wait_raw_stable "$raw"
+    if [ "$#" -eq 1 ]; then
+      name="$(safe_name "$1")"
+      [ -n "$name" ] || { echo "NKTouch Recorder: invalid output name" >&2; exit 2; }
+      case "$name" in *.lua) ;; *) name="$name.lua" ;; esac
+    else
+      base="$(basename "$bdl" .bdl)"
+      name="$base.lua"
+    fi
+    out="$OUT/$name"
+    export_raw "$raw" "$out"
+    rm -f "$CURRENT"
+    echo "state=stopped"
+    echo "bundle=$bdl"
+    echo "script=$out"
+    ;;
+  status)
+    mkdir_state
+    if [ -s "$CURRENT" ]; then
+      bdl="$(cat "$CURRENT")"
+      echo "state=recording"
+      echo "bundle=$bdl"
+      raw="$(raw_for_bdl "$bdl" 2>/dev/null || true)"
+      [ -n "$raw" ] && echo "raw=$raw"
+      [ -f "$STATE/started_at" ] && echo "started_at=$(cat "$STATE/started_at")"
+    else
+      echo "state=idle"
+      last="$(latest_output 2>/dev/null || true)"
+      [ -n "$last" ] && echo "latest=$last"
+    fi
+    ;;
+  export)
+    [ "$#" -ge 1 ] && [ "$#" -le 2 ] || { echo "usage: nktouchctl recorder export <bundle.bdl|file.raw> [name]" >&2; exit 2; }
+    mkdir_state
+    need_runtime
+    source="$1"
+    if [ -d "$source" ]; then raw="$(raw_for_bdl "$source" 2>/dev/null || true)"; else raw="$source"; fi
+    [ -n "$raw" ] && [ -f "$raw" ] || { echo "NKTouch Recorder: recording source not found" >&2; exit 5; }
+    if [ "$#" -eq 2 ]; then
+      name="$(safe_name "$2")"
+      [ -n "$name" ] || { echo "NKTouch Recorder: invalid output name" >&2; exit 2; }
+      case "$name" in *.lua) ;; *) name="$name.lua" ;; esac
+    else
+      base="$(basename "$raw" .raw)"
+      name="$base.lua"
+    fi
+    export_raw "$raw" "$OUT/$name"
+    ;;
+  latest)
+    mkdir_state
+    latest_output || { echo "NKTouch Recorder: no exported Lua recordings" >&2; exit 6; }
+    ;;
+  list)
+    mkdir_state
+    set -- "$OUT"/*.lua
+    if [ ! -f "$1" ]; then echo "(no recordings)"; exit 0; fi
+    ls -1t "$OUT"/*.lua
+    ;;
+  help|-h|--help)
+    cat <<'HELP'
+NKTouch Recorder V2 v0.7.1
+
+  nktouchctl recorder start
+  nktouchctl recorder status
+  nktouchctl recorder stop [name]
+  nktouchctl recorder export <bundle.bdl|file.raw> [name]
+  nktouchctl recorder latest
+  nktouchctl recorder list
+  nktouchctl recorder doctor
+
+Recorder V2 captures real HID touch timing through the existing core and exports
+editable Lua using nk.tap / nk.hold / nk.swipe / nk.sleep. Keyboard typing is
+replayed as recorded screen taps; Recorder V2 does not guess keyboard text.
+HELP
+    ;;
+  *)
+    echo "NKTouch Recorder: unknown command: $cmd" >&2
+    exit 2
+    ;;
+esac
