@@ -1,16 +1,18 @@
 #!/var/jb/bin/sh
 set -u
 
-VERSION="0.7.2"
+VERSION="0.7.3"
 CORE="/var/jb/usr/libexec/nktouch/nktouchctl-core"
 TASK="/var/jb/usr/bin/nktask"
 RECORDER="/var/jb/usr/bin/nkrecorder"
 EDITOR="/var/jb/usr/bin/nkeditor"
+BUNDLE="/var/jb/usr/bin/nkbundle"
 
 need_core(){ [ -x "$CORE" ] || { echo "NKTouch v$VERSION: missing core runtime $CORE" >&2; exit 4; }; }
 need_task(){ [ -x "$TASK" ] || { echo "NKTouch v$VERSION: missing task engine $TASK" >&2; exit 4; }; }
 need_recorder(){ [ -x "$RECORDER" ] || { echo "NKTouch v$VERSION: missing Recorder V2 $RECORDER" >&2; exit 4; }; }
 need_editor(){ [ -x "$EDITOR" ] || { echo "NKTouch v$VERSION: missing Script Editor $EDITOR" >&2; exit 4; }; }
+need_bundle(){ [ -x "$BUNDLE" ] || { echo "NKTouch v$VERSION: missing Task Bundle manager $BUNDLE" >&2; exit 4; }; }
 
 cmd="${1:-help}"
 [ "$#" -gt 0 ] && shift || true
@@ -28,6 +30,10 @@ case "$cmd" in
     need_editor
     exec "$EDITOR" "$@"
     ;;
+  bundle|pack)
+    need_bundle
+    exec "$BUNDLE" "$@"
+    ;;
   version)
     echo "$VERSION"
     ;;
@@ -39,6 +45,7 @@ case "$cmd" in
     if [ -x "$TASK" ]; then echo "task-engine=$($TASK version 2>/dev/null || echo unknown)"; else echo "task-engine=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     if [ -x "$RECORDER" ]; then echo "recorder=$($RECORDER version 2>/dev/null || echo unknown)"; else echo "recorder=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     if [ -x "$EDITOR" ]; then echo "editor=$($EDITOR version 2>/dev/null || echo unknown)"; else echo "editor=missing"; [ "$rc" -eq 0 ] && rc=4; fi
+    if [ -x "$BUNDLE" ]; then echo "bundle=$($BUNDLE version 2>/dev/null || echo unknown)"; else echo "bundle=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     exit "$rc"
     ;;
   doctor)
@@ -48,7 +55,8 @@ case "$cmd" in
     if [ -x "$TASK" ]; then "$TASK" doctor; rc2=$?; else echo task_engine=missing; rc2=4; fi
     if [ -x "$RECORDER" ]; then "$RECORDER" doctor; rc3=$?; else echo recorder=missing; rc3=4; fi
     if [ -x "$EDITOR" ]; then "$EDITOR" doctor; rc4=$?; else echo editor=missing; rc4=4; fi
-    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ] && [ "$rc4" -eq 0 ]
+    if [ -x "$BUNDLE" ]; then "$BUNDLE" doctor; rc5=$?; else echo bundle=missing; rc5=4; fi
+    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ] && [ "$rc4" -eq 0 ] && [ "$rc5" -eq 0 ]
     ;;
   selftest)
     need_core
@@ -57,11 +65,22 @@ case "$cmd" in
     if [ -x "$TASK" ]; then "$TASK" doctor >/tmp/nktask-selftest.$$ 2>&1; rc2=$?; cat /tmp/nktask-selftest.$$; rm -f /tmp/nktask-selftest.$$; else echo task_engine=missing; rc2=4; fi
     if [ -x "$RECORDER" ]; then "$RECORDER" doctor >/tmp/nkrecorder-selftest.$$ 2>&1; rc3=$?; cat /tmp/nkrecorder-selftest.$$; rm -f /tmp/nkrecorder-selftest.$$; else echo recorder=missing; rc3=4; fi
     if [ -x "$EDITOR" ]; then "$EDITOR" doctor >/tmp/nkeditor-selftest.$$ 2>&1; rc4=$?; cat /tmp/nkeditor-selftest.$$; rm -f /tmp/nkeditor-selftest.$$; else echo editor=missing; rc4=4; fi
-    if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ] && [ "$rc4" -eq 0 ]; then echo v7_result=PASS; exit 0; else echo v7_result=FAIL; exit 1; fi
+    if [ -x "$BUNDLE" ]; then "$BUNDLE" doctor >/tmp/nkbundle-selftest.$$ 2>&1; rc5=$?; cat /tmp/nkbundle-selftest.$$; rm -f /tmp/nkbundle-selftest.$$; else echo bundle=missing; rc5=4; fi
+    if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ] && [ "$rc4" -eq 0 ] && [ "$rc5" -eq 0 ]; then echo v7_result=PASS; exit 0; else echo v7_result=FAIL; exit 1; fi
     ;;
   help|-h|--help)
     cat <<'HELP'
-NKTouch v0.7.2 Script Editor + Recorder V2 + Task Engine
+NKTouch v0.7.3 Task Bundle + Script Editor + Recorder V2 + Task Engine
+
+Task Bundle (.nktask):
+  nktouchctl bundle asset add <script> <file> [asset-name]
+  nktouchctl bundle asset list <script>
+  nktouchctl bundle asset remove <script> <asset-name>
+  nktouchctl bundle export <script> [output.nktask]
+  nktouchctl bundle inspect <file.nktask>
+  nktouchctl bundle import <file.nktask> [name]
+  nktouchctl bundle list
+  nktouchctl bundle doctor
 
 Script Editor:
   nktouchctl editor new <name> [blank|tap|image|color|ocr]
@@ -78,26 +97,14 @@ Script Editor:
 
 Task manager:
   nktouchctl task start <script.lua> [--timeout SEC] [-- args...]
-  nktouchctl task status [TASK_ID]
-  nktouchctl task pause [TASK_ID]
-  nktouchctl task resume [TASK_ID]
-  nktouchctl task stop [TASK_ID]
-  nktouchctl task list
-  nktouchctl task logs [TASK_ID] [LINES]
+  nktouchctl task status|pause|resume|stop|list|logs ...
 
 Recorder V2:
-  nktouchctl recorder start
-  nktouchctl recorder status
-  nktouchctl recorder stop [name]
-  nktouchctl recorder export <bundle.bdl|file.raw> [name]
-  nktouchctl recorder latest
-  nktouchctl recorder list
-  nktouchctl recorder doctor
+  nktouchctl recorder start|status|stop|export|latest|list|doctor ...
 
-V7.2 keeps the V7.0 single-active-task safety rule and the V7.1 HID recorder.
-Editor-generated and imported scripts are syntax-checked before execution.
-API completion/help is local and does not need network access.
-OCR remains explicit/on-demand only; the editor never starts OCR in background.
+V7.3 keeps V7.0 single-active-task safety, V7.1 Recorder V2, and V7.2 Script Editor.
+.nktask bundles are checked before import and never overwrite existing content automatically.
+No new SpringBoard task IDs are introduced. OCR remains explicit/on-demand only.
 
 Existing V6.4 native/Lua commands remain available unchanged.
 HELP
