@@ -1,9 +1,9 @@
-name: Build NKTouch v0.5 Runtime
+name: Build NKTouch v0.6 Vision
 
 on:
   workflow_dispatch:
   push:
-    branches: [ v0.5-runtime ]
+    branches: [ v0.6-vision ]
 
 permissions:
   contents: read
@@ -14,10 +14,10 @@ jobs:
     env:
       UPSTREAM_REPO: https://github.com/epic0001/zxtouchrootless.git
       UPSTREAM_SHA: a602da112ef1a688fb2601424443abb1ccc28c63
-      NK_VERSION: 0.5.0
+      NK_VERSION: 0.6.0
 
     steps:
-      - name: Checkout NKTouch v0.5 layer
+      - name: Checkout NKTouch v0.6 layer
         uses: actions/checkout@v4
 
       - name: Fetch pinned GPL automation core
@@ -29,49 +29,47 @@ jobs:
           git -C upstream submodule update --init --recursive
           echo "Pinned upstream: $(git -C upstream rev-parse HEAD)"
 
-      - name: Build NKTouch v0.5 native iOS client
+      - name: Build NKTouch v0.6 native iOS client
         run: |
           set -euxo pipefail
           SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
-          xcrun --sdk iphoneos clang \
-            -Os -Wall -Wextra -Werror \
-            -arch arm64 \
-            -miphoneos-version-min=15.0 \
-            -isysroot "$SDKROOT" \
-            runtime/nktouch-native.c \
-            -o runtime/nktouch-native
+          xcrun --sdk iphoneos clang -Os -Wall -Wextra -Werror -arch arm64 -miphoneos-version-min=15.0 -isysroot "$SDKROOT" runtime/nktouch-native.c -o runtime/nktouch-native
           file runtime/nktouch-native
           test -x runtime/nktouch-native
           brew install ldid 2>/dev/null || true
           ldid -S runtime/nktouch-native
 
-      - name: Apply NKTouch v0.5 layer
-        run: bash scripts/prepare-v05.sh upstream
+      - name: Apply NKTouch v0.6 layer
+        run: bash scripts/prepare-v06.sh upstream
 
-      - name: Validate NKTouch v0.5 sources
+      - name: Validate NKTouch v0.6 sources
         run: |
           set -euxo pipefail
           bash -n runtime/nktouchctl
-          bash -n scripts/prepare-v05.sh
+          bash -n scripts/prepare-v06.sh
           python3 -m py_compile runtime/nktouchctl.py
           test -x runtime/nktouch-native
-          grep -q 'NK_VERSION "0.5.0"' runtime/nktouch-native.c
-          grep -q 'TASK_TEMPLATE_MATCH 21' runtime/nktouch-native.c
+          grep -q 'NK_VERSION "0.6.0"' runtime/nktouch-native.c
+          grep -q 'TASK_TOAST 22' runtime/nktouch-native.c
+          grep -q 'TASK_COLOR_PICKER 23' runtime/nktouch-native.c
           grep -q 'TASK_OCR 27' runtime/nktouch-native.c
+          grep -q 'TASK_COLOR_SEARCH 28' runtime/nktouch-native.c
           grep -q 'TASK_SCREENSHOT 30' runtime/nktouch-native.c
+          grep -q '^#define TASK_SHOW_TOAST 22$' upstream/pccontrol/Task.h
+          grep -q '^#define TASK_COLOR_PICKER 23$' upstream/pccontrol/Task.h
+          grep -q '^#define TASK_TEXT_RECOGNIZER 27$' upstream/pccontrol/Task.h
+          grep -q '^#define TASK_COLOR_SEARCHER 28$' upstream/pccontrol/Task.h
           grep -q '^#define TASK_PROMPT_INPUT 29$' upstream/pccontrol/Task.h
           grep -q '^#define TASK_SCREENSHOT 30$' upstream/pccontrol/Task.h
-          grep -q 'taskType == TASK_SCREENSHOT' upstream/pccontrol/Task.xm
-          ! grep -q 'TASK_NK_SCREENSHOT' upstream/pccontrol/Task.h
+          grep -q 'find-color' runtime/nktouchctl
+          grep -q 'wait-color' runtime/nktouchctl
+          grep -q 'tap-color' runtime/nktouchctl
+          grep -q 'wait-text' runtime/nktouchctl
+          grep -q 'function M.getColor' lua/nktouch.lua
+          grep -q 'function M.waitText' lua/nktouch.lua
           grep -q 'NKStatusOverlayStart' upstream/pccontrol/Tweak.xm
-          grep -q 'NKStatusOverlay.xm' upstream/pccontrol/Makefile
-          grep -q 'find-image' runtime/nktouchctl
-          grep -q 'wait-image' runtime/nktouchctl
-          grep -q 'tap-image' runtime/nktouchctl
-          grep -q 'function M.findImage' lua/nktouch.lua
-          grep -q 'function M.ocr' lua/nktouch.lua
           test -x upstream/layout/usr/libexec/nktouch/nktouch-native
-          grep -q 'NKTouch 0.5.0' upstream/layout/usr/share/doc/nktouch/VERSION
+          grep -q 'NKTouch 0.6.0' upstream/layout/usr/share/doc/nktouch/VERSION
 
       - name: Run upstream Python tests
         working-directory: upstream
@@ -81,32 +79,17 @@ jobs:
         working-directory: upstream
         run: |
           set -o pipefail
-          xcodebuild \
-            -project zxtouch/zxtouch.xcodeproj \
-            -target zxtouch \
-            -sdk iphoneos \
-            -configuration Release \
-            SYMROOT="$(pwd)/app-build" \
-            ONLY_ACTIVE_ARCH=NO \
-            ARCHS="arm64 arm64e" \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            PRODUCT_BUNDLE_IDENTIFIER=com.zjx.zxtouch \
-            2>&1 | tee xcode_build.log
+          xcodebuild -project zxtouch/zxtouch.xcodeproj -target zxtouch -sdk iphoneos -configuration Release SYMROOT="$(pwd)/app-build" ONLY_ACTIVE_ARCH=NO ARCHS="arm64 arm64e" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO AD_HOC_CODE_SIGNING_ALLOWED=YES PRODUCT_BUNDLE_IDENTIFIER=com.zjx.zxtouch 2>&1 | tee xcode_build.log
 
       - name: Brand and sign application
         working-directory: upstream
         run: |
           APP=$(find ./app-build -name "zxtouch.app" -type d | head -1)
           test -n "$APP"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName NKTouch" "$APP/Info.plist" 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string NKTouch" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName NKTouch" "$APP/Info.plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string NKTouch" "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleName NKTouch" "$APP/Info.plist" 2>/dev/null || true
           ldid -Szxtouch/app-entitlements.plist "$APP/zxtouch"
-          EXT="$APP/PlugIns/shortcutext.appex/shortcutext"
-          if [ -f "$EXT" ]; then ldid -Szxtouch/shortcutext-entitlements.plist "$EXT"; fi
+          EXT="$APP/PlugIns/shortcutext.appex/shortcutext"; if [ -f "$EXT" ]; then ldid -Szxtouch/shortcutext-entitlements.plist "$EXT"; fi
           rm -rf layout/Applications/zxtouch.app
           cp -r "$APP" layout/Applications/zxtouch.app
 
@@ -117,7 +100,7 @@ jobs:
           THEOS: ${{ github.workspace }}/upstream/theos
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build NKTouch v0.5 rootless package
+      - name: Build NKTouch v0.6 rootless package
         working-directory: upstream
         run: make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
         env:
@@ -133,10 +116,10 @@ jobs:
           dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nktouch-native|nktouchctl|NKStatus|nktouch.lua|zxtouch.app' || true
           ls -lah ../artifacts
 
-      - name: Upload NKTouch v0.5 rootless deb
+      - name: Upload NKTouch v0.6 rootless deb
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.5-runtime-rootless
+          name: NKTouch-v0.6-vision-rootless
           path: artifacts/*.deb
           if-no-files-found: error
 
@@ -144,6 +127,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.5-runtime-build-logs
+          name: NKTouch-v0.6-vision-build-logs
           path: upstream/xcode_build.log
           if-no-files-found: ignore
