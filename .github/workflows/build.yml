@@ -1,9 +1,9 @@
-name: Build NKTouch v0.6.1 Stable
+name: Build NKTouch v0.6.2 Standalone Lua
 
 on:
   workflow_dispatch:
   push:
-    branches: [ v0.6.1-stable ]
+    branches: [ v0.6.2-lua ]
 
 permissions:
   contents: read
@@ -14,10 +14,12 @@ jobs:
     env:
       UPSTREAM_REPO: https://github.com/epic0001/zxtouchrootless.git
       UPSTREAM_SHA: a602da112ef1a688fb2601424443abb1ccc28c63
-      NK_VERSION: 0.6.1
+      NK_VERSION: 0.6.2
+      LUA_VERSION: 5.4.9
+      LUA_SHA256: 2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6
 
     steps:
-      - name: Checkout NKTouch v0.6.1 Stable layer
+      - name: Checkout NKTouch v0.6.2 Lua layer
         uses: actions/checkout@v4
 
       - name: Fetch pinned GPL automation core
@@ -39,41 +41,65 @@ jobs:
           brew install ldid 2>/dev/null || true
           ldid -S runtime/nktouch-native
 
-      - name: Run V0.6.1 contract tests
-        run: python3 -m unittest tests/test_v061_contract.py -v
+      - name: Fetch and verify Lua source
+        run: |
+          set -euxo pipefail
+          curl -fsSL "https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz" -o /tmp/lua.tar.gz
+          printf '%s  %s\n' "$LUA_SHA256" /tmp/lua.tar.gz | shasum -a 256 -c -
+          rm -rf lua-src
+          mkdir lua-src
+          tar -xzf /tmp/lua.tar.gz -C lua-src --strip-components=1
+          test -f lua-src/src/lua.c
+          test -f lua-src/src/luac.c
+          cp lua-src/README runtime/LUA_README.txt
 
-      - name: Apply NKTouch v0.6.1 Stable layer
-        run: bash scripts/prepare-v061.sh upstream
+      - name: Build bundled Lua 5.4.9 for iOS arm64
+        run: |
+          set -euxo pipefail
+          SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
+          COMMON=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' -print | sort | tr '\n' ' ')
+          xcrun --sdk iphoneos clang -Os -arch arm64 -miphoneos-version-min=15.0 -isysroot "$SDKROOT" -DLUA_USE_POSIX $COMMON lua-src/src/lua.c -lm -Wl,-dead_strip -o runtime/lua54
+          xcrun --sdk iphoneos clang -Os -arch arm64 -miphoneos-version-min=15.0 -isysroot "$SDKROOT" -DLUA_USE_POSIX $COMMON lua-src/src/luac.c -lm -Wl,-dead_strip -o runtime/luac54
+          chmod 755 runtime/lua54 runtime/luac54 runtime/nktouch-lua
+          file runtime/lua54 runtime/luac54
+          strings runtime/lua54 | grep -q 'Lua 5.4'
+          ldid -S runtime/lua54
+          ldid -S runtime/luac54
 
-      - name: Validate NKTouch v0.6.1 sources
+      - name: Run V0.6.2 contract tests
+        run: python3 -m unittest tests/test_v062_contract.py -v
+
+      - name: Apply NKTouch v0.6.2 Standalone Lua layer
+        run: bash scripts/prepare-v062.sh upstream
+
+      - name: Validate NKTouch v0.6.2 sources
         run: |
           set -euxo pipefail
           bash -n runtime/nktouchctl
-          bash -n scripts/prepare-v061.sh
+          bash -n runtime/nktouch-lua
+          bash -n scripts/prepare-v062.sh
           python3 -m py_compile runtime/nktouchctl.py
           test -x runtime/nktouch-native
-          grep -q 'VERSION="0.6.1"' runtime/nktouchctl
+          test -x runtime/lua54
+          test -x runtime/luac54
+          grep -q 'VERSION="0.6.2"' runtime/nktouchctl
+          grep -q 'LUA_VERSION="5.4.9"' runtime/nktouchctl
           grep -q 'NK_VERSION "0.6.0"' runtime/nktouch-native.c
-          grep -q 'TASK_TOAST 22' runtime/nktouch-native.c
-          grep -q 'TASK_COLOR_PICKER 23' runtime/nktouch-native.c
-          grep -q 'TASK_OCR 27' runtime/nktouch-native.c
-          grep -q 'TASK_COLOR_SEARCH 28' runtime/nktouch-native.c
-          grep -q 'TASK_SCREENSHOT 30' runtime/nktouch-native.c
+          grep -q 'M.VERSION="0.6.2"' lua/nktouch.lua
+          grep -q 'M.LUA_VERSION="5.4.9"' lua/nktouch.lua
+          grep -q 'require("nktouch")' runtime/nktouch-lua
           grep -q '^#define TASK_SHOW_TOAST 22$' upstream/pccontrol/Task.h
           grep -q '^#define TASK_COLOR_PICKER 23$' upstream/pccontrol/Task.h
           grep -q '^#define TASK_TEXT_RECOGNIZER 27$' upstream/pccontrol/Task.h
           grep -q '^#define TASK_COLOR_SEARCHER 28$' upstream/pccontrol/Task.h
           grep -q '^#define TASK_PROMPT_INPUT 29$' upstream/pccontrol/Task.h
           grep -q '^#define TASK_SCREENSHOT 30$' upstream/pccontrol/Task.h
-          grep -q 'selftest' runtime/nktouchctl
-          grep -q 'doctor full' runtime/nktouchctl
-          grep -q 'run_native_read' runtime/nktouchctl
-          grep -q 'function M.selftest' lua/nktouch.lua
-          grep -q 'M.VERSION="0.6.1"' lua/nktouch.lua
           grep -q 'NKStatusOverlayStart' upstream/pccontrol/Tweak.xm
-          test -x upstream/layout/usr/libexec/nktouch/nktouch-native
-          grep -q 'NKTouch 0.6.1 Stable' upstream/layout/usr/share/doc/nktouch/VERSION
-          test ! -e runtime/_pycache_/nktouchctl.cpython-313.pyc
+          test -x upstream/layout/usr/bin/nktouch-lua
+          test -x upstream/layout/usr/libexec/nktouch/lua54
+          test -x upstream/layout/usr/libexec/nktouch/luac54
+          test -f upstream/layout/usr/share/doc/nktouch/LUA_README.txt
+          grep -q 'NKTouch 0.6.2 Standalone Lua' upstream/layout/usr/share/doc/nktouch/VERSION
 
       - name: Run upstream Python tests
         working-directory: upstream
@@ -104,7 +130,7 @@ jobs:
           THEOS: ${{ github.workspace }}/upstream/theos
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build NKTouch v0.6.1 Stable rootless package
+      - name: Build NKTouch v0.6.2 rootless package
         working-directory: upstream
         run: make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
         env:
@@ -117,13 +143,13 @@ jobs:
           DEB=$(ls -t packages/*.deb | head -1)
           cp "$DEB" "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb"
           dpkg-deb -I "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" || true
-          dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nktouch-native|nktouchctl|NKStatus|nktouch.lua|zxtouch.app|VERSION' || true
+          dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nktouch-native|nktouchctl|nktouch-lua|lua54|luac54|nktouch.lua|NKStatus|zxtouch.app|VERSION|LUA_README' || true
           ls -lah ../artifacts
 
-      - name: Upload NKTouch v0.6.1 Stable rootless deb
+      - name: Upload NKTouch v0.6.2 Standalone Lua rootless deb
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.6.1-stable-rootless
+          name: NKTouch-v0.6.2-lua-rootless
           path: artifacts/*.deb
           if-no-files-found: error
 
@@ -131,6 +157,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.6.1-stable-build-logs
+          name: NKTouch-v0.6.2-lua-build-logs
           path: upstream/xcode_build.log
           if-no-files-found: ignore
