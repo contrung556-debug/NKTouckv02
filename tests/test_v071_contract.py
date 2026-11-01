@@ -57,7 +57,10 @@ class V071RecorderV2Contract(unittest.TestCase):
         self.assertIn('TASK_PROMPT_INPUT 29', s)
         self.assertIn('TASK_SCREENSHOT 30', s)
         self.assertIn('Task.xm owns the single socket response for task 14', s)
-        self.assertIn('notifyClient((UInt8*)[scriptDirectory UTF8String], requestClient);', s)
+        self.assertIn("'notifyClient' in line", s)
+        self.assertIn("'scriptDirectory' in line", s)
+        self.assertIn("'requestClient' in line", s)
+        self.assertIn("! grep -Eq 'notifyClient.*scriptDirectory.*requestClient'", s)
         self.assertIn('nkrecorder.lua', s)
         self.assertIn('recordings /var/mobile/Library/NKTouch/recorder', s)
 
