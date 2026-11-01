@@ -1,8 +1,9 @@
 #!/var/jb/bin/sh
 set -eu
 
-VERSION="0.6.2"
+VERSION="0.6.3"
 LUA_VERSION="5.4.9"
+LUA_CORE_VERSION="0.6.3"
 BASE="/var/mobile/Library/NKTouch"
 TMP_DIR="$BASE/tmp"
 STATUS_FILE="$BASE/status.state"
@@ -131,6 +132,11 @@ lua_probe(){
     "$LUA_RUNNER" --plain -e 'io.write(_VERSION)'
 }
 
+lua_direct_probe(){
+    need_lua
+    "$LUA_RUNNER" -e 'assert(nk and nk.VERSION=="0.6.3"); assert(nk.DIRECT==true); assert(nk.coreVersion()=="0.6.3"); io.write("direct")'
+}
+
 doctor(){
     mode="${1:-quick}"
     fail=0
@@ -189,8 +195,8 @@ doctor(){
         fi
         rm -f "$shot" 2>/dev/null || true
 
-        if [ -x "$LUA_RUNNER" ] && "$LUA_RUNNER" -e 'assert(nk and nk.VERSION=="0.6.2")' >/dev/null 2>&1; then
-            echo lua_api=ok
+        if [ -x "$LUA_RUNNER" ] && lua_direct_probe >/dev/null 2>&1; then
+            echo "lua_api=ok:$LUA_CORE_VERSION:direct"
         else
             echo lua_api=failed
             fail=1
@@ -208,7 +214,7 @@ selftest(){
     if [ -x "$NATIVE" ] && "$NATIVE" runtime >/dev/null 2>&1; then echo runtime=ok; else echo runtime=failed; fail=1; fi
     if [ -x "$NATIVE" ] && "$NATIVE" battery >/dev/null 2>&1; then echo battery=ok; else echo battery=failed; fail=1; fi
     if [ -x "$NATIVE" ] && "$NATIVE" sleep 1 >/dev/null 2>&1; then echo sleep=ok; else echo sleep=failed; fail=1; fi
-    if [ -x "$LUA_RUNNER" ] && "$LUA_RUNNER" -e 'assert(nk.VERSION=="0.6.2"); assert(type(tap)=="function"); io.write("ok")' >/dev/null 2>&1; then echo lua_runtime=ok; else echo lua_runtime=failed; fail=1; fi
+    if [ -x "$LUA_RUNNER" ] && lua_direct_probe >/dev/null 2>&1; then echo lua_direct=ok; else echo lua_direct=failed; fail=1; fi
     cleanup_tmp >/dev/null 2>&1 || true
     if [ "$fail" -eq 0 ]; then echo result=PASS; else echo result=FAIL; fi
     return "$fail"
@@ -227,7 +233,7 @@ case "$cmd" in
  logs) tail -n "${1:-50}" "$LOG_FILE" 2>/dev/null || true;;
  cleanup) cleanup_tmp;;
  backend)
-   if [ -x "$NATIVE" ]; then printf 'native %s (runtime %s; lua %s)\n' "$("$NATIVE" version 2>/dev/null || echo unknown)" "$VERSION" "$LUA_VERSION"
+   if [ -x "$NATIVE" ]; then printf 'native %s (runtime %s; lua %s; direct-lua %s)\n' "$("$NATIVE" version 2>/dev/null || echo unknown)" "$VERSION" "$LUA_VERSION" "$LUA_CORE_VERSION"
    elif [ -x "$PY" ] && [ -f "$HELPER" ]; then echo "python-fallback (runtime $VERSION; lua $LUA_VERSION)"
    else echo unavailable; exit 4; fi;;
  ping) if [ -x "$NATIVE" ]; then run_native_read ping; else need_python; exec "$PY" "$HELPER" screen; fi;;
@@ -237,7 +243,7 @@ case "$cmd" in
  check) check_script "$@";;
  lua) run_lua "$@";;
  lua-check) check_lua "$@";;
- lua-version) printf '%s (' "$LUA_VERSION"; lua_probe; printf ')\n';;
+ lua-version) printf '%s (core %s; ' "$LUA_VERSION" "$LUA_CORE_VERSION"; lua_probe; printf ')\n';;
 
  # Side-effecting commands: single attempt only.
  tap|hold|swipe|openapp|stop|record|text|keyboard|cursor|delete|paste|clipboard-set|toast|tap-image|tap-color)
@@ -257,7 +263,7 @@ case "$cmd" in
 
  native) run_native_only "$@";;
  help|-h|--help) cat <<'HELP'
-NKTouch v0.6.2 Standalone Lua runtime
+NKTouch v0.6.3 Direct Lua Native runtime
 
 Core: tap/hold/swipe/openapp/wait-app/sleep/text/clipboard/screenshot/OCR
 Image: find-image, wait-image, tap-image
@@ -271,11 +277,11 @@ Lua:
   nktouchctl lua-check <script.lua>
   nktouchctl lua-version
 
-The bundled Lua launcher preloads global `nk` and installs the small AutoTouch compatibility layer.
-Use /var/jb/usr/bin/nktouch-lua --plain for an unmodified Lua 5.4.9 interpreter.
+V0.6.3 embeds `nkcore` directly inside Lua 5.4.9. The primary Lua automation APIs call the SpringBoard core without spawning nktouchctl for every action. Runtime status/diagnostic helpers remain shell-backed.
+Use /var/jb/usr/bin/nktouch-lua --plain for a plain Lua interpreter; `require("nkcore")` is still available.
 
-Hardening: read-only transport failures retry at most NKTOUCH_READ_RETRIES times (default 2).
-Side-effecting actions are never auto-retried.
+Hardening: read-only CLI transport failures retry at most NKTOUCH_READ_RETRIES times (default 2).
+Side-effecting CLI actions are never auto-retried.
 HELP
  ;;
  *) echo "NKTouch: unknown command '$cmd'" >&2; echo "Run: nktouchctl help" >&2; exit 2;;
