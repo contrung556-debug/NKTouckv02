@@ -1,9 +1,9 @@
-name: Build NKTouch v0.6.2 Standalone Lua
+name: Build NKTouch v0.6.3 Direct Lua Native
 
 on:
   workflow_dispatch:
   push:
-    branches: [ v0.6.2-lua ]
+    branches: [ v0.6.3-native-lua ]
 
 permissions:
   contents: read
@@ -14,12 +14,12 @@ jobs:
     env:
       UPSTREAM_REPO: https://github.com/epic0001/zxtouchrootless.git
       UPSTREAM_SHA: a602da112ef1a688fb2601424443abb1ccc28c63
-      NK_VERSION: 0.6.2
+      NK_VERSION: 0.6.3
       LUA_VERSION: 5.4.9
       LUA_SHA256: 2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6
 
     steps:
-      - name: Checkout NKTouch v0.6.2 Lua layer
+      - name: Checkout NKTouch v0.6.3 Direct Lua layer
         uses: actions/checkout@v4
 
       - name: Fetch pinned GPL automation core
@@ -51,43 +51,77 @@ jobs:
           tar -xzf /tmp/lua.tar.gz -C lua-src --strip-components=1
           test -f lua-src/src/lua.c
           test -f lua-src/src/luac.c
+          test -f lua-src/src/linit.c
           cp lua-src/README runtime/LUA_README.txt
 
-      - name: Build bundled Lua 5.4.9 for iOS arm64
+      - name: Prepare Lua static nkcore registry
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('lua-src/src/linit.c').read_text()
+          include='#include "lualib.h"\n'
+          if include not in src:
+              raise SystemExit('linit include marker missing')
+          src=src.replace(include, include+'\nextern int luaopen_nkcore(lua_State *L);\n', 1)
+          marker='  {NULL, NULL}\n'
+          if marker not in src:
+              raise SystemExit('linit library marker missing')
+          src=src.replace(marker, '  {"nkcore", luaopen_nkcore},\n'+marker, 1)
+          Path('runtime/linit-nktouch.c').write_text(src)
+          PY
+          grep -q 'luaopen_nkcore' runtime/linit-nktouch.c
+          grep -q '"nkcore"' runtime/linit-nktouch.c
+
+      - name: Host smoke-test embedded nkcore
+        run: |
+          set -euxo pipefail
+          COMMON=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' ! -name 'linit.c' -print | sort | tr '\n' ' ')
+          clang -O2 -Ilua-src/src -DLUA_USE_POSIX $COMMON runtime/linit-nktouch.c runtime/nkcore.c lua-src/src/lua.c -lm -o /tmp/nktouch-lua-host
+          /tmp/nktouch-lua-host -e 'local n=require("nkcore"); assert(n.VERSION=="0.6.3"); assert(n.NATIVE_VERSION=="0.6.0"); assert(n.DIRECT==true); io.write("nkcore-host-ok")'
+          echo
+
+      - name: Build bundled Lua 5.4.9 with nkcore for iOS arm64
         run: |
           set -euxo pipefail
           SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
-          COMMON=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' -print | sort | tr '\n' ' ')
-          LUA_FLAGS="-Os -arch arm64 -miphoneos-version-min=15.0 -isysroot $SDKROOT -DLUA_USE_POSIX -Dl_system=nktouch_lua_system -Dl_popen=nktouch_lua_popen -Dl_pclose=nktouch_lua_pclose -include $GITHUB_WORKSPACE/runtime/lua-ios-shim.h"
-          xcrun --sdk iphoneos clang $LUA_FLAGS $COMMON runtime/lua-ios-shim.c lua-src/src/lua.c -lm -Wl,-dead_strip -o runtime/lua54
-          xcrun --sdk iphoneos clang $LUA_FLAGS $COMMON runtime/lua-ios-shim.c lua-src/src/luac.c -lm -Wl,-dead_strip -o runtime/luac54
+          COMMON_NK=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' ! -name 'linit.c' -print | sort | tr '\n' ' ')
+          COMMON_LUAC=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' -print | sort | tr '\n' ' ')
+          LUA_FLAGS="-Os -arch arm64 -miphoneos-version-min=15.0 -isysroot $SDKROOT -Ilua-src/src -DLUA_USE_POSIX -Dl_system=nktouch_lua_system -Dl_popen=nktouch_lua_popen -Dl_pclose=nktouch_lua_pclose -include $GITHUB_WORKSPACE/runtime/lua-ios-shim.h"
+          xcrun --sdk iphoneos clang $LUA_FLAGS $COMMON_NK runtime/linit-nktouch.c runtime/nkcore.c runtime/lua-ios-shim.c lua-src/src/lua.c -lm -Wl,-dead_strip -o runtime/lua54
+          xcrun --sdk iphoneos clang $LUA_FLAGS $COMMON_LUAC runtime/lua-ios-shim.c lua-src/src/luac.c -lm -Wl,-dead_strip -o runtime/luac54
           chmod 755 runtime/lua54 runtime/luac54 runtime/nktouch-lua
           file runtime/lua54 runtime/luac54
           strings runtime/lua54 | grep -q 'Lua 5.4'
+          strings runtime/lua54 | grep -q 'nkcore'
+          strings runtime/lua54 | grep -q '0.6.3'
           ldid -S runtime/lua54
           ldid -S runtime/luac54
 
-      - name: Run V0.6.2 contract tests
-        run: python3 -m unittest tests/test_v062_contract.py -v
+      - name: Run V0.6.3 contract tests
+        run: python3 -m unittest tests/test_v063_contract.py -v
 
-      - name: Apply NKTouch v0.6.2 Standalone Lua layer
-        run: bash scripts/prepare-v062.sh upstream
+      - name: Apply NKTouch v0.6.3 Direct Lua Native layer
+        run: bash scripts/prepare-v063.sh upstream
 
-      - name: Validate NKTouch v0.6.2 sources
+      - name: Validate NKTouch v0.6.3 sources
         run: |
           set -euxo pipefail
           bash -n runtime/nktouchctl
           bash -n runtime/nktouch-lua
-          bash -n scripts/prepare-v062.sh
+          bash -n scripts/prepare-v063.sh
           python3 -m py_compile runtime/nktouchctl.py
           test -x runtime/nktouch-native
           test -x runtime/lua54
           test -x runtime/luac54
-          grep -q 'VERSION="0.6.2"' runtime/nktouchctl
-          grep -q 'LUA_VERSION="5.4.9"' runtime/nktouchctl
+          grep -q 'VERSION="0.6.3"' runtime/nktouchctl
+          grep -q 'LUA_CORE_VERSION="0.6.3"' runtime/nktouchctl
           grep -q 'NK_VERSION "0.6.0"' runtime/nktouch-native.c
-          grep -q 'M.VERSION="0.6.2"' lua/nktouch.lua
-          grep -q 'M.LUA_VERSION="5.4.9"' lua/nktouch.lua
+          grep -q 'NKCORE_VERSION "0.6.3"' runtime/nkcore.c
+          grep -q 'luaopen_nkcore' runtime/nkcore.c
+          grep -q 'M.VERSION="0.6.3"' lua/nktouch.lua
+          grep -q 'M.DIRECT=core~=nil' lua/nktouch.lua
+          grep -q 'pcall(require,"nkcore")' lua/nktouch.lua
           grep -q 'require("nktouch")' runtime/nktouch-lua
           grep -q 'posix_spawn' runtime/lua-ios-shim.c
           grep -q '^#define TASK_SHOW_TOAST 22$' upstream/pccontrol/Task.h
@@ -101,7 +135,8 @@ jobs:
           test -x upstream/layout/usr/libexec/nktouch/lua54
           test -x upstream/layout/usr/libexec/nktouch/luac54
           test -f upstream/layout/usr/share/doc/nktouch/LUA_README.txt
-          grep -q 'NKTouch 0.6.2 Standalone Lua' upstream/layout/usr/share/doc/nktouch/VERSION
+          grep -q 'NKTouch 0.6.3 Direct Lua Native' upstream/layout/usr/share/doc/nktouch/VERSION
+          grep -q 'Embedded nkcore 0.6.3' upstream/layout/usr/share/doc/nktouch/VERSION
 
       - name: Run upstream Python tests
         working-directory: upstream
@@ -132,7 +167,7 @@ jobs:
           THEOS: ${{ github.workspace }}/upstream/theos
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build NKTouch v0.6.2 rootless package
+      - name: Build NKTouch v0.6.3 rootless package
         working-directory: upstream
         run: make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
         env:
@@ -148,10 +183,10 @@ jobs:
           dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nktouch-native|nktouchctl|nktouch-lua|lua54|luac54|nktouch.lua|NKStatus|zxtouch.app|VERSION|LUA_README' || true
           ls -lah ../artifacts
 
-      - name: Upload NKTouch v0.6.2 Standalone Lua rootless deb
+      - name: Upload NKTouch v0.6.3 Direct Lua Native rootless deb
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.6.2-lua-rootless
+          name: NKTouch-v0.6.3-native-lua-rootless
           path: artifacts/*.deb
           if-no-files-found: error
 
@@ -159,6 +194,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.6.2-lua-build-logs
+          name: NKTouch-v0.6.3-native-lua-build-logs
           path: upstream/xcode_build.log
           if-no-files-found: ignore
