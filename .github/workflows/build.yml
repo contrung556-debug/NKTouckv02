@@ -1,9 +1,9 @@
-name: Build NKTouch v0.6 Vision
+name: Build NKTouch v0.6.1 Stable
 
 on:
   workflow_dispatch:
   push:
-    branches: [ v0.6-vision ]
+    branches: [ v0.6.1-stable ]
 
 permissions:
   contents: read
@@ -14,10 +14,10 @@ jobs:
     env:
       UPSTREAM_REPO: https://github.com/epic0001/zxtouchrootless.git
       UPSTREAM_SHA: a602da112ef1a688fb2601424443abb1ccc28c63
-      NK_VERSION: 0.6.0
+      NK_VERSION: 0.6.1
 
     steps:
-      - name: Checkout NKTouch v0.6 layer
+      - name: Checkout NKTouch v0.6.1 Stable layer
         uses: actions/checkout@v4
 
       - name: Fetch pinned GPL automation core
@@ -29,7 +29,7 @@ jobs:
           git -C upstream submodule update --init --recursive
           echo "Pinned upstream: $(git -C upstream rev-parse HEAD)"
 
-      - name: Build NKTouch v0.6 native iOS client
+      - name: Build NKTouch native iOS engine
         run: |
           set -euxo pipefail
           SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
@@ -39,16 +39,20 @@ jobs:
           brew install ldid 2>/dev/null || true
           ldid -S runtime/nktouch-native
 
-      - name: Apply NKTouch v0.6 layer
-        run: bash scripts/prepare-v06.sh upstream
+      - name: Run V0.6.1 contract tests
+        run: python3 -m unittest tests/test_v061_contract.py -v
 
-      - name: Validate NKTouch v0.6 sources
+      - name: Apply NKTouch v0.6.1 Stable layer
+        run: bash scripts/prepare-v061.sh upstream
+
+      - name: Validate NKTouch v0.6.1 sources
         run: |
           set -euxo pipefail
           bash -n runtime/nktouchctl
-          bash -n scripts/prepare-v06.sh
+          bash -n scripts/prepare-v061.sh
           python3 -m py_compile runtime/nktouchctl.py
           test -x runtime/nktouch-native
+          grep -q 'VERSION="0.6.1"' runtime/nktouchctl
           grep -q 'NK_VERSION "0.6.0"' runtime/nktouch-native.c
           grep -q 'TASK_TOAST 22' runtime/nktouch-native.c
           grep -q 'TASK_COLOR_PICKER 23' runtime/nktouch-native.c
@@ -61,15 +65,15 @@ jobs:
           grep -q '^#define TASK_COLOR_SEARCHER 28$' upstream/pccontrol/Task.h
           grep -q '^#define TASK_PROMPT_INPUT 29$' upstream/pccontrol/Task.h
           grep -q '^#define TASK_SCREENSHOT 30$' upstream/pccontrol/Task.h
-          grep -q 'find-color' runtime/nktouchctl
-          grep -q 'wait-color' runtime/nktouchctl
-          grep -q 'tap-color' runtime/nktouchctl
-          grep -q 'wait-text' runtime/nktouchctl
-          grep -q 'function M.getColor' lua/nktouch.lua
-          grep -q 'function M.waitText' lua/nktouch.lua
+          grep -q 'selftest' runtime/nktouchctl
+          grep -q 'doctor full' runtime/nktouchctl
+          grep -q 'run_native_read' runtime/nktouchctl
+          grep -q 'function M.selftest' lua/nktouch.lua
+          grep -q 'M.VERSION="0.6.1"' lua/nktouch.lua
           grep -q 'NKStatusOverlayStart' upstream/pccontrol/Tweak.xm
           test -x upstream/layout/usr/libexec/nktouch/nktouch-native
-          grep -q 'NKTouch 0.6.0' upstream/layout/usr/share/doc/nktouch/VERSION
+          grep -q 'NKTouch 0.6.1 Stable' upstream/layout/usr/share/doc/nktouch/VERSION
+          test ! -e runtime/_pycache_/nktouchctl.cpython-313.pyc
 
       - name: Run upstream Python tests
         working-directory: upstream
@@ -100,7 +104,7 @@ jobs:
           THEOS: ${{ github.workspace }}/upstream/theos
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build NKTouch v0.6 rootless package
+      - name: Build NKTouch v0.6.1 Stable rootless package
         working-directory: upstream
         run: make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
         env:
@@ -113,13 +117,13 @@ jobs:
           DEB=$(ls -t packages/*.deb | head -1)
           cp "$DEB" "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb"
           dpkg-deb -I "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" || true
-          dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nktouch-native|nktouchctl|NKStatus|nktouch.lua|zxtouch.app' || true
+          dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nktouch-native|nktouchctl|NKStatus|nktouch.lua|zxtouch.app|VERSION' || true
           ls -lah ../artifacts
 
-      - name: Upload NKTouch v0.6 rootless deb
+      - name: Upload NKTouch v0.6.1 Stable rootless deb
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.6-vision-rootless
+          name: NKTouch-v0.6.1-stable-rootless
           path: artifacts/*.deb
           if-no-files-found: error
 
@@ -127,6 +131,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.6-vision-build-logs
+          name: NKTouch-v0.6.1-stable-build-logs
           path: upstream/xcode_build.log
           if-no-files-found: ignore
