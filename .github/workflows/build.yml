@@ -1,9 +1,9 @@
-name: Build NKTouch v0.6.3 Direct Lua Native
+name: Build NKTouch v0.6.4 Hardened Direct Runtime
 
 on:
   workflow_dispatch:
   push:
-    branches: [ v0.6.3-native-lua ]
+    branches: [ v0.6.4-hardening ]
 
 permissions:
   contents: read
@@ -14,12 +14,12 @@ jobs:
     env:
       UPSTREAM_REPO: https://github.com/epic0001/zxtouchrootless.git
       UPSTREAM_SHA: a602da112ef1a688fb2601424443abb1ccc28c63
-      NK_VERSION: 0.6.3
+      NK_VERSION: 0.6.4
       LUA_VERSION: 5.4.9
       LUA_SHA256: 2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6
 
     steps:
-      - name: Checkout NKTouch v0.6.3 Direct Lua layer
+      - name: Checkout NKTouch v0.6.4 hardening layer
         uses: actions/checkout@v4
 
       - name: Fetch pinned GPL automation core
@@ -73,12 +73,14 @@ jobs:
           grep -q 'luaopen_nkcore' runtime/linit-nktouch.c
           grep -q '"nkcore"' runtime/linit-nktouch.c
 
-      - name: Host smoke-test embedded nkcore
+      - name: Host smoke-test embedded nkcore and hardened Lua API
         run: |
           set -euxo pipefail
           COMMON=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' ! -name 'linit.c' -print | sort | tr '\n' ' ')
           clang -O2 -Ilua-src/src -DLUA_USE_POSIX $COMMON runtime/linit-nktouch.c runtime/nkcore.c lua-src/src/lua.c -lm -o /tmp/nktouch-lua-host
           /tmp/nktouch-lua-host -e 'local n=require("nkcore"); assert(n.VERSION=="0.6.3"); assert(n.NATIVE_VERSION=="0.6.0"); assert(n.DIRECT==true); io.write("nkcore-host-ok")'
+          echo
+          /tmp/nktouch-lua-host -e 'package.path="lua/?.lua;"..package.path; local n=require("nktouch"); assert(n.VERSION=="0.6.4"); assert(n.DIRECT==true); assert(n.retryConfig()>=1); local e=n.classifyError("connect failed"); assert(e.code=="CONNECT" and e.transient==true); io.write("hardening-host-ok")'
           echo
 
       - name: Build bundled Lua 5.4.9 with nkcore for iOS arm64
@@ -98,29 +100,34 @@ jobs:
           ldid -S runtime/lua54
           ldid -S runtime/luac54
 
-      - name: Run V0.6.3 contract tests
-        run: python3 -m unittest tests/test_v063_contract.py -v
+      - name: Run V0.6.4 contract tests
+        run: python3 -m unittest tests/test_v064_contract.py -v
 
-      - name: Apply NKTouch v0.6.3 Direct Lua Native layer
-        run: bash scripts/prepare-v063.sh upstream
+      - name: Apply NKTouch v0.6.4 hardening layer
+        run: bash scripts/prepare-v064.sh upstream
 
-      - name: Validate NKTouch v0.6.3 sources
+      - name: Validate NKTouch v0.6.4 sources
         run: |
           set -euxo pipefail
           bash -n runtime/nktouchctl
           bash -n runtime/nktouch-lua
-          bash -n scripts/prepare-v063.sh
+          bash -n scripts/prepare-v064.sh
           python3 -m py_compile runtime/nktouchctl.py
           test -x runtime/nktouch-native
           test -x runtime/lua54
           test -x runtime/luac54
-          grep -q 'VERSION="0.6.3"' runtime/nktouchctl
+          grep -q 'VERSION="0.6.4"' runtime/nktouchctl
           grep -q 'LUA_CORE_VERSION="0.6.3"' runtime/nktouchctl
+          grep -q 'benchmark)' runtime/nktouchctl
+          grep -q 'stress)' runtime/nktouchctl
           grep -q 'NK_VERSION "0.6.0"' runtime/nktouch-native.c
           grep -q 'NKCORE_VERSION "0.6.3"' runtime/nkcore.c
           grep -q 'luaopen_nkcore' runtime/nkcore.c
-          grep -q 'M.VERSION="0.6.3"' lua/nktouch.lua
-          grep -q 'M.DIRECT=core~=nil' lua/nktouch.lua
+          grep -q 'M.VERSION="0.6.4"' lua/nktouch.lua
+          grep -q 'local function readCall' lua/nktouch.lua
+          grep -q 'local function sideCall' lua/nktouch.lua
+          grep -q 'function M.benchmark' lua/nktouch.lua
+          grep -q 'function M.stress' lua/nktouch.lua
           grep -q 'pcall(require,"nkcore")' lua/nktouch.lua
           grep -q 'require("nktouch")' runtime/nktouch-lua
           grep -q 'posix_spawn' runtime/lua-ios-shim.c
@@ -135,8 +142,9 @@ jobs:
           test -x upstream/layout/usr/libexec/nktouch/lua54
           test -x upstream/layout/usr/libexec/nktouch/luac54
           test -f upstream/layout/usr/share/doc/nktouch/LUA_README.txt
-          grep -q 'NKTouch 0.6.3 Direct Lua Native' upstream/layout/usr/share/doc/nktouch/VERSION
+          grep -q 'NKTouch 0.6.4 Hardened Direct Lua' upstream/layout/usr/share/doc/nktouch/VERSION
           grep -q 'Embedded nkcore 0.6.3' upstream/layout/usr/share/doc/nktouch/VERSION
+          grep -q 'Read-only reconnect retry enabled' upstream/layout/usr/share/doc/nktouch/VERSION
 
       - name: Run upstream Python tests
         working-directory: upstream
@@ -167,7 +175,7 @@ jobs:
           THEOS: ${{ github.workspace }}/upstream/theos
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build NKTouch v0.6.3 rootless package
+      - name: Build NKTouch v0.6.4 rootless package
         working-directory: upstream
         run: make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
         env:
@@ -183,10 +191,10 @@ jobs:
           dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nktouch-native|nktouchctl|nktouch-lua|lua54|luac54|nktouch.lua|NKStatus|zxtouch.app|VERSION|LUA_README' || true
           ls -lah ../artifacts
 
-      - name: Upload NKTouch v0.6.3 Direct Lua Native rootless deb
+      - name: Upload NKTouch v0.6.4 Hardened Direct rootless deb
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.6.3-native-lua-rootless
+          name: NKTouch-v0.6.4-hardening-rootless
           path: artifacts/*.deb
           if-no-files-found: error
 
@@ -194,6 +202,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.6.3-native-lua-build-logs
+          name: NKTouch-v0.6.4-hardening-build-logs
           path: upstream/xcode_build.log
           if-no-files-found: ignore
