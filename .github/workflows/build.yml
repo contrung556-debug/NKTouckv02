@@ -1,9 +1,9 @@
-name: Build NKTouch v0.3 Native
+name: Build NKTouch v0.4 Lua
 
 on:
   workflow_dispatch:
   push:
-    branches: [ v0.3-native ]
+    branches: [ v0.4-lua ]
 
 permissions:
   contents: read
@@ -14,10 +14,12 @@ jobs:
     env:
       UPSTREAM_REPO: https://github.com/epic0001/zxtouchrootless.git
       UPSTREAM_SHA: a602da112ef1a688fb2601424443abb1ccc28c63
-      NK_VERSION: 0.3.0
+      NK_VERSION: 0.4.0
+      LUA_VERSION: 5.4.9
+      LUA_SHA256: 2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6
 
     steps:
-      - name: Checkout NKTouch v0.3 layer
+      - name: Checkout NKTouch v0.4 layer
         uses: actions/checkout@v4
 
       - name: Fetch pinned GPL automation core
@@ -46,20 +48,67 @@ jobs:
           brew install ldid 2>/dev/null || true
           ldid -S runtime/nktouch-native
 
-      - name: Apply NKTouch v0.3 native layer
-        run: bash scripts/prepare-v03.sh upstream
-
-      - name: Validate NKTouch v0.3 sources
+      - name: Fetch and verify Lua source
         run: |
+          set -euxo pipefail
+          curl -fL "https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz" -o lua.tar.gz
+          printf '%s  %s\n' "$LUA_SHA256" lua.tar.gz | shasum -a 256 -c -
+          tar -xzf lua.tar.gz
+          mv "lua-${LUA_VERSION}" lua-src
+          test -f lua-src/src/lua.c
+          test -f lua-src/src/lapi.c
+
+      - name: Build bundled Lua runtime for iOS
+        run: |
+          set -euxo pipefail
+          SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
+          LUA_C_FILES=$(find lua-src/src -maxdepth 1 -name '*.c' \
+            ! -name 'lua.c' \
+            ! -name 'luac.c' \
+            ! -name 'onelua.c' \
+            ! -name 'ltests.c' \
+            -print | sort)
+
+          # Build a host copy first so the same source set can syntax-check the
+          # NKTouch Lua modules during CI.
+          cc -O2 $LUA_C_FILES lua-src/src/lua.c -lm -o /tmp/nktouch-lua-host
+          /tmp/nktouch-lua-host -v
+          /tmp/nktouch-lua-host -e 'assert(loadfile("lua/nktouch.lua")); assert(loadfile("lua/bootstrap.lua")); print("NKTouch Lua syntax OK")'
+
+          xcrun --sdk iphoneos clang \
+            -Os \
+            -arch arm64 \
+            -miphoneos-version-min=15.0 \
+            -isysroot "$SDKROOT" \
+            $LUA_C_FILES lua-src/src/lua.c \
+            -lm \
+            -o runtime/nktouch-lua
+          file runtime/nktouch-lua
+          test -x runtime/nktouch-lua
+          ldid -S runtime/nktouch-lua
+
+      - name: Apply NKTouch v0.4 Lua layer
+        run: bash scripts/prepare-v04.sh upstream
+
+      - name: Validate NKTouch v0.4 sources
+        run: |
+          set -euxo pipefail
           bash -n runtime/nktouchctl
+          bash -n runtime/nktouch-run
           bash -n scripts/prepare-v03.sh
+          bash -n scripts/prepare-v04.sh
           python3 -m py_compile runtime/nktouchctl.py
           test -x runtime/nktouch-native
-          grep -q 'NK_VERSION "0.3.0"' runtime/nktouch-native.c
+          test -x runtime/nktouch-lua
+          grep -q 'M.VERSION = "0.4.0"' lua/nktouch.lua
+          grep -q 'LUA_INIT' runtime/nktouch-run
           grep -q 'NKStatusOverlayStart' upstream/pccontrol/Tweak.xm
           grep -q 'NKStatusOverlay.xm' upstream/pccontrol/Makefile
           test -x upstream/layout/usr/libexec/nktouch/nktouch-native
-          grep -q 'NKTouch 0.3.0' upstream/layout/usr/share/doc/nktouch/VERSION
+          test -x upstream/layout/usr/libexec/nktouch/lua
+          test -x upstream/layout/usr/bin/nktouch-run
+          grep -q 'NKTouch 0.4.0' upstream/layout/usr/share/doc/nktouch/VERSION
+          grep -q '^Version: 0.4.0$' upstream/control
 
       - name: Run upstream Python tests
         working-directory: upstream
@@ -113,7 +162,7 @@ jobs:
           THEOS: ${{ github.workspace }}/upstream/theos
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build NKTouch v0.3 rootless package
+      - name: Build NKTouch v0.4 rootless package
         working-directory: upstream
         run: make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
         env:
@@ -126,13 +175,13 @@ jobs:
           DEB=$(ls -t packages/*.deb | head -1)
           cp "$DEB" "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb"
           dpkg-deb -I "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" || true
-          dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nktouch-native|nktouchctl|NKStatus|nktouch.lua|zxtouch.app' || true
+          dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nktouch-native|nktouch-run|libexec/nktouch/lua|nktouchctl|bootstrap.lua|nktouch.lua|NKStatus|zxtouch.app' || true
           ls -lah ../artifacts
 
-      - name: Upload NKTouch v0.3 rootless deb
+      - name: Upload NKTouch v0.4 rootless deb
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.3-native-rootless
+          name: NKTouch-v0.4-lua-rootless
           path: artifacts/*.deb
           if-no-files-found: error
 
@@ -140,6 +189,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: NKTouch-v0.3-native-build-logs
+          name: NKTouch-v0.4-lua-build-logs
           path: upstream/xcode_build.log
           if-no-files-found: ignore
