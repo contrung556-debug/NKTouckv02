@@ -16,7 +16,6 @@ now() {
 }
 
 sanitize() {
-  # Keep the status protocol one-line and pipe-safe.
   printf '%s' "$*" | tr '\r\n|' '   '
 }
 
@@ -48,11 +47,11 @@ append_log() {
 
 need_python() {
   if [ ! -x "$PY" ]; then
-    echo "NKTouch: lệnh này hiện vẫn cần Python 3. Tap/hold/swipe/openapp/record/stop ở v0.3 chạy native và không cần Python." >&2
+    echo "NKTouch: native backend bị thiếu và máy cũng không có Python fallback." >&2
     exit 3
   fi
   if [ ! -f "$HELPER" ]; then
-    echo "NKTouch: thiếu helper $HELPER" >&2
+    echo "NKTouch: thiếu helper fallback $HELPER" >&2
     exit 4
   fi
 }
@@ -64,8 +63,8 @@ run_native_first() {
     exec "$NATIVE" "$subcmd" "$@"
   fi
 
-  # Upgrade safety: packages missing the native binary can still use the old
-  # Python helper instead of becoming unusable.
+  # Emergency compatibility path for an incomplete/old upgrade only. A normal
+  # v0.3 install always contains the native binary and never needs Python.
   need_python
   exec "$PY" "$HELPER" "$subcmd" "$@"
 }
@@ -118,18 +117,13 @@ case "$cmd" in
       exec "$NATIVE" ping
     fi
     need_python
-    # Import/connect is exercised by a harmless screen query on fallback.
     exec "$PY" "$HELPER" screen
     ;;
-  tap|hold|swipe|openapp|stop)
+  tap|hold|swipe|openapp|stop|screen|foreground)
     run_native_first "$cmd" "$@"
     ;;
   record)
     run_native_first record "$@"
-    ;;
-  screen|foreground)
-    need_python
-    exec "$PY" "$HELPER" "$cmd" "$@"
     ;;
   native)
     if [ ! -x "$NATIVE" ]; then
@@ -160,12 +154,10 @@ Native automation (Python 3 NOT required):
   nktouchctl openapp <bundle-id>
   nktouchctl record start|stop
   nktouchctl stop
+  nktouchctl screen
+  nktouchctl foreground
   nktouchctl ping
   nktouchctl backend
-
-Compatibility helpers (currently Python fallback):
-  nktouchctl foreground
-  nktouchctl screen
 
 Debug/native passthrough:
   nktouchctl native <native-command> [...]
