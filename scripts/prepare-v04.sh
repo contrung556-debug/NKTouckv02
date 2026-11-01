@@ -4,6 +4,7 @@ set -euo pipefail
 SRC="${1:-upstream}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LUA_BIN="$ROOT/runtime/nktouch-lua"
+LUA_SRC="$ROOT/lua-src"
 
 if [[ ! -d "$SRC" ]]; then
   echo "Missing upstream source directory: $SRC" >&2
@@ -50,7 +51,7 @@ mkdir -p \
   "$SRC/layout/usr/bin" \
   "$SRC/layout/usr/libexec/nktouch" \
   "$SRC/layout/usr/share/nktouch/lua" \
-  "$SRC/layout/usr/share/doc/nktouch"
+  "$SRC/layout/usr/share/doc/nktouch/lua"
 
 # Standalone Lua runtime and runner. No AutoTouch/Python/Lua package dependency
 # is required for normal v0.4 script execution.
@@ -62,6 +63,15 @@ cp "$ROOT/lua/bootstrap.lua" "$SRC/layout/usr/share/nktouch/lua/bootstrap.lua"
 if [[ -d "$ROOT/lua/examples" ]]; then
   mkdir -p "$SRC/layout/usr/share/nktouch/lua/examples"
   cp -R "$ROOT/lua/examples/." "$SRC/layout/usr/share/nktouch/lua/examples/"
+fi
+
+# Preserve upstream Lua license/readme material from the exact verified source
+# archive compiled by this workflow.
+if [[ -f "$LUA_SRC/README" ]]; then
+  cp "$LUA_SRC/README" "$SRC/layout/usr/share/doc/nktouch/lua/README"
+fi
+if [[ -f "$LUA_SRC/doc/readme.html" ]]; then
+  cp "$LUA_SRC/doc/readme.html" "$SRC/layout/usr/share/doc/nktouch/lua/readme.html"
 fi
 
 printf '%s\n' 'NKTouch 0.4.0' > "$SRC/layout/usr/share/doc/nktouch/VERSION"
@@ -76,3 +86,5 @@ file "$SRC/layout/usr/libexec/nktouch/nktouch-native"
 file "$SRC/layout/usr/libexec/nktouch/lua"
 echo "--- NKTouch v0.4 runner ---"
 head -n 5 "$SRC/layout/usr/bin/nktouch-run"
+echo "--- NKTouch v0.4 Lua notices ---"
+ls -la "$SRC/layout/usr/share/doc/nktouch/lua" || true
