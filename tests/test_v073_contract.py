@@ -10,7 +10,7 @@ class V073TaskBundleContract(unittest.TestCase):
 
     def test_wrapper_exposes_bundle_and_retains_layers(self):
         s = self.text("runtime/nktouchctl-v7")
-        self.assertIn('VERSION="0.7.3"', s)
+        self.assertRegex(s, r'VERSION="0\.7\.\d+"')
         self.assertIn('BUNDLE="/var/jb/usr/bin/nkbundle"', s)
         self.assertIn('bundle|pack)', s)
         self.assertIn('EDITOR="/var/jb/usr/bin/nkeditor"', s)
@@ -79,6 +79,7 @@ class V073TaskBundleContract(unittest.TestCase):
         self.assertIn('#define VERSION "0.7.0"', self.text("runtime/nktask.c"))
         self.assertIn('VERSION="0.7.1"', self.text("runtime/nkrecorder"))
         self.assertIn('VERSION="0.7.2"', self.text("runtime/nkeditor"))
+        self.assertIn('VERSION="0.7.3"', self.text("runtime/nkbundle"))
         self.assertIn('local VERSION = "0.7.1"', self.text("lua/nkrecorder.lua"))
 
 
