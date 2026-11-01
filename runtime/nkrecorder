@@ -1,5 +1,5 @@
 #!/var/jb/bin/sh
-set -u
+set -eu
 
 VERSION="0.7.1"
 PATH="/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin"
@@ -26,7 +26,6 @@ need_runtime() {
 
 latest_bdl() {
   [ -d "$LEGACY" ] || return 1
-  # shellcheck disable=SC2086
   set -- "$LEGACY"/*.bdl
   [ -d "$1" ] || return 1
   ls -1dt "$LEGACY"/*.bdl 2>/dev/null | head -n 1
@@ -121,8 +120,6 @@ case "$cmd" in
     "$CORE" record start >/dev/null
     bdl="$(wait_for_new_bdl "$before" 2>/dev/null || true)"
     if [ -z "$bdl" ]; then
-      # The recorder creates its bundle synchronously, so failure to discover a
-      # new one means the start did not establish a usable recording session.
       "$CORE" record stop >/dev/null 2>&1 || true
       echo "NKTouch Recorder: started core recorder but could not locate new .bdl bundle" >&2
       exit 5
@@ -140,7 +137,7 @@ case "$cmd" in
     bdl="$(cat "$CURRENT")"
     "$CORE" record stop >/dev/null
     raw="$(raw_for_bdl "$bdl" 2>/dev/null || true)"
-    [ -n "$raw" ] || { rm -f "$CURRENT"; echo "NKTouch Recorder: bundle has no raw recording: $bdl" >&2; exit 5; }
+    [ -n "$raw" ] || { echo "NKTouch Recorder: bundle has no raw recording: $bdl" >&2; exit 5; }
     wait_raw_stable "$raw"
     if [ "$#" -eq 1 ]; then
       name="$(safe_name "$1")"
