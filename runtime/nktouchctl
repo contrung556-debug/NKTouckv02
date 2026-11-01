@@ -1,30 +1,215 @@
 #!/var/jb/bin/sh
 set -eu
+
+VERSION="0.6.1"
 BASE="/var/mobile/Library/NKTouch"
-STATUS_FILE="$BASE/status.state"; LOG_FILE="$BASE/events.log"; HEARTBEAT_FILE="$BASE/heartbeat"
-NATIVE="/var/jb/usr/libexec/nktouch/nktouch-native"; PY="/var/jb/usr/bin/python3"; HELPER="/var/jb/usr/share/nktouch/nktouchctl.py"
-SELF="/var/jb/usr/bin/nktouchctl"; SH="/var/jb/bin/sh"; [ -x "$SH" ] || SH="/bin/sh"
-mkdir -p "$BASE"
+TMP_DIR="$BASE/tmp"
+STATUS_FILE="$BASE/status.state"
+LOG_FILE="$BASE/events.log"
+HEARTBEAT_FILE="$BASE/heartbeat"
+NATIVE="/var/jb/usr/libexec/nktouch/nktouch-native"
+PY="/var/jb/usr/bin/python3"
+HELPER="/var/jb/usr/share/nktouch/nktouchctl.py"
+SELF="/var/jb/usr/bin/nktouchctl"
+SH="/var/jb/bin/sh"; [ -x "$SH" ] || SH="/bin/sh"
+READ_RETRIES="${NKTOUCH_READ_RETRIES:-2}"
+
+mkdir -p "$BASE" "$TMP_DIR"
+
 now(){ /var/jb/usr/bin/date +%s 2>/dev/null || date +%s; }
 sanitize(){ printf '%s' "$*" | tr '\r\n|' '   '; }
-write_status(){ style="$1"; percent="$2"; shift 2; msg="$(sanitize "$*")"; case "$percent" in ''|*[!0-9]*) percent=0;; esac; [ "$percent" -lt 0 ] 2>/dev/null && percent=0 || true; [ "$percent" -gt 100 ] 2>/dev/null && percent=100 || true; tmp="$STATUS_FILE.tmp.$$"; printf '%s|%s|%s|%s\n' "$style" "$percent" "$msg" "$(now)" > "$tmp"; mv -f "$tmp" "$STATUS_FILE"; chmod 666 "$STATUS_FILE" 2>/dev/null || true; }
-append_log(){ printf '%s %s\n' "$(now)" "$(sanitize "$*")" >> "$LOG_FILE"; chmod 666 "$LOG_FILE" 2>/dev/null || true; size=$(wc -c < "$LOG_FILE" 2>/dev/null || echo 0); if [ "$size" -gt 524288 ] 2>/dev/null; then tail -n 500 "$LOG_FILE" > "$LOG_FILE.tmp" && mv -f "$LOG_FILE.tmp" "$LOG_FILE"; fi; }
-need_python(){ [ -x "$PY" ] || { echo "NKTouch: native backend missing and no Python fallback." >&2; exit 3; }; [ -f "$HELPER" ] || exit 4; }
-run_native_first(){ subcmd="$1"; shift || true; if [ -x "$NATIVE" ]; then exec "$NATIVE" "$subcmd" "$@"; fi; need_python; exec "$PY" "$HELPER" "$subcmd" "$@"; }
-run_native_only(){ subcmd="$1"; shift || true; [ -x "$NATIVE" ] || { echo "NKTouch v0.6: missing native backend $NATIVE" >&2; exit 4; }; exec "$NATIVE" "$subcmd" "$@"; }
-run_script(){ script="${1:-}"; [ -n "$script" ] || { echo "Usage: nktouchctl run <script.sh> [args...]" >&2; exit 2; }; shift || true; [ -f "$script" ] && [ -r "$script" ] || { echo "NKTouch: cannot read script: $script" >&2; exit 2; }; export NKTOUCHCTL="$SELF" NKTOUCH_HOME="$BASE"; exec "$SH" "$script" "$@"; }
-check_script(){ script="${1:-}"; [ -n "$script" ] && [ -f "$script" ] || { echo "Usage: nktouchctl check <script.sh>" >&2; exit 2; }; "$SH" -n "$script"; echo ok; }
-doctor(){ fail=0; echo "version=0.6.0"; if [ -x "$NATIVE" ]; then echo "native=ok:$("$NATIVE" version 2>/dev/null || echo unknown)"; else echo native=missing; fail=1; fi; if [ -x "$NATIVE" ] && "$NATIVE" ping >/dev/null 2>&1; then echo core=ok; else echo core=unreachable; fail=1; fi; if [ -x "$NATIVE" ]; then screen="$("$NATIVE" screen 2>/dev/null || true)"; fg="$("$NATIVE" foreground 2>/dev/null || true)"; [ -n "$screen" ] && echo "screen=$screen" || echo screen=unavailable; [ -n "$fg" ] && echo "foreground=$fg" || echo foreground=unknown; fi; echo "state_dir=$BASE"; return "$fail"; }
+
+write_status(){
+    style="$1"; percent="$2"; shift 2; msg="$(sanitize "$*")"
+    case "$percent" in ''|*[!0-9]*) percent=0;; esac
+    [ "$percent" -lt 0 ] 2>/dev/null && percent=0 || true
+    [ "$percent" -gt 100 ] 2>/dev/null && percent=100 || true
+    tmp="$STATUS_FILE.tmp.$$"
+    printf '%s|%s|%s|%s\n' "$style" "$percent" "$msg" "$(now)" > "$tmp"
+    mv -f "$tmp" "$STATUS_FILE"
+    chmod 666 "$STATUS_FILE" 2>/dev/null || true
+}
+
+append_log(){
+    printf '%s %s\n' "$(now)" "$(sanitize "$*")" >> "$LOG_FILE"
+    chmod 666 "$LOG_FILE" 2>/dev/null || true
+    size=$(wc -c < "$LOG_FILE" 2>/dev/null || echo 0)
+    case "$size" in ''|*[!0-9]*) size=0;; esac
+    if [ "$size" -gt 524288 ] 2>/dev/null; then
+        tail -n 500 "$LOG_FILE" > "$LOG_FILE.tmp.$$" && mv -f "$LOG_FILE.tmp.$$" "$LOG_FILE"
+    fi
+}
+
+need_native(){
+    [ -x "$NATIVE" ] || { echo "NKTouch v$VERSION: missing native backend $NATIVE" >&2; exit 4; }
+}
+
+need_python(){
+    [ -x "$PY" ] || { echo "NKTouch: native backend missing and no Python fallback." >&2; exit 3; }
+    [ -f "$HELPER" ] || { echo "NKTouch: Python fallback helper missing." >&2; exit 4; }
+}
+
+run_native_first(){
+    subcmd="$1"; shift || true
+    if [ -x "$NATIVE" ]; then exec "$NATIVE" "$subcmd" "$@"; fi
+    need_python
+    exec "$PY" "$HELPER" "$subcmd" "$@"
+}
+
+run_native_only(){
+    subcmd="$1"; shift || true
+    need_native
+    exec "$NATIVE" "$subcmd" "$@"
+}
+
+# Retry only read-only operations. Never retry tap/text/openapp/etc. to avoid duplicate side effects.
+run_native_read(){
+    subcmd="$1"; shift || true
+    need_native
+    tries="$READ_RETRIES"
+    case "$tries" in ''|*[!0-9]*) tries=2;; esac
+    [ "$tries" -lt 1 ] 2>/dev/null && tries=1 || true
+    [ "$tries" -gt 4 ] 2>/dev/null && tries=4 || true
+    i=1
+    while :; do
+        if "$NATIVE" "$subcmd" "$@"; then return 0; fi
+        rc=$?
+        case "$rc" in 4|5) ;; *) return "$rc";; esac
+        [ "$i" -ge "$tries" ] && return "$rc"
+        i=$((i + 1))
+        sleep 1
+    done
+}
+
+cleanup_tmp(){
+    rm -f "$TMP_DIR"/doctor-* "$TMP_DIR"/selftest-* "$STATUS_FILE".tmp.* "$LOG_FILE".tmp.* 2>/dev/null || true
+    echo ok
+}
+
+run_script(){
+    script="${1:-}"
+    [ -n "$script" ] || { echo "Usage: nktouchctl run <script.sh> [args...]" >&2; exit 2; }
+    shift || true
+    [ -f "$script" ] && [ -r "$script" ] || { echo "NKTouch: cannot read script: $script" >&2; exit 2; }
+    export NKTOUCHCTL="$SELF" NKTOUCH_HOME="$BASE" NKTOUCH_VERSION="$VERSION"
+    exec "$SH" "$script" "$@"
+}
+
+check_script(){
+    script="${1:-}"
+    [ -n "$script" ] && [ -f "$script" ] || { echo "Usage: nktouchctl check <script.sh>" >&2; exit 2; }
+    "$SH" -n "$script"
+    echo ok
+}
+
+doctor(){
+    mode="${1:-quick}"
+    fail=0
+    echo "version=$VERSION"
+    if [ -x "$NATIVE" ]; then
+        nv="$("$NATIVE" version 2>/dev/null || echo unknown)"
+        echo "native=ok:$nv"
+    else
+        echo native=missing
+        fail=1
+    fi
+
+    probe="$TMP_DIR/.write-test-$$"
+    if : > "$probe" 2>/dev/null; then
+        rm -f "$probe" 2>/dev/null || true
+        echo state_dir=writable
+    else
+        echo state_dir=not-writable
+        fail=1
+    fi
+
+    if [ -x "$NATIVE" ] && "$NATIVE" ping >/dev/null 2>&1; then
+        echo core=ok
+    else
+        echo core=unreachable
+        fail=1
+    fi
+
+    if [ -x "$NATIVE" ]; then
+        screen="$("$NATIVE" screen 2>/dev/null || true)"
+        fg="$("$NATIVE" foreground 2>/dev/null || true)"
+        orientation="$("$NATIVE" orientation 2>/dev/null || true)"
+        scale="$("$NATIVE" scale 2>/dev/null || true)"
+        [ -n "$screen" ] && echo "screen=$screen" || { echo screen=unavailable; fail=1; }
+        [ -n "$fg" ] && echo "foreground=$fg" || echo foreground=unknown
+        [ -n "$orientation" ] && echo "orientation=$orientation" || echo orientation=unknown
+        [ -n "$scale" ] && echo "scale=$scale" || echo scale=unknown
+    fi
+
+    if [ "$mode" = "full" ] || [ "$mode" = "vision" ]; then
+        shot="$TMP_DIR/doctor-$$.jpg"
+        if [ -x "$NATIVE" ] && "$NATIVE" screenshot "$shot" >/dev/null 2>&1 && [ -s "$shot" ]; then
+            bytes=$(wc -c < "$shot" 2>/dev/null || echo 0)
+            echo "screenshot=ok:$bytes"
+        else
+            echo screenshot=failed
+            fail=1
+        fi
+        rm -f "$shot" 2>/dev/null || true
+    fi
+
+    echo "tmp_dir=$TMP_DIR"
+    return "$fail"
+}
+
+selftest(){
+    fail=0
+    echo "NKTouch v$VERSION selftest"
+    if doctor full; then :; else fail=1; fi
+    if [ -x "$NATIVE" ] && "$NATIVE" runtime >/dev/null 2>&1; then echo runtime=ok; else echo runtime=failed; fail=1; fi
+    if [ -x "$NATIVE" ] && "$NATIVE" battery >/dev/null 2>&1; then echo battery=ok; else echo battery=failed; fail=1; fi
+    if [ -x "$NATIVE" ] && "$NATIVE" sleep 1 >/dev/null 2>&1; then echo sleep=ok; else echo sleep=failed; fail=1; fi
+    cleanup_tmp >/dev/null 2>&1 || true
+    if [ "$fail" -eq 0 ]; then echo result=PASS; else echo result=FAIL; fi
+    return "$fail"
+}
+
 cmd="${1:-help}"; shift || true
 case "$cmd" in
- status) pct="${1:-0}"; shift || true; write_status normal "$pct" "$*";; success) write_status success 100 "$*";; warning|warn) write_status warning 0 "$*";; error|fail) write_status error 0 "$*";; hide) write_status hide 0 "";; heartbeat) printf '%s\n' "$(now)" > "$HEARTBEAT_FILE";; log) append_log "$*";; state) [ -f "$STATUS_FILE" ] && cat "$STATUS_FILE" || echo 'hide|0||0';; logs) tail -n "${1:-50}" "$LOG_FILE" 2>/dev/null || true;;
- backend) if [ -x "$NATIVE" ]; then printf 'native %s\n' "$("$NATIVE" version 2>/dev/null || echo unknown)"; elif [ -x "$PY" ] && [ -f "$HELPER" ]; then echo python-fallback; else echo unavailable; exit 4; fi;;
- ping) if [ -x "$NATIVE" ]; then exec "$NATIVE" ping; fi; need_python; exec "$PY" "$HELPER" screen;; doctor) doctor;; run) run_script "$@";; check) check_script "$@";;
- tap|hold|swipe|openapp|stop|screen|foreground) run_native_first "$cmd" "$@";; record) run_native_first record "$@";;
- sleep|text|keyboard|cursor|delete|paste|clipboard-get|clipboard-set|toast|screenshot|orientation|scale|device|battery|runtime|find-image|wait-image|tap-image|pixel|find-color|wait-color|tap-color|ocr|wait-text|wait-app) run_native_only "$cmd" "$@";;
+ status) pct="${1:-0}"; shift || true; write_status normal "$pct" "$*";;
+ success) write_status success 100 "$*";;
+ warning|warn) write_status warning 0 "$*";;
+ error|fail) write_status error 0 "$*";;
+ hide) write_status hide 0 "";;
+ heartbeat) printf '%s\n' "$(now)" > "$HEARTBEAT_FILE";;
+ log) append_log "$*";;
+ state) [ -f "$STATUS_FILE" ] && cat "$STATUS_FILE" || echo 'hide|0||0';;
+ logs) tail -n "${1:-50}" "$LOG_FILE" 2>/dev/null || true;;
+ cleanup) cleanup_tmp;;
+ backend)
+   if [ -x "$NATIVE" ]; then printf 'native %s (runtime %s)\n' "$("$NATIVE" version 2>/dev/null || echo unknown)" "$VERSION"
+   elif [ -x "$PY" ] && [ -f "$HELPER" ]; then echo "python-fallback (runtime $VERSION)"
+   else echo unavailable; exit 4; fi;;
+ ping) if [ -x "$NATIVE" ]; then run_native_read ping; else need_python; exec "$PY" "$HELPER" screen; fi;;
+ doctor) doctor "${1:-quick}";;
+ selftest) selftest;;
+ run) run_script "$@";;
+ check) check_script "$@";;
+
+ # Side-effecting commands: single attempt only.
+ tap|hold|swipe|openapp|stop|record|text|keyboard|cursor|delete|paste|clipboard-set|toast|tap-image|tap-color)
+   run_native_only "$cmd" "$@";;
+
+ # Compatibility commands that may use the old Python fallback if native is absent.
+ screen|foreground)
+   if [ -x "$NATIVE" ]; then run_native_read "$cmd" "$@"; else run_native_first "$cmd" "$@"; fi;;
+
+ # Read-only native commands: safe bounded retry on transport errors only.
+ clipboard-get|screenshot|orientation|scale|device|battery|runtime|find-image|pixel|find-color|ocr)
+   run_native_read "$cmd" "$@";;
+
+ # Native loops already own their timeout; do not add an outer retry.
+ sleep|wait-image|wait-color|wait-text|wait-app)
+   run_native_only "$cmd" "$@";;
+
  native) run_native_only "$@";;
  help|-h|--help) cat <<'HELP'
-NKTouch v0.6 vision automation runtime
+NKTouch v0.6.1 Stable runtime
 
 Core: tap/hold/swipe/openapp/wait-app/sleep/text/clipboard/screenshot/OCR
 Image: find-image, wait-image, tap-image
@@ -38,7 +223,16 @@ Text wait:
 Toast:
   nktouchctl toast error|warning|message|success <seconds> <message>
   nktouchctl toast hide
-Health/script: backend, ping, doctor, check <script.sh>, run <script.sh>
+Health:
+  nktouchctl doctor [quick|full]
+  nktouchctl selftest
+  nktouchctl cleanup
+Script:
+  nktouchctl check <script.sh>
+  nktouchctl run <script.sh> [args...]
+
+Hardening: read-only transport failures retry at most NKTOUCH_READ_RETRIES times (default 2).
+Side-effecting actions are never auto-retried.
 HELP
  ;;
  *) echo "NKTouch: unknown command '$cmd'" >&2; echo "Run: nktouchctl help" >&2; exit 2;;
