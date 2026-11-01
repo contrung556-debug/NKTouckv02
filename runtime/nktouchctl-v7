@@ -1,18 +1,20 @@
 #!/var/jb/bin/sh
 set -u
 
-VERSION="0.7.3"
+VERSION="0.7.4"
 CORE="/var/jb/usr/libexec/nktouch/nktouchctl-core"
 TASK="/var/jb/usr/bin/nktask"
 RECORDER="/var/jb/usr/bin/nkrecorder"
 EDITOR="/var/jb/usr/bin/nkeditor"
 BUNDLE="/var/jb/usr/bin/nkbundle"
+NETWORK="/var/jb/usr/bin/nknetwork"
 
 need_core(){ [ -x "$CORE" ] || { echo "NKTouch v$VERSION: missing core runtime $CORE" >&2; exit 4; }; }
 need_task(){ [ -x "$TASK" ] || { echo "NKTouch v$VERSION: missing task engine $TASK" >&2; exit 4; }; }
 need_recorder(){ [ -x "$RECORDER" ] || { echo "NKTouch v$VERSION: missing Recorder V2 $RECORDER" >&2; exit 4; }; }
 need_editor(){ [ -x "$EDITOR" ] || { echo "NKTouch v$VERSION: missing Script Editor $EDITOR" >&2; exit 4; }; }
 need_bundle(){ [ -x "$BUNDLE" ] || { echo "NKTouch v$VERSION: missing Task Bundle manager $BUNDLE" >&2; exit 4; }; }
+need_network(){ [ -x "$NETWORK" ] || { echo "NKTouch v$VERSION: missing Network/API controller $NETWORK" >&2; exit 4; }; }
 
 cmd="${1:-help}"
 [ "$#" -gt 0 ] && shift || true
@@ -34,6 +36,10 @@ case "$cmd" in
     need_bundle
     exec "$BUNDLE" "$@"
     ;;
+  network|http)
+    need_network
+    exec "$NETWORK" "$@"
+    ;;
   version)
     echo "$VERSION"
     ;;
@@ -46,6 +52,7 @@ case "$cmd" in
     if [ -x "$RECORDER" ]; then echo "recorder=$($RECORDER version 2>/dev/null || echo unknown)"; else echo "recorder=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     if [ -x "$EDITOR" ]; then echo "editor=$($EDITOR version 2>/dev/null || echo unknown)"; else echo "editor=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     if [ -x "$BUNDLE" ]; then echo "bundle=$($BUNDLE version 2>/dev/null || echo unknown)"; else echo "bundle=missing"; [ "$rc" -eq 0 ] && rc=4; fi
+    if [ -x "$NETWORK" ]; then echo "network=$($NETWORK version 2>/dev/null || echo unknown)"; else echo "network=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     exit "$rc"
     ;;
   doctor)
@@ -56,7 +63,8 @@ case "$cmd" in
     if [ -x "$RECORDER" ]; then "$RECORDER" doctor; rc3=$?; else echo recorder=missing; rc3=4; fi
     if [ -x "$EDITOR" ]; then "$EDITOR" doctor; rc4=$?; else echo editor=missing; rc4=4; fi
     if [ -x "$BUNDLE" ]; then "$BUNDLE" doctor; rc5=$?; else echo bundle=missing; rc5=4; fi
-    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ] && [ "$rc4" -eq 0 ] && [ "$rc5" -eq 0 ]
+    if [ -x "$NETWORK" ]; then "$NETWORK" doctor; rc6=$?; else echo network=missing; rc6=4; fi
+    [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ] && [ "$rc4" -eq 0 ] && [ "$rc5" -eq 0 ] && [ "$rc6" -eq 0 ]
     ;;
   selftest)
     need_core
@@ -66,11 +74,18 @@ case "$cmd" in
     if [ -x "$RECORDER" ]; then "$RECORDER" doctor >/tmp/nkrecorder-selftest.$$ 2>&1; rc3=$?; cat /tmp/nkrecorder-selftest.$$; rm -f /tmp/nkrecorder-selftest.$$; else echo recorder=missing; rc3=4; fi
     if [ -x "$EDITOR" ]; then "$EDITOR" doctor >/tmp/nkeditor-selftest.$$ 2>&1; rc4=$?; cat /tmp/nkeditor-selftest.$$; rm -f /tmp/nkeditor-selftest.$$; else echo editor=missing; rc4=4; fi
     if [ -x "$BUNDLE" ]; then "$BUNDLE" doctor >/tmp/nkbundle-selftest.$$ 2>&1; rc5=$?; cat /tmp/nkbundle-selftest.$$; rm -f /tmp/nkbundle-selftest.$$; else echo bundle=missing; rc5=4; fi
-    if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ] && [ "$rc4" -eq 0 ] && [ "$rc5" -eq 0 ]; then echo v7_result=PASS; exit 0; else echo v7_result=FAIL; exit 1; fi
+    if [ -x "$NETWORK" ]; then "$NETWORK" doctor >/tmp/nknetwork-selftest.$$ 2>&1; rc6=$?; cat /tmp/nknetwork-selftest.$$; rm -f /tmp/nknetwork-selftest.$$; else echo network=missing; rc6=4; fi
+    if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ] && [ "$rc4" -eq 0 ] && [ "$rc5" -eq 0 ] && [ "$rc6" -eq 0 ]; then echo v7_result=PASS; exit 0; else echo v7_result=FAIL; exit 1; fi
     ;;
   help|-h|--help)
     cat <<'HELP'
-NKTouch v0.7.3 Task Bundle + Script Editor + Recorder V2 + Task Engine
+NKTouch v0.7.4 Network/API + Task Bundle + Script Editor + Recorder V2 + Task Engine
+
+Network/API:
+  nktouchctl network doctor
+  nktouchctl network request <METHOD> <URL> [timeout-ms]
+  Lua: nk.http.request/get/post/download/upload
+  Lua: nk.json.encode/decode/array/object
 
 Task Bundle (.nktask):
   nktouchctl bundle asset add <script> <file> [asset-name]
@@ -102,8 +117,9 @@ Task manager:
 Recorder V2:
   nktouchctl recorder start|status|stop|export|latest|list|doctor ...
 
-V7.3 keeps V7.0 single-active-task safety, V7.1 Recorder V2, and V7.2 Script Editor.
-.nktask bundles are checked before import and never overwrite existing content automatically.
+V7.4 network is explicit/on-demand only and has no automatic retries.
+HTTPS uses iOS system certificate validation; insecure TLS bypass is not provided.
+Headers/bodies are passed through temporary files rather than nkhttp process arguments.
 No new SpringBoard task IDs are introduced. OCR remains explicit/on-demand only.
 
 Existing V6.4 native/Lua commands remain available unchanged.
