@@ -175,6 +175,20 @@ find_editor() {
   return 1
 }
 
+append_checked() {
+  file="$1"
+  line="$2"
+  backup="$file.bak.$$"
+  cp "$file" "$backup" || return 4
+  printf '%s\n' "$line" >> "$file" || { mv "$backup" "$file"; return 4; }
+  if check_file "$file"; then
+    rm -f "$backup"
+    return 0
+  fi
+  mv "$backup" "$file"
+  return 7
+}
+
 cmd="${1:-help}"
 [ "$#" -gt 0 ] && shift || true
 
@@ -207,9 +221,11 @@ case "$cmd" in
     [ ! -e "$file" ] || { echo "NKTouch Editor: script already exists: $file" >&2; exit 3; }
     template="${2:-blank}"
     tmp="$file.tmp.$$"
-    emit_template "$template" > "$tmp" || { rm -f "$tmp"; exit $?; }
+    rc=0
+    emit_template "$template" > "$tmp" || rc=$?
+    if [ "$rc" -ne 0 ]; then rm -f "$tmp"; exit "$rc"; fi
     "$LUAC" -p "$tmp" || { rm -f "$tmp"; echo "NKTouch Editor: generated template failed syntax check" >&2; exit 7; }
-    mv "$tmp" "$file"
+    mv "$tmp" "$file" || { rm -f "$tmp"; exit 4; }
     chmod 644 "$file" 2>/dev/null || true
     echo "created=$file"
     echo "template=$template"
@@ -226,7 +242,7 @@ case "$cmd" in
     "$LUAC" -p "$source" || { echo "NKTouch Editor: source has Lua syntax errors" >&2; exit 7; }
     tmp="$file.tmp.$$"
     cp "$source" "$tmp" || exit 4
-    mv "$tmp" "$file"
+    mv "$tmp" "$file" || { rm -f "$tmp"; exit 4; }
     chmod 644 "$file" 2>/dev/null || true
     echo "imported=$file"
     ;;
@@ -286,16 +302,16 @@ case "$cmd" in
     need_runtime
     file="$(need_script "$1")" || exit $?
     shift
-    backup="$file.bak.$$"
-    cp "$file" "$backup" || exit 4
-    printf '%s\n' "$*" >> "$file" || { mv "$backup" "$file"; exit 4; }
-    if check_file "$file"; then rm -f "$backup"; else mv "$backup" "$file"; echo "NKTouch Editor: append reverted because syntax check failed" >&2; exit 7; fi
+    if append_checked "$file" "$*"; then exit 0; fi
+    rc=$?
+    echo "NKTouch Editor: append reverted because syntax check failed" >&2
+    exit "$rc"
     ;;
   delete)
     [ "$#" -eq 2 ] && [ "$2" = "--yes" ] || { echo "usage: nktouchctl editor delete <name> --yes" >&2; exit 2; }
     mkdir_state
     file="$(need_script "$1")" || exit $?
-    rm -f "$file"
+    rm -f "$file" || exit 4
     echo "deleted=$file"
     ;;
   api)
@@ -318,10 +334,10 @@ case "$cmd" in
     else
       mkdir_state
       file="$(need_script "$2")" || exit $?
-      backup="$file.bak.$$"
-      cp "$file" "$backup" || exit 4
-      printf '%s\n' "$line" >> "$file" || { mv "$backup" "$file"; exit 4; }
-      if check_file "$file"; then rm -f "$backup"; echo "snippet=$line"; else mv "$backup" "$file"; echo "NKTouch Editor: snippet reverted because syntax check failed" >&2; exit 7; fi
+      if append_checked "$file" "$line"; then echo "snippet=$line"; exit 0; fi
+      rc=$?
+      echo "NKTouch Editor: snippet reverted because syntax check failed" >&2
+      exit "$rc"
     fi
     ;;
   run)
