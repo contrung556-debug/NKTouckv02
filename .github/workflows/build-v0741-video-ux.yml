@@ -236,12 +236,29 @@ jobs:
       - name: Inspect and collect .deb
         working-directory: upstream
         run: |
+          set -euo pipefail
           mkdir -p ../artifacts
-          DEB=$(ls -t packages/*.deb | head -1)
-          cp "$DEB" "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb"
-          dpkg-deb -I "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb"
-          dpkg-deb -I "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -q 'Version: 0.7.4.1'
-          dpkg-deb -c "../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb" | grep -E 'nkhttp|nknetwork|nkjson|nknet|nktouch_v7|nkbundle|nkeditor|nktouch-api|nkrecorder|nktask|nktouchctl|nktouch-lua|lua54|luac54|NKStatus|zxtouch.app|VERSION' || true
+          DEB=""
+          while IFS= read -r -d '' file; do
+            if [[ -z "$DEB" || "$file" -nt "$DEB" ]]; then
+              DEB="$file"
+            fi
+          done < <(find packages -maxdepth 1 -type f -name '*.deb' -print0)
+          if [[ -z "$DEB" ]]; then
+            echo "::error::No .deb produced in upstream/packages"
+            exit 1
+          fi
+          OUT="../artifacts/com.nk.nktouch_${NK_VERSION}_rootless.deb"
+          cp "$DEB" "$OUT"
+          VERSION="$(dpkg-deb -f "$OUT" Version)"
+          echo "Selected: $DEB"
+          echo "Package version: $VERSION"
+          if [[ "$VERSION" != "$NK_VERSION" ]]; then
+            echo "::error::Expected package version $NK_VERSION, got $VERSION"
+            exit 1
+          fi
+          dpkg-deb -I "$OUT"
+          dpkg-deb -c "$OUT" | grep -E 'nkhttp|nknetwork|nkjson|nknet|nktouch_v7|nkbundle|nkeditor|nktouch-api|nkrecorder|nktask|nktouchctl|nktouch-lua|lua54|luac54|NKStatus|zxtouch.app|VERSION' || true
           ls -lah ../artifacts
 
       - name: Upload NKTouch v0.7.4.1 Video UX rootless deb
