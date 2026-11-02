@@ -1,0 +1,37 @@
+name: Build NKTouch v0.7.5 Editor Runner Console
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ v0.7.5-editor-runner-console ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-rootless:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout NKTouch v0.7.5
+        uses: actions/checkout@v4
+
+      - name: Build and validate NKTouch v0.7.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci-build-v075.sh
+
+      - name: Upload NKTouch v0.7.5 rootless deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: NKTouch-v0.7.5-editor-runner-console-rootless
+          path: artifacts/*.deb
+          if-no-files-found: error
+
+      - name: Upload Xcode log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NKTouch-v0.7.5-build-logs
+          path: upstream/xcode_build.log
+          if-no-files-found: ignore
