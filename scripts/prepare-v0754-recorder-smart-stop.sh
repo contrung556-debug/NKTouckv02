@@ -14,10 +14,10 @@ SETTINGS="$SRC/zxtouch/zxtouch/Settings/SettingsPageViewController.m"
 REC="$SRC/layout/usr/bin/nkrecorder"
 EXPORTER="$SRC/layout/usr/share/nktouch/nkrecorder.lua"
 
-python3 - "$CONTROL" "$VERSION_FILE" <<'PY'
+python3 - "$CONTROL" "$VERSION_FILE" "$REC" <<'PY'
 from pathlib import Path
 import sys
-control=Path(sys.argv[1]); version_file=Path(sys.argv[2])
+control=Path(sys.argv[1]); version_file=Path(sys.argv[2]); rec=Path(sys.argv[3])
 s=control.read_text()
 s=s.replace('Version: 0.7.5.3.3','Version: 0.7.5.4',1)
 for line in s.splitlines():
@@ -37,6 +37,15 @@ Editor Pro / Task Center / Self Test / direct lua54 runtime retained
 if 'Recorder V4 Smart Stop: leave NKTouch to record' not in v:
     v=v.rstrip()+'\n'+extra
 version_file.write_text(v)
+
+r=rec.read_text()
+for old in ('VERSION="0.7.5.2"','VERSION="0.7.5.3.1"','VERSION="0.7.5.3.2"','VERSION="0.7.5.3.3"'):
+    if old in r:
+        r=r.replace(old,'VERSION="0.7.5.4"',1)
+        break
+r=r.replace('NKTouch Recorder V3 v0.7.5.3.1','NKTouch Recorder V4 v0.7.5.4')
+r=r.replace('NKTouch Recorder V3 v0.7.5.2','NKTouch Recorder V4 v0.7.5.4')
+rec.write_text(r)
 PY
 
 chmod 0755 "$REC"
