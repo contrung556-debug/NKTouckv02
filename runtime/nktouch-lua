@@ -14,7 +14,10 @@ if [ "${1:-}" = "--plain" ]; then
 fi
 
 # Default mode preloads the proven V6.4 native API, then attaches V7 extensions.
-# Scripts keep the global `nk` object; V7.4 adds nk.http and nk.json on demand.
+# Scripts keep the global `nk` object; V7.4+ adds nk.http and nk.json on demand.
+# AutoTouch compatibility is optional. Older bootstrap code called the hook
+# unconditionally even though nktouch_v7.lua does not define it, causing every
+# syntactically-valid task to start and then fail immediately at runtime.
 exec "$LUA" \
-  -e 'local m=require("nktouch_v7"); _G.nk=m; m.installAutoTouchCompat()' \
+  -e 'local m=require("nktouch_v7"); _G.nk=m; if type(m.installAutoTouchCompat)=="function" then m.installAutoTouchCompat() end' \
   "$@"
