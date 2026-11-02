@@ -10,6 +10,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 [[ -f "$ROOT/lua/nknet.lua" ]] || { echo "Missing Lua network API" >&2; exit 1; }
 [[ -f "$ROOT/lua/nktouch_v7.lua" ]] || { echo "Missing V7 Lua extension layer" >&2; exit 1; }
 [[ -f "$ROOT/patches/NKLuaWorkspace.m.inc" ]] || { echo "Missing Lua Workspace UX patch" >&2; exit 1; }
+[[ -f "$ROOT/scripts/ux-hotfix-v0741.py" ]] || { echo "Missing V7.4.1 UX hotfix" >&2; exit 1; }
 
 # Reuse V7.3 in full: bundle/editor/recorder/task layers stay intact.
 bash "$ROOT/scripts/prepare-v073.sh" "$SRC"
@@ -28,8 +29,11 @@ p.write_text(s)
 PY
 
 SETTINGS="$SRC/zxtouch/zxtouch/Settings/SettingsPageViewController.m"
+PATCHED_WORKSPACE="$(mktemp)"
+python3 "$ROOT/scripts/ux-hotfix-v0741.py" "$ROOT/patches/NKLuaWorkspace.m.inc" "$PATCHED_WORKSPACE"
+
 if [[ -f "$SETTINGS" ]]; then
-python3 - "$SETTINGS" "$ROOT/patches/NKLuaWorkspace.m.inc" <<'PY'
+python3 - "$SETTINGS" "$PATCHED_WORKSPACE" <<'PY'
 from pathlib import Path
 import sys
 
@@ -67,7 +71,7 @@ if 'NKTouch Lua Workspace UX layer (V7.4)' not in s:
     handler=r'''
 - (void)handleLuaWorkspaceTap:(TableViewCellWithEntry *)cell {
     (void)cell;
-    Class workspaceClass = NSClassFromString(@"NKLuaWorkspaceViewController");
+    Class workspaceClass = NSClassFromString(@"NKLuaLibraryViewController");
     if (!workspaceClass) {
         [Util showAlertBoxWithOneOption:self title:@"Lua Workspace"
             message:@"Lua Workspace UI is unavailable in this build."
@@ -75,6 +79,7 @@ if 'NKTouch Lua Workspace UX layer (V7.4)' not in s:
         return;
     }
     UIViewController *workspaceController = [[workspaceClass alloc] init];
+    workspaceController.hidesBottomBarWhenPushed = YES;
     [self.navigationController pushViewController:workspaceController animated:YES];
 }
 
@@ -85,6 +90,7 @@ if 'NKTouch Lua Workspace UX layer (V7.4)' not in s:
 p.write_text(s)
 PY
 fi
+rm -f "$PATCHED_WORKSPACE"
 
 mkdir -p "$SRC/layout/usr/bin" "$SRC/layout/usr/libexec/nktouch" "$SRC/layout/usr/share/nktouch/lua"
 cp "$ROOT/runtime/nktouchctl-v7" "$SRC/layout/usr/bin/nktouchctl"
@@ -118,7 +124,10 @@ PY
 cat > "$SRC/layout/usr/share/doc/nktouch/VERSION" <<'EOF'
 NKTouch 0.7.4.1 UI/UX
 NKTouch 0.7.4 Network/API core retained
-Lua Workspace: neon native dashboard -> library -> editor/logs/results
+Lua Workspace: direct library -> editor/logs/results; video-reviewed UX
+Library filters: All / Running / Favorites / Recent are functional
+Samples: creates runnable Tap / HTTP-JSON / OCR scripts
+Task status: Editor follows real Task Engine state and updates Result view
 V7.3 Task Bundle retained
 V7.2 Script Editor retained
 V7.1 Recorder V2 retained
@@ -152,8 +161,10 @@ grep -q 'nk.http.request' "$SRC/layout/usr/share/nktouch/nktouch-api.tsv"
 
 if [[ -f "$SETTINGS" ]]; then
     grep -q 'Lua Workspace' "$SETTINGS"
-    grep -q 'NKLuaWorkspaceViewController' "$SETTINGS"
+    grep -q 'NKLuaLibraryViewController' "$SETTINGS"
     grep -q 'Edit • Check • Run • Logs' "$SETTINGS"
+    grep -q 'NKLuaWorkspaceFavorites' "$SETTINGS"
+    grep -q 'startStatusPolling' "$SETTINGS"
 fi
 
 echo "--- NKTouch v0.7.4.1 UI/UX package ---"
