@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.7.5.3 Editor Pro with line numbers, Find/Replace, API snippets, autosave backups, Recorder V3, Task Center and retained direct lua54 runtime (GPL ZXTouch core)
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.7.5.3
+Installed-Size: 6628
+Filename: debs/com.nk.nktouch_0.7.5.3_iphoneos-arm64.deb
+Size: 1297732
+MD5sum: f667d500392f21794ccdc99f6581cfd5
+SHA1: fb207f297071207920d99b3a59bfdcbac1a97c7c
+SHA256: 4c4c0d4d4a4a209c0df571740e8e06d7c0abbe7f1a50be8c699fb3c06c050a34
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.7.5.2 Recorder V3 with record/pause/resume, editable touch timeline, test replay, Lua conversion, Task Center and retained direct lua54 runtime (GPL ZXTouch core)
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
