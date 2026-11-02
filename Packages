@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.7.5.4 Recorder V4 Smart Stop with auto-stop on return, tail trim, automatic Lua generation/open Editor, Recorder V3 timeline editing, Editor Pro, Task Center and direct lua54 runtime
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.7.5.4
+Installed-Size: 6644
+Filename: debs/com.nk.nktouch_0.7.5.4_iphoneos-arm64.deb
+Size: 1297620
+MD5sum: 37491fc5fcaf14f41598d852afb298e3
+SHA1: bcc39b11d02671e64275a93aff07c75d439821ab
+SHA256: 2eddc07bed93f7cf9b79d7b6546a13982a0af9cad9a76821d9b9d6fb124f22a7
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.7.5.3.3 Recorder status hotfix; valid recording status exits 0, trusted shell spawn retained, Editor Pro and direct lua54 runtime retained
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
