@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.7.5.2 Recorder V3 with record/pause/resume, editable touch timeline, test replay, Lua conversion, Task Center and retained direct lua54 runtime (GPL ZXTouch core)
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.7.5.2
+Installed-Size: 6556
+Filename: debs/com.nk.nktouch_0.7.5.2_iphoneos-arm64.deb
+Size: 1287156
+MD5sum: 33276527f675f5c3e07b2bb7e476bff4
+SHA1: a83ef400de3e5a75f874e5c69f4e01b7e8b7e563
+SHA256: 89e80cf73c91ec0748764ed9eeb31bc061be8ba766c5a76e776f8d81c6e13e84
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch 7.4.7 Daily Driver build for Sileo with Self Test, Task Center, improved Logs UX and retained direct lua54 task runtime
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
