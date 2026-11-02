@@ -8,12 +8,29 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # 7.4.6 is the frozen runtime baseline: direct lua54 spawn, no shell-wrapper
 # dependency. 7.4.7 adds only daily-driver UI/diagnostics on top.
 bash "$ROOT/scripts/prepare-v0746-direct-lua-spawn.sh" "$SRC"
-python3 "$ROOT/scripts/apply-v747-daily-driver.py" "$SRC"
 
 CONTROL="$SRC/control"
 VERSION_FILE="$SRC/layout/usr/share/doc/nktouch/VERSION"
 SETTINGS="$SRC/zxtouch/zxtouch/Settings/SettingsPageViewController.m"
 TASK_BIN="$SRC/layout/usr/bin/nktask"
+
+# Older hotfix layers produced two equivalent formatting variants of logsTapped.
+# Normalize that one UI method before the 7.4.7 transform; runtime behavior is
+# unchanged. This keeps the Daily Driver patch deterministic without weakening
+# its regression checks.
+python3 - "$SETTINGS" <<'PY'
+from pathlib import Path
+import re, sys
+p=Path(sys.argv[1]); s=p.read_text()
+method='- (void)logsTapped{__weak typeof(self)w=self;NSMutableArray*args=[NSMutableArray arrayWithObject:@"logs"];if(self.taskID.length){[args addObject:self.taskID];[args addObject:@"100"];}[self command:args state:@"Đang tải logs…" done:^(int c,NSString *o){if(c!=0){w.console.text=@"[NKTouch] Chưa có tác vụ hoặc log để hiển thị.";w.runState.text=@"Log chưa sẵn sàng";w.runState.textColor=NKMuted();} else {w.console.text=o;[w pollTaskStatus];}}];}'
+pat=re.compile(r'- \(void\)logsTapped\{.*?\}\n- \(void\)viewWillDisappear:', re.S)
+s,n=pat.subn(method+'\n- (void)viewWillDisappear:',s,count=1)
+if n!=1:
+    raise SystemExit(f'Unable to normalize logsTapped, count={n}')
+p.write_text(s)
+PY
+
+python3 "$ROOT/scripts/apply-v747-daily-driver.py" "$SRC"
 
 python3 - "$CONTROL" "$VERSION_FILE" <<'PY'
 from pathlib import Path
