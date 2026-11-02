@@ -86,7 +86,7 @@ SETTINGS="upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m"
 grep -Fq '// NKTouch V7.5 Editor + Runner + Console' "$SETTINGS"
 grep -Fq 'NK75LineNumberView' "$SETTINGS"
 grep -Fq 'nk75_refreshRuntime' "$SETTINGS"
-grep -Fq '^Version: 0.7.5$' upstream/control
+grep -q '^Version: 0.7.5$' upstream/control
 grep -Fq 'NKTouch 0.7.5 Editor + Runner + Console' upstream/layout/usr/share/doc/nktouch/VERSION
 
 echo "== Upstream tests =="
