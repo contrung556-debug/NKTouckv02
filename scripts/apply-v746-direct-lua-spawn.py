@@ -5,8 +5,9 @@ import sys
 p = Path(sys.argv[1] if len(sys.argv) > 1 else "runtime/nktask.c")
 s = p.read_text()
 
+# Keep the proven V7.0 task-supervisor version contract intact. v0.7.4.6 is the
+# package/app release; this patch only changes how that supervisor launches Lua.
 replacements = [
-    ('#define VERSION "0.7.0"', '#define VERSION "0.7.4.6"'),
     ('#define LUA "/var/jb/usr/bin/nktouch-lua"', '#define LUA "/var/jb/usr/libexec/nktouch/lua54"\n#define LUA_PATH_VALUE "/var/jb/usr/share/nktouch/lua/?.lua;/var/jb/usr/share/nktouch/lua/?/init.lua;;"\n#define LUA_BOOTSTRAP "local m=require(\\\"nktouch_v7\\\"); _G.nk=m; if type(m.installAutoTouchCompat)==\\\"function\\\" then m.installAutoTouchCompat() end"'),
     ('char **lav = calloc((size_t)ac + 2, sizeof(char *));', 'char **lav = calloc((size_t)ac + 4, sizeof(char *));'),
     ('lav[0] = (char *)LUA; for (int i = 0; i < ac; i++) lav[i + 1] = av[i]; lav[ac + 1] = NULL;', 'lav[0] = (char *)LUA; lav[1] = (char *)"-e"; lav[2] = (char *)LUA_BOOTSTRAP; for (int i = 0; i < ac; i++) lav[i + 3] = av[i]; lav[ac + 3] = NULL;'),
@@ -20,7 +21,8 @@ for old, new in replacements:
         raise SystemExit(f"marker mismatch ({count}): {old[:100]}")
     s = s.replace(old, new, 1)
 
-# Hard guards against regressing to shell-wrapper execution.
+if '#define VERSION "0.7.0"' not in s:
+    raise SystemExit('V7.0 task-supervisor version contract changed unexpectedly')
 if '/var/jb/usr/bin/nktouch-lua' in s:
     raise SystemExit('shell wrapper path still present in task engine')
 for marker in (
@@ -34,4 +36,4 @@ for marker in (
         raise SystemExit(f'missing post-patch marker: {marker}')
 
 p.write_text(s)
-print('Applied NKTouch v0.7.4.6 direct Lua spawn fix')
+print('Applied NKTouch v0.7.4.6 direct Lua spawn fix; V7.0 supervisor contract retained')
