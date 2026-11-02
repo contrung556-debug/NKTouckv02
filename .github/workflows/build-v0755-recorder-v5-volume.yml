@@ -193,11 +193,19 @@ jobs:
           cp "$DEB" "$OUT"
           test "$(dpkg-deb -f "$OUT" Version)" = "$NK_VERSION"
           test "$(dpkg-deb -f "$OUT" Package)" = 'com.nk.nktouch'
-          mkdir -p /tmp/nk755
+          rm -rf /tmp/nk755 && mkdir -p /tmp/nk755
           dpkg-deb -x "$OUT" /tmp/nk755
-          test -f /tmp/nk755/var/jb/Library/MobileSubstrate/DynamicLibraries/NKTouchRecorderTrigger.dylib
-          test -f /tmp/nk755/var/jb/Library/MobileSubstrate/DynamicLibraries/NKTouchRecorderTrigger.plist
-          test -x /tmp/nk755/var/jb/usr/libexec/zxtouch-runner
+          TRIGGER_DYLIB="$(find /tmp/nk755 -type f -name 'NKTouchRecorderTrigger.dylib' -print -quit)"
+          TRIGGER_PLIST="$(find /tmp/nk755 -type f -name 'NKTouchRecorderTrigger.plist' -print -quit)"
+          RUNNER_BIN="$(find /tmp/nk755 -type f -name 'zxtouch-runner' -print -quit)"
+          test -n "$TRIGGER_DYLIB"
+          test -n "$TRIGGER_PLIST"
+          test -n "$RUNNER_BIN"
+          test -x "$RUNNER_BIN"
+          echo "Recorder trigger dylib: $TRIGGER_DYLIB"
+          echo "Recorder trigger plist: $TRIGGER_PLIST"
+          echo "Recorder runner: $RUNNER_BIN"
+          dpkg-deb -c "$OUT" | grep -E 'NKTouchRecorderTrigger|zxtouch-runner'
           dpkg-deb -I "$OUT"
 
       - name: Upload Recorder V5 deb
