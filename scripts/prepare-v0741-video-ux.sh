@@ -9,46 +9,27 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 python3 "$ROOT/scripts/apply-v741-video-ux.py" "$ROOT/patches/NKLuaWorkspace.m.inc"
 
-# The CLI syntax is: logs [TASK_ID] [LINES]. When there is no task ID,
-# appending "100" would be interpreted as TASK_ID="100". Keep the default
-# active-task lookup in that case, and only append the line count with an ID.
+# Fix Logs argument handling after the V7.4.1 transformer has run.
+# nktask syntax is: logs [TASK_ID] [LINES]. Therefore a line limit may only
+# be appended when a task ID is present; otherwise `logs 100` treats 100 as ID.
 python3 - "$ROOT/patches/NKLuaWorkspace.m.inc" <<'PY'
 from pathlib import Path
-import re
 import sys
 
 p = Path(sys.argv[1])
 s = p.read_text()
-pattern = re.compile(
-    r'(?m)^(?P<i>[ \t]*)if \(tid\.length\) \[a addObject:tid\];\n'
-    r'[ \t]*\[a addObject:@"100"\];$'
-)
-
-def repl(m):
-    i = m.group('i')
-    return (
-        f'{i}if (tid.length) {{\n'
-        f'{i}    [a addObject:tid];\n'
-        f'{i}    [a addObject:@"100"];\n'
-        f'{i}}}'
-    )
-
-s2, count = pattern.subn(repl, s, count=1)
-if count == 0:
-    fixed = re.search(
-        r'(?s)if \(tid\.length\) \{\s*'
-        r'\[a addObject:tid\];\s*'
-        r'\[a addObject:@"100"\];\s*\}',
-        s,
-    )
-    if not fixed:
-        raise SystemExit('Could not locate v0.7.4.1 Logs argument block')
-else:
-    p.write_text(s2)
+old = '- (void)logsTapped{__weak typeof(self)w=self;NSMutableArray*args=[NSMutableArray arrayWithObject:@"logs"];if(self.taskID.length)[args addObject:self.taskID];[args addObject:@"100"];[self command:args state:@"Đang tải logs…" done:^(int c,NSString *o){w.console.text=o;if(c!=0){w.runState.text=@"Log chưa sẵn sàng";w.runState.textColor=NKMuted();}else [w pollTaskStatus];}];}'
+new = '- (void)logsTapped{__weak typeof(self)w=self;NSMutableArray*args=[NSMutableArray arrayWithObject:@"logs"];if(self.taskID.length){[args addObject:self.taskID];[args addObject:@"100"];}[self command:args state:@"Đang tải logs…" done:^(int c,NSString *o){if(c!=0){w.console.text=@"[NKTouch] Chưa có tác vụ hoặc log để hiển thị.";w.runState.text=@"Log chưa sẵn sàng";w.runState.textColor=NKMuted();}else{w.console.text=o;[w pollTaskStatus];}}];}'
+if old in s:
+    s = s.replace(old, new, 1)
+elif new not in s:
+    raise SystemExit('Could not locate transformed v0.7.4.1 Logs handler')
+p.write_text(s)
 PY
 
-# Regression guard: a bare "logs 100" must never be generated again.
-if grep -Fq 'if (tid.length) [a addObject:tid];' "$ROOT/patches/NKLuaWorkspace.m.inc"; then
+# Regression guards: never emit the ambiguous `logs 100` argument layout.
+grep -Fq 'if(self.taskID.length){[args addObject:self.taskID];[args addObject:@"100"];}' "$ROOT/patches/NKLuaWorkspace.m.inc"
+if grep -Fq 'if(self.taskID.length)[args addObject:self.taskID];[args addObject:@"100"];' "$ROOT/patches/NKLuaWorkspace.m.inc"; then
     echo "Invalid Logs argument layout: line count can become task ID" >&2
     exit 1
 fi
