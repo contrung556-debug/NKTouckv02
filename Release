@@ -1,0 +1,14 @@
+Origin: NKTouch
+Label: NKTouch Repository
+Suite: stable
+Version: 1.0
+Codename: nktouch
+Architectures: iphoneos-arm64
+Components: main
+Description: NKTouch rootless automation packages for Sileo
+MD5Sum:
+ 287fb362086de1b96560ad846f2bcda0 739 Packages
+ b98d70fd6a2fe47972dc280b2de16188 529 Packages.gz
+SHA256:
+ efc6b77a331b5071217ae509e7495fb0a8067e02d9e54c8c18cceaeb634620d1 739 Packages
+ 88036bfa9d4490bc4e8832d21c70e0f3b3024a43b0a7c04e6b15bf66d84ae2a2 529 Packages.gz
