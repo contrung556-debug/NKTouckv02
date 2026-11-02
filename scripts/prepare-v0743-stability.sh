@@ -12,6 +12,7 @@ bash "$ROOT/scripts/prepare-v0741-video-ux.sh" "$SRC"
 CONTROL="$SRC/control"
 VERSION_FILE="$SRC/layout/usr/share/doc/nktouch/VERSION"
 SETTINGS="$SRC/zxtouch/zxtouch/Settings/SettingsPageViewController.m"
+SCENE="$SRC/zxtouch/zxtouch/SceneDelegate.m"
 
 python3 - "$CONTROL" "$VERSION_FILE" "$SETTINGS" <<'PY'
 from pathlib import Path
@@ -51,10 +52,21 @@ if settings.exists():
     settings.write_text(u)
 PY
 
+# Video-review UX rebuild: replace the legacy Scripts-first shell, keep the
+# proven Lua/editor/task engine, and make Home/Workspace/Settings visually one app.
+python3 "$ROOT/scripts/apply-v743-shell-ux.py" "$SRC"
+
 grep -q '^Version: 0.7.4.3$' "$CONTROL"
 grep -q '^NKTouch 0.7.4.3 Stability$' "$VERSION_FILE"
 grep -q 'Release: package/app version metadata synchronized by CI' "$VERSION_FILE"
 grep -q 'V7.4.3 stability release' "$SETTINGS"
+grep -q 'V7.4.3 shell UX rebuild' "$SETTINGS"
+grep -q 'Lua Studio' "$SETTINGS"
+grep -q 'vc.hidesBottomBarWhenPushed=YES' "$SETTINGS"
+grep -q 'self.title = @"Cài đặt"' "$SETTINGS"
+grep -q 'V7.4.3 NKTouch root shell' "$SCENE"
+grep -q 'NSClassFromString(@"NKLuaWorkspaceViewController")' "$SCENE"
+grep -q 'nav.tabBarItem.title = @"NKTouch"' "$SCENE"
 
 # Guard the v0.7.4.1 Logs fix: never emit ambiguous `logs 100` when task ID is absent.
 grep -Fq 'if(self.taskID.length){[args addObject:self.taskID];[args addObject:@"100"];}' "$ROOT/patches/NKLuaWorkspace.m.inc"
@@ -63,6 +75,6 @@ if grep -Fq 'if(self.taskID.length)[args addObject:self.taskID];[args addObject:
     exit 1
 fi
 
-echo "--- NKTouch v0.7.4.3 stability package ---"
+echo "--- NKTouch v0.7.4.3 stability + shell UX package ---"
 cat "$CONTROL"
 cat "$VERSION_FILE"
