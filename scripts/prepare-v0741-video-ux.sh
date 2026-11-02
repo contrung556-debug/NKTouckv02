@@ -8,6 +8,51 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 [[ -f "$ROOT/scripts/apply-v741-video-ux.py" ]] || { echo "Missing V7.4.1 video UX transformer" >&2; exit 1; }
 
 python3 "$ROOT/scripts/apply-v741-video-ux.py" "$ROOT/patches/NKLuaWorkspace.m.inc"
+
+# The CLI syntax is: logs [TASK_ID] [LINES]. When there is no task ID,
+# appending "100" would be interpreted as TASK_ID="100". Keep the default
+# active-task lookup in that case, and only append the line count with an ID.
+python3 - "$ROOT/patches/NKLuaWorkspace.m.inc" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+p = Path(sys.argv[1])
+s = p.read_text()
+pattern = re.compile(
+    r'(?m)^(?P<i>[ \t]*)if \(tid\.length\) \[a addObject:tid\];\n'
+    r'[ \t]*\[a addObject:@"100"\];$'
+)
+
+def repl(m):
+    i = m.group('i')
+    return (
+        f'{i}if (tid.length) {{\n'
+        f'{i}    [a addObject:tid];\n'
+        f'{i}    [a addObject:@"100"];\n'
+        f'{i}}}'
+    )
+
+s2, count = pattern.subn(repl, s, count=1)
+if count == 0:
+    fixed = re.search(
+        r'(?s)if \(tid\.length\) \{\s*'
+        r'\[a addObject:tid\];\s*'
+        r'\[a addObject:@"100"\];\s*\}',
+        s,
+    )
+    if not fixed:
+        raise SystemExit('Could not locate v0.7.4.1 Logs argument block')
+else:
+    p.write_text(s2)
+PY
+
+# Regression guard: a bare "logs 100" must never be generated again.
+if grep -Fq 'if (tid.length) [a addObject:tid];' "$ROOT/patches/NKLuaWorkspace.m.inc"; then
+    echo "Invalid Logs argument layout: line count can become task ID" >&2
+    exit 1
+fi
+
 bash "$ROOT/scripts/prepare-v074.sh" "$SRC"
 
 SETTINGS="$SRC/zxtouch/zxtouch/Settings/SettingsPageViewController.m"
