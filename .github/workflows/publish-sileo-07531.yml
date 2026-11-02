@@ -1,0 +1,143 @@
+name: Publish NKTouch 0.7.5.3.1 Recorder Hotfix to Sileo
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v0.7.5.3.1-recorder-hotfix
+    paths:
+      - .github/workflows/publish-sileo-07531.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      ARTIFACT_ID: 13148090751
+      PACKAGE_VERSION: 0.7.5.3.1
+      DEB_NAME: com.nk.nktouch_0.7.5.3.1_iphoneos-arm64.deb
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Debian tools
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev
+
+      - name: Download green v0.7.5.3.1 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          curl -L --fail-with-body \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" \
+            -o /tmp/nktouch7531.zip
+          rm -rf /tmp/nktouch7531-artifact
+          mkdir -p /tmp/nktouch7531-artifact
+          unzip -q /tmp/nktouch7531.zip -d /tmp/nktouch7531-artifact
+          SRC_DEB="$(find /tmp/nktouch7531-artifact -type f -name '*.deb' | head -1)"
+          test -n "$SRC_DEB"
+          test "$(dpkg-deb -f "$SRC_DEB" Package)" = "com.nk.nktouch"
+          test "$(dpkg-deb -f "$SRC_DEB" Version)" = "${PACKAGE_VERSION}"
+          cp "$SRC_DEB" "/tmp/${DEB_NAME}"
+
+      - name: Update Sileo repository metadata
+        run: |
+          set -euxo pipefail
+          git fetch origin sileo-repo:sileo-repo
+          rm -rf /tmp/nktouch-sileo
+          git worktree add /tmp/nktouch-sileo sileo-repo
+          cd /tmp/nktouch-sileo
+          mkdir -p debs
+          cp "/tmp/${DEB_NAME}" "debs/${DEB_NAME}"
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, subprocess, re
+          root=Path('/tmp/nktouch-sileo')
+          version='0.7.5.3.1'
+          deb_name=f'com.nk.nktouch_{version}_iphoneos-arm64.deb'
+          deb=root/'debs'/deb_name
+          old=(root/'Packages').read_text() if (root/'Packages').exists() else ''
+          kept=[]
+          for stanza in old.strip().split('\n\n') if old.strip() else []:
+              if f'\nVersion: {version}\n' in '\n'+stanza+'\n':
+                  continue
+              kept.append(stanza.strip())
+          control=subprocess.check_output(['dpkg-deb','-f',str(deb)], text=True).rstrip()
+          data=deb.read_bytes()
+          new='\n'.join([
+              control,
+              f'Filename: debs/{deb_name}',
+              f'Size: {len(data)}',
+              f'MD5sum: {hashlib.md5(data).hexdigest()}',
+              f'SHA1: {hashlib.sha1(data).hexdigest()}',
+              f'SHA256: {hashlib.sha256(data).hexdigest()}',
+              'Homepage: https://github.com/contrung556-debug/NKTouckv02',
+          ])
+          (root/'Packages').write_text(new+'\n\n'+('\n\n'.join(kept)+'\n' if kept else ''))
+          readme=root/'README.md'
+          rs=readme.read_text()
+          rs=re.sub(r'Current package: com\.nk\.nktouch [^ ]+ \(iphoneos-arm64\).*','Current package: com.nk.nktouch 0.7.5.3.1 (iphoneos-arm64) — Recorder Hotfix',rs)
+          readme.write_text(rs)
+          index=root/'index.html'
+          ix=index.read_text()
+          ix=re.sub(r'NKTouch 0\.7\.5(?:\.1|\.2|\.3(?:\.1)?)?', 'NKTouch 0.7.5.3.1', ix)
+          index.write_text(ix)
+          PY
+          gzip -9c Packages > Packages.gz
+          P_SIZE=$(wc -c < Packages | tr -d ' ')
+          G_SIZE=$(wc -c < Packages.gz | tr -d ' ')
+          P_MD5=$(md5sum Packages | awk '{print $1}')
+          G_MD5=$(md5sum Packages.gz | awk '{print $1}')
+          P_SHA=$(sha256sum Packages | awk '{print $1}')
+          G_SHA=$(sha256sum Packages.gz | awk '{print $1}')
+          cat > Release <<EOF
+          Origin: NKTouch
+          Label: NKTouch Repository
+          Suite: stable
+          Version: 1.0
+          Codename: nktouch
+          Architectures: iphoneos-arm64
+          Components: main
+          Description: NKTouch rootless automation packages for Sileo
+          MD5Sum:
+           ${P_MD5} ${P_SIZE} Packages
+           ${G_MD5} ${G_SIZE} Packages.gz
+          SHA256:
+           ${P_SHA} ${P_SIZE} Packages
+           ${G_SHA} ${G_SIZE} Packages.gz
+          EOF
+          grep -q '^Version: 0.7.5.3.1$' Packages
+          grep -q '^Filename: debs/com.nk.nktouch_0.7.5.3.1_iphoneos-arm64.deb$' Packages
+          gzip -dc Packages.gz | cmp -s - Packages
+
+      - name: Commit and publish sileo-repo branch
+        run: |
+          set -euxo pipefail
+          cd /tmp/nktouch-sileo
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Packages Packages.gz Release README.md index.html "debs/${DEB_NAME}"
+          if git diff --cached --quiet; then
+            echo 'Sileo repo already up to date.'
+            exit 0
+          fi
+          git commit -m 'Publish NKTouch 0.7.5.3.1 Recorder Hotfix'
+          git push origin sileo-repo
+
+      - name: Verify published branch locally
+        run: |
+          set -euxo pipefail
+          cd /tmp/nktouch-sileo
+          grep -A20 '^Package: com.nk.nktouch$' Packages | head -25
+          sha256sum "debs/${DEB_NAME}"
