@@ -26,6 +26,15 @@ s=p.read_text()
 s,n=re.subn(r'^Version:\s*[^\n]+$', 'Version: 0.7.5', s, count=1, flags=re.M)
 if n!=1:
     raise SystemExit('Unable to update package Version to 0.7.5')
+s,n=re.subn(
+    r'^Description:\s*[^\n]+$',
+    'Description: NKTouch v0.7.5 Editor + Runner + Console with Lua Studio, realtime logs, task controls, HTTP/JSON, Recorder V2 and rootless runtime',
+    s,
+    count=1,
+    flags=re.M,
+)
+if n!=1:
+    raise SystemExit('Unable to update package Description for 0.7.5')
 p.write_text(s)
 PY
 
@@ -60,6 +69,7 @@ grep -Fq 'Clear console' "$SETTINGS"
 grep -Fq 'Tìm trong Lua' "$SETTINGS"
 grep -Fq 'Thay tất cả' "$SETTINGS"
 grep -q '^Version: 0.7.5$' "$CONTROL"
+grep -Fq 'Description: NKTouch v0.7.5 Editor + Runner + Console' "$CONTROL"
 grep -Fq 'NKTouch 0.7.5 Editor + Runner + Console' "$VERSION_DOC"
 
 echo "NKTouch V7.5 Editor + Runner + Console prepared"
