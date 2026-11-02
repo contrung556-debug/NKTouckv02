@@ -42,9 +42,13 @@ jobs:
           fi
           test -x "$DPKG"
 
-          PACKAGE="$($DPKG -f /tmp/nktouch-publish.deb Package)"
-          VERSION="$($DPKG -f /tmp/nktouch-publish.deb Version)"
-          ARCH="$($DPKG -f /tmp/nktouch-publish.deb Architecture)"
+          # Capture all package metadata before switching to the clean orphan
+          # branch. The V7.4.1 dpkg-deb compatibility shim lives in the worktree
+          # and would otherwise be removed by git clean -fdx.
+          "$DPKG" -f /tmp/nktouch-publish.deb > /tmp/nktouch-control
+          PACKAGE="$(awk -F': ' '$1=="Package"{print $2; exit}' /tmp/nktouch-control)"
+          VERSION="$(awk -F': ' '$1=="Version"{print $2; exit}' /tmp/nktouch-control)"
+          ARCH="$(awk -F': ' '$1=="Architecture"{print $2; exit}' /tmp/nktouch-control)"
           test -n "$PACKAGE"
           test -n "$VERSION"
           test -n "$ARCH"
@@ -64,7 +68,7 @@ jobs:
           SHA1="$(shasum -a 1 "debs/$DEB_NAME" | awk '{print $1}')"
           SHA256="$(shasum -a 256 "debs/$DEB_NAME" | awk '{print $1}')"
 
-          "$DPKG" -f "debs/$DEB_NAME" > Packages
+          cp /tmp/nktouch-control Packages
           cat >> Packages <<EOF
           Filename: debs/$DEB_NAME
           Size: $SIZE
