@@ -1,0 +1,117 @@
+name: Publish NKTouch Sileo Repo
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ v0.7.5-editor-runner-console ]
+    paths:
+      - .github/workflows/publish-sileo.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout publisher branch
+        uses: actions/checkout@v4
+
+      - name: Download verified NKTouch v0.7.5 artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ARTIFACT_ID=13141342542
+          curl -fL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" \
+            -o /tmp/nktouch-artifact.zip
+          mkdir -p /tmp/nktouch-artifact
+          unzip -q /tmp/nktouch-artifact.zip -d /tmp/nktouch-artifact
+          DEB="$(find /tmp/nktouch-artifact -type f -name '*.deb' | head -1)"
+          test -n "$DEB"
+          cp "$DEB" /tmp/nktouch-publish.deb
+          dpkg-deb -f /tmp/nktouch-publish.deb > /tmp/nktouch-control
+          grep -q '^Package: com.nk.nktouch$' /tmp/nktouch-control
+          grep -q '^Version: 0.7.5$' /tmp/nktouch-control
+          grep -q '^Architecture: iphoneos-arm64$' /tmp/nktouch-control
+
+      - name: Generate and push flat APT repository
+        run: |
+          set -euo pipefail
+          PACKAGE="$(awk -F': ' '$1=="Package"{print $2; exit}' /tmp/nktouch-control)"
+          VERSION="$(awk -F': ' '$1=="Version"{print $2; exit}' /tmp/nktouch-control)"
+          ARCH="$(awk -F': ' '$1=="Architecture"{print $2; exit}' /tmp/nktouch-control)"
+
+          git config user.name "NKTouch Repo Bot"
+          git config user.email "actions@github.com"
+          git checkout --orphan _publish_sileo_fast
+          git rm -rf . >/dev/null 2>&1 || true
+          git clean -fdx >/dev/null 2>&1 || true
+
+          mkdir -p debs
+          DEB_NAME="${PACKAGE}_${VERSION}_${ARCH}.deb"
+          cp /tmp/nktouch-publish.deb "debs/$DEB_NAME"
+          cp /tmp/nktouch-control Packages
+
+          SIZE="$(stat -c%s "debs/$DEB_NAME")"
+          MD5="$(md5sum "debs/$DEB_NAME" | awk '{print $1}')"
+          SHA1="$(sha1sum "debs/$DEB_NAME" | awk '{print $1}')"
+          SHA256="$(sha256sum "debs/$DEB_NAME" | awk '{print $1}')"
+          cat >> Packages <<EOF
+          Filename: debs/$DEB_NAME
+          Size: $SIZE
+          MD5sum: $MD5
+          SHA1: $SHA1
+          SHA256: $SHA256
+          Homepage: https://github.com/${GITHUB_REPOSITORY}
+
+          EOF
+          gzip -9c Packages > Packages.gz
+
+          P_SIZE="$(stat -c%s Packages)"
+          PG_SIZE="$(stat -c%s Packages.gz)"
+          P_MD5="$(md5sum Packages | awk '{print $1}')"
+          PG_MD5="$(md5sum Packages.gz | awk '{print $1}')"
+          P_SHA256="$(sha256sum Packages | awk '{print $1}')"
+          PG_SHA256="$(sha256sum Packages.gz | awk '{print $1}')"
+
+          cat > Release <<EOF
+          Origin: NKTouch
+          Label: NKTouch Repository
+          Suite: stable
+          Version: 1.0
+          Codename: nktouch
+          Architectures: iphoneos-arm64
+          Components: main
+          Description: NKTouch rootless automation packages for Sileo
+          MD5Sum:
+           $P_MD5 $P_SIZE Packages
+           $PG_MD5 $PG_SIZE Packages.gz
+          SHA256:
+           $P_SHA256 $P_SIZE Packages
+           $PG_SHA256 $PG_SIZE Packages.gz
+          EOF
+
+          BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/sileo-repo"
+          cat > README.md <<EOF
+          # NKTouch Sileo Repository
+
+          Add this source in Sileo:
+
+          $BASE/
+
+          Current package: $PACKAGE $VERSION ($ARCH)
+          EOF
+
+          cat > index.html <<EOF
+          <!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NKTouch Repo</title><style>body{margin:0;background:#070b1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif}.wrap{max-width:680px;margin:auto;padding:42px 20px}.card{background:#11172b;border:1px solid #303a63;border-radius:20px;padding:22px}.tag{display:inline-block;background:#8b3dff;padding:6px 10px;border-radius:999px;font-weight:700}.url{margin-top:16px;padding:14px;background:#090e1c;border-radius:12px;overflow-wrap:anywhere;color:#c9d4ff}h1{margin:14px 0 6px}p{color:#a7aec7;line-height:1.5}</style></head><body><div class="wrap"><div class="card"><span class="tag">NKTouch $VERSION</span><h1>NKTouch Repository</h1><p>Repo rootless dành cho Sileo.</p><div class="url">$BASE/</div></div></div></body></html>
+          EOF
+
+          git add Packages Packages.gz Release README.md index.html debs/
+          git commit -m "Publish NKTouch ${VERSION} for Sileo"
+          git push origin HEAD:sileo-repo --force
