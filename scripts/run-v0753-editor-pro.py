@@ -14,7 +14,6 @@ if old_props not in s:
     raise SystemExit('editor property marker missing')
 s = s.replace(old_props, new_props, 1)
 '''
-
 new_props_block = '''editor_iface_start = s.find('@interface NKLuaEditorViewController ()')
 editor_impl_start = s.find('@implementation NKLuaEditorViewController', editor_iface_start)
 if editor_iface_start < 0 or editor_impl_start < 0:
@@ -24,11 +23,7 @@ dirty_marker = '@property(nonatomic,assign) BOOL dirty;'
 if dirty_marker not in iface:
     raise SystemExit('editor dirty property marker missing')
 if 'UITextView *lineNumbers' not in iface:
-    iface = iface.replace(
-        dirty_marker,
-        dirty_marker + '@property(nonatomic,strong) UITextView *lineNumbers;@property(nonatomic,strong) NSTimer *autosaveTimer;@property(nonatomic,assign) NSTimeInterval lastBackupAt;',
-        1,
-    )
+    iface = iface.replace(dirty_marker, dirty_marker + '@property(nonatomic,strong) UITextView *lineNumbers;@property(nonatomic,strong) NSTimer *autosaveTimer;@property(nonatomic,assign) NSTimeInterval lastBackupAt;', 1)
     s = s[:editor_iface_start] + iface + s[editor_impl_start:]
 '''
 
@@ -38,7 +33,6 @@ if old_change not in s:
     raise SystemExit('textViewDidChange marker missing')
 s = s.replace(old_change, new_change, 1)
 '''
-
 new_change_block = '''old_change = '- (void)textViewDidChange:(UITextView*)t{if(t!=self.codeView)return;self.dirty=YES;[self setSyntaxText:@"Chưa kiểm tra" color:NKC(0xFFB545) icon:@"circle.dashed"];[self highlight];}'
 new_change = '- (void)textViewDidChange:(UITextView*)t{if(t!=self.codeView)return;self.dirty=YES;[self setSyntaxText:@"Đang chỉnh sửa…" color:NKC(0xFFB545) icon:@"circle.dashed"];[self highlight];[self updateLineNumbers];[self scheduleAutosave];}'
 if old_change not in s:
@@ -52,7 +46,6 @@ if old_save not in s:
     raise SystemExit('save marker missing')
 s = s.replace(old_save, new_save, 1)
 '''
-
 new_save_block = '''old_save = '- (BOOL)save{NSError *e=nil;BOOL ok=[self.codeView.text writeToFile:NKPath(self.scriptName) atomically:YES encoding:NSUTF8StringEncoding error:&e];self.dirty=!ok;[self setSyntaxText:(ok?@"Đã lưu • Chưa check":@"Lưu lỗi") color:(ok?NKBlue():NKRed()) icon:(ok?@"circle.dashed":@"xmark.circle.fill")];return ok;}'
 new_save = '- (BOOL)save{[self backupCurrentIfNeeded];NSError *e=nil;BOOL ok=[self.codeView.text writeToFile:NKPath(self.scriptName) atomically:YES encoding:NSUTF8StringEncoding error:&e];self.dirty=!ok;[self setSyntaxText:(ok?@"Đã lưu • Chưa check":@"Lưu lỗi") color:(ok?NKBlue():NKRed()) icon:(ok?@"circle.dashed":@"xmark.circle.fill")];return ok;}'
 if old_save not in s:
@@ -60,10 +53,24 @@ if old_save not in s:
 s = s.replace(old_save, new_save, 1)
 '''
 
+old_end_block = '''insert_marker = '- (void)viewWillDisappear:(BOOL)a{[super viewWillDisappear:a];if(self.dirty)[self save];}\\n@end\\n\\n#pragma mark - AI prompt'
+replacement = editor_pro + '\\n- (void)viewWillDisappear:(BOOL)a{[self.autosaveTimer invalidate];self.autosaveTimer=nil;if(self.dirty)[self save];[super viewWillDisappear:a];}\\n@end\\n\\n#pragma mark - AI prompt'
+if insert_marker not in s:
+    raise SystemExit('editor end marker missing')
+s = s.replace(insert_marker, replacement, 1)
+'''
+new_end_block = '''insert_marker = '- (void)viewWillDisappear:(BOOL)a{[self stopTaskPolling];[super viewWillDisappear:a];if(self.dirty)[self save];}\\n@end\\n\\n#pragma mark - AI prompt'
+replacement = editor_pro + '\\n- (void)viewWillDisappear:(BOOL)a{[self.autosaveTimer invalidate];self.autosaveTimer=nil;[self stopTaskPolling];if(self.dirty)[self save];[super viewWillDisappear:a];}\\n@end\\n\\n#pragma mark - AI prompt'
+if insert_marker not in s:
+    raise SystemExit('editor end marker missing')
+s = s.replace(insert_marker, replacement, 1)
+'''
+
 for old, new, label in (
     (old_props_block, new_props_block, 'property block'),
     (old_change_block, new_change_block, 'textViewDidChange block'),
     (old_save_block, new_save_block, 'save block'),
+    (old_end_block, new_end_block, 'editor end block'),
 ):
     if old not in source:
         raise SystemExit(f'Editor Pro source {label} changed unexpectedly')
