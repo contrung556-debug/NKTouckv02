@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch 7.4.7 Daily Driver build for Sileo with Self Test, Task Center, improved Logs UX and retained direct lua54 task runtime
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.7.5.1
+Installed-Size: 6480
+Filename: debs/com.nk.nktouch_0.7.5.1_iphoneos-arm64.deb
+Size: 1264772
+MD5sum: dd40346390ef72dbd4b0e307b42b41b3
+SHA1: 0420f01ffbb5ad548a9d123b457f919d87e55aed
+SHA256: fa925225e8a959a77056ccd9834463d9d6564e1d0c3ed2dd112968c6961e6fb5
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.7.5 Editor + Runner + Console with Lua Studio, realtime logs, task controls, HTTP/JSON, Recorder V2 and rootless runtime
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
@@ -16,4 +35,3 @@ MD5sum: ee9be6ed1e5b52f691bfd0e5a458a92b
 SHA1: 9d52e9cd2c3b3e7c47c5c0baac92f56e47bf1926
 SHA256: 0b4eb241afe21630b562fa0f035b8083f8f2ba4ee7d3ad318d7db3a360370b4d
 Homepage: https://github.com/contrung556-debug/NKTouckv02
-
