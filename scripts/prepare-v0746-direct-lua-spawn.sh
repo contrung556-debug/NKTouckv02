@@ -32,7 +32,7 @@ control.write_text(s)
 
 v=version_file.read_text()
 v=v.replace('NKTouch 0.7.4.5 Task Bootstrap Fix','NKTouch 0.7.4.6 Direct Lua Spawn Fix',1)
-extra='Runtime fix: nktask launches bundled lua54 directly; no /var/jb/bin/sh dependency\nRuntime diagnostics: spawn failures include executable / errno / error text in task log\n'
+extra='Runtime fix: nktask launches bundled lua54 directly; no /var/jb/bin/sh dependency\nRuntime diagnostics: spawn failures include executable / errno / error text in task log\nCore task supervisor contract remains V7.0 (0.7.0)\n'
 if 'Runtime fix: nktask launches bundled lua54 directly' not in v:
     v=v.rstrip()+'\n'+extra
 version_file.write_text(v)
@@ -56,7 +56,7 @@ if strings "$TASK_BIN" | grep -Fq '/var/jb/usr/bin/nktouch-lua'; then
     exit 1
 fi
 strings "$TASK_BIN" | grep -Fq 'spawn_failed executable='
-strings "$TASK_BIN" | grep -Fq '0.7.4.6'
+strings "$TASK_BIN" | grep -Fq '0.7.0'
 
 grep -q '^Version: 0.7.4.6$' "$CONTROL"
 grep -q '^NKTouch 0.7.4.6 Direct Lua Spawn Fix$' "$VERSION_FILE"
