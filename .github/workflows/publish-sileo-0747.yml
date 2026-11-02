@@ -14,11 +14,10 @@ permissions:
 
 jobs:
   publish:
-    runs-on: macos-26
+    runs-on: ubuntu-latest
     env:
       ARTIFACT_ID: 13142957093
       PACKAGE_VERSION: 0.7.5.1
-      APP_BUILD_LABEL: 7.4.7 Daily Driver
       DEB_NAME: com.nk.nktouch_0.7.5.1_iphoneos-arm64.deb
     steps:
       - name: Checkout source branch
@@ -29,7 +28,8 @@ jobs:
       - name: Install Debian packaging tools
         run: |
           set -euxo pipefail
-          brew install dpkg
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev
           dpkg-deb --version
 
       - name: Download green v0.7.4.7 artifact
@@ -46,10 +46,9 @@ jobs:
           rm -rf /tmp/nktouch747-artifact
           mkdir -p /tmp/nktouch747-artifact
           unzip -q /tmp/nktouch747.zip -d /tmp/nktouch747-artifact
-          find /tmp/nktouch747-artifact -type f -name '*.deb' -print
           test "$(find /tmp/nktouch747-artifact -type f -name '*.deb' | wc -l | tr -d ' ')" = "1"
 
-      - name: Repack Sileo version without changing app build
+      - name: Repack Sileo package version
         run: |
           set -euxo pipefail
           SRC_DEB="$(find /tmp/nktouch747-artifact -type f -name '*.deb' | head -1)"
@@ -60,8 +59,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p=Path('/tmp/nktouch-pkg/DEBIAN/control')
-          s=p.read_text()
-          s=s.replace('Version: 0.7.4.7', 'Version: 0.7.5.1', 1)
+          s=p.read_text().replace('Version: 0.7.4.7','Version: 0.7.5.1',1)
           lines=[]
           for line in s.splitlines():
               if line.startswith('Description:'):
@@ -86,9 +84,7 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-          import hashlib
-          import subprocess
-
+          import hashlib, subprocess, re
           root=Path('/tmp/nktouch-sileo')
           deb_name='com.nk.nktouch_0.7.5.1_iphoneos-arm64.deb'
           deb=root/'debs'/deb_name
@@ -98,41 +94,21 @@ jobs:
               if '\nVersion: 0.7.5.1\n' in '\n'+stanza+'\n':
                   continue
               kept.append(stanza.strip())
-
           control=subprocess.check_output(['dpkg-deb','-f',str(deb)], text=True).rstrip()
           data=deb.read_bytes()
-          new='\n'.join([
-              control,
-              f'Filename: debs/{deb_name}',
-              f'Size: {len(data)}',
-              f'MD5sum: {hashlib.md5(data).hexdigest()}',
-              f'SHA1: {hashlib.sha1(data).hexdigest()}',
-              f'SHA256: {hashlib.sha256(data).hexdigest()}',
-              'Homepage: https://github.com/contrung556-debug/NKTouckv02',
-          ])
+          new='\n'.join([control,f'Filename: debs/{deb_name}',f'Size: {len(data)}',f'MD5sum: {hashlib.md5(data).hexdigest()}',f'SHA1: {hashlib.sha1(data).hexdigest()}',f'SHA256: {hashlib.sha256(data).hexdigest()}','Homepage: https://github.com/contrung556-debug/NKTouckv02'])
           (root/'Packages').write_text(new+'\n\n'+('\n\n'.join(kept)+'\n' if kept else ''))
-
-          readme=root/'README.md'
-          rs=readme.read_text()
-          import re
-          rs=re.sub(r'Current package: com\.nk\.nktouch [^ ]+ \(iphoneos-arm64\)',
-                    'Current package: com.nk.nktouch 0.7.5.1 (iphoneos-arm64) — app build 7.4.7 Daily Driver', rs)
-          readme.write_text(rs)
-
-          index=root/'index.html'
-          ix=index.read_text()
-          ix=re.sub(r'NKTouch 0\.7\.5(?:\.1)?', 'NKTouch 0.7.5.1', ix)
-          index.write_text(ix)
+          readme=root/'README.md'; rs=readme.read_text(); rs=re.sub(r'Current package: com\.nk\.nktouch [^ ]+ \(iphoneos-arm64\).*','Current package: com.nk.nktouch 0.7.5.1 (iphoneos-arm64) — app build 7.4.7 Daily Driver',rs); readme.write_text(rs)
+          index=root/'index.html'; ix=index.read_text(); ix=re.sub(r'NKTouch 0\.7\.5(?:\.1)?','NKTouch 0.7.5.1',ix); index.write_text(ix)
           PY
 
           gzip -9c Packages > Packages.gz
-
           P_SIZE=$(wc -c < Packages | tr -d ' ')
           G_SIZE=$(wc -c < Packages.gz | tr -d ' ')
-          P_MD5=$(md5 -q Packages)
-          G_MD5=$(md5 -q Packages.gz)
-          P_SHA=$(shasum -a 256 Packages | awk '{print $1}')
-          G_SHA=$(shasum -a 256 Packages.gz | awk '{print $1}')
+          P_MD5=$(md5sum Packages | awk '{print $1}')
+          G_MD5=$(md5sum Packages.gz | awk '{print $1}')
+          P_SHA=$(sha256sum Packages | awk '{print $1}')
+          G_SHA=$(sha256sum Packages.gz | awk '{print $1}')
           cat > Release <<EOF
           Origin: NKTouch
           Label: NKTouch Repository
@@ -149,11 +125,9 @@ jobs:
            ${P_SHA} ${P_SIZE} Packages
            ${G_SHA} ${G_SIZE} Packages.gz
           EOF
-
           grep -q '^Version: 0.7.5.1$' Packages
           grep -q '^Filename: debs/com.nk.nktouch_0.7.5.1_iphoneos-arm64.deb$' Packages
           gzip -dc Packages.gz | cmp -s - Packages
-          test -s Release
 
       - name: Commit and publish sileo-repo branch
         run: |
@@ -174,4 +148,4 @@ jobs:
           set -euxo pipefail
           cd /tmp/nktouch-sileo
           grep -A20 '^Package: com.nk.nktouch$' Packages | head -25
-          shasum -a 256 "debs/${DEB_NAME}"
+          sha256sum "debs/${DEB_NAME}"
