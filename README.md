@@ -4,4 +4,4 @@ Add this source in Sileo:
 
 https://raw.githubusercontent.com/contrung556-debug/NKTouckv02/sileo-repo/
 
-Current package: com.nk.nktouch 0.7.5.3.1 (iphoneos-arm64) — Recorder Hotfix
+Current package: com.nk.nktouch 0.7.5.3.2 (iphoneos-arm64) — Recorder Spawn Fix

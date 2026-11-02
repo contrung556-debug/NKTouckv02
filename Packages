@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.7.5.3.2 Recorder V3 spawn fix using trusted shell execution with rootless path fallback, visible diagnostics, Editor Pro, Task Center and direct lua54 runtime
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.7.5.3.2
+Installed-Size: 6628
+Filename: debs/com.nk.nktouch_0.7.5.3.2_iphoneos-arm64.deb
+Size: 1296682
+MD5sum: faed37b9fbacb6ec0e4bea634e235a06
+SHA1: b4969ed8724ff2af9accc786547983d15747b67f
+SHA256: 85897fe3fc410b8ac65b63bd7acde1c4b7a001016a8c628969d88fcd3ea525e5
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.7.5.3.1 Recorder V3 hotfix with corrected rootless shell launcher, visible recorder diagnostics, Editor Pro, Recorder V3, Task Center and retained direct lua54 runtime
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
