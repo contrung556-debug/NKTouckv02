@@ -28,6 +28,14 @@ PY
 
 python3 "$ROOT/scripts/apply-v0755-recorder-v5-volume.py" "$SRC"
 
+# The upstream package uses layout/ as the Theos staging root. Under the rootless
+# scheme tweak.mk installs MobileSubstrate tweaks below layout/var/jb/..., but it
+# does not create this nested directory before its copy step. Create only the
+# staging directory here; Theos still performs the rootless install-prefix rewrite
+# when the final package is assembled (no device-specific /private/preboot path).
+TRIGGER_STAGE="$SRC/layout/var/jb/Library/MobileSubstrate/DynamicLibraries"
+mkdir -p "$TRIGGER_STAGE"
+
 CONTROL="$SRC/control"
 VERSION_FILE="$SRC/layout/usr/share/doc/nktouch/VERSION"
 SETTINGS="$SRC/zxtouch/zxtouch/Settings/SettingsPageViewController.m"
@@ -88,6 +96,7 @@ if grep -q 'nkRecorderDidBecomeActive.*smartFinishWithTrim:1' "$SETTINGS"; then
 fi
 grep -q 'Rebuild Lua' "$SETTINGS"
 grep -q 'shellCandidates=@\[@"/var/jb/bin/sh",@"/var/jb/usr/bin/sh",@"/bin/sh"\]' "$SETTINGS"
+test -d "$TRIGGER_STAGE"
 
 echo "--- NKTouch v0.7.5.5 Recorder V5 Volume Trigger package ---"
 cat "$CONTROL"
