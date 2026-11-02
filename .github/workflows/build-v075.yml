@@ -6,7 +6,7 @@ on:
     branches: [ v0.7.5-editor-runner-console ]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-rootless:
@@ -27,6 +27,101 @@ jobs:
           name: NKTouch-v0.7.5-editor-runner-console-rootless
           path: artifacts/*.deb
           if-no-files-found: error
+
+      - name: Publish Sileo APT repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEB="$(find artifacts -maxdepth 1 -type f -name '*.deb' | head -1)"
+          test -n "$DEB"
+          cp "$DEB" /tmp/nktouch-publish.deb
+
+          DPKG="$GITHUB_WORKSPACE/.ci-v741-bin/dpkg-deb"
+          if [[ ! -x "$DPKG" ]]; then
+            DPKG="$(command -v dpkg-deb)"
+          fi
+          test -x "$DPKG"
+
+          PACKAGE="$($DPKG -f /tmp/nktouch-publish.deb Package)"
+          VERSION="$($DPKG -f /tmp/nktouch-publish.deb Version)"
+          ARCH="$($DPKG -f /tmp/nktouch-publish.deb Architecture)"
+          test -n "$PACKAGE"
+          test -n "$VERSION"
+          test -n "$ARCH"
+
+          git config user.name "NKTouch Repo Bot"
+          git config user.email "actions@github.com"
+          git checkout --orphan _publish_sileo
+          git rm -rf . >/dev/null 2>&1 || true
+          git clean -fdx >/dev/null 2>&1 || true
+
+          mkdir -p debs
+          DEB_NAME="${PACKAGE}_${VERSION}_${ARCH}.deb"
+          cp /tmp/nktouch-publish.deb "debs/$DEB_NAME"
+
+          SIZE="$(stat -f%z "debs/$DEB_NAME")"
+          MD5="$(md5 -q "debs/$DEB_NAME")"
+          SHA1="$(shasum -a 1 "debs/$DEB_NAME" | awk '{print $1}')"
+          SHA256="$(shasum -a 256 "debs/$DEB_NAME" | awk '{print $1}')"
+
+          "$DPKG" -f "debs/$DEB_NAME" > Packages
+          cat >> Packages <<EOF
+          Filename: debs/$DEB_NAME
+          Size: $SIZE
+          MD5sum: $MD5
+          SHA1: $SHA1
+          SHA256: $SHA256
+          Homepage: https://github.com/${GITHUB_REPOSITORY}
+
+          EOF
+          gzip -9c Packages > Packages.gz
+
+          P_SIZE="$(stat -f%z Packages)"
+          PG_SIZE="$(stat -f%z Packages.gz)"
+          P_MD5="$(md5 -q Packages)"
+          PG_MD5="$(md5 -q Packages.gz)"
+          P_SHA256="$(shasum -a 256 Packages | awk '{print $1}')"
+          PG_SHA256="$(shasum -a 256 Packages.gz | awk '{print $1}')"
+
+          cat > Release <<EOF
+          Origin: NKTouch
+          Label: NKTouch Repository
+          Suite: stable
+          Version: 1.0
+          Codename: nktouch
+          Architectures: iphoneos-arm64
+          Components: main
+          Description: NKTouch rootless automation packages for Sileo
+          MD5Sum:
+           $P_MD5 $P_SIZE Packages
+           $PG_MD5 $PG_SIZE Packages.gz
+          SHA256:
+           $P_SHA256 $P_SIZE Packages
+           $PG_SHA256 $PG_SIZE Packages.gz
+          EOF
+
+          BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/sileo-repo"
+          cat > index.html <<EOF
+          <!doctype html>
+          <html lang="vi">
+          <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NKTouch Repo</title>
+          <style>body{margin:0;background:#070b1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif}.wrap{max-width:680px;margin:auto;padding:42px 20px}.card{background:#11172b;border:1px solid #303a63;border-radius:20px;padding:22px}.tag{display:inline-block;background:#8b3dff;padding:6px 10px;border-radius:999px;font-weight:700}.url{margin-top:16px;padding:14px;background:#090e1c;border-radius:12px;overflow-wrap:anywhere;color:#c9d4ff}h1{margin:14px 0 6px}p{color:#a7aec7;line-height:1.5}</style></head>
+          <body><div class="wrap"><div class="card"><span class="tag">NKTouch $VERSION</span><h1>NKTouch Repository</h1><p>Repo rootless dành cho Sileo. Thêm URL bên dưới vào Sources rồi cài NKTouch.</p><div class="url">$BASE/</div></div></div></body></html>
+          EOF
+
+          cat > README.md <<EOF
+          # NKTouch Sileo Repository
+
+          Add this source in Sileo:
+
+          $BASE/
+
+          Current package: $PACKAGE $VERSION ($ARCH)
+          EOF
+
+          git add Packages Packages.gz Release index.html README.md debs/
+          git commit -m "Publish NKTouch ${VERSION} for Sileo"
+          git push origin HEAD:sileo-repo --force
 
       - name: Upload Xcode log on failure
         if: failure()
