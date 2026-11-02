@@ -59,7 +59,7 @@ grep -Fq 'Copy logs' "$SETTINGS"
 grep -Fq 'Clear console' "$SETTINGS"
 grep -Fq 'Tìm trong Lua' "$SETTINGS"
 grep -Fq 'Thay tất cả' "$SETTINGS"
-grep -Fq '^Version: 0.7.5$' "$CONTROL"
+grep -q '^Version: 0.7.5$' "$CONTROL"
 grep -Fq 'NKTouch 0.7.5 Editor + Runner + Console' "$VERSION_DOC"
 
 echo "NKTouch V7.5 Editor + Runner + Console prepared"
