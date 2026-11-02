@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Freeze 0.7.5.2 Recorder V3 and layer Editor Pro only.
 bash "$ROOT/scripts/prepare-v0752-recorder-v3.sh" "$SRC"
-python3 "$ROOT/scripts/apply-v0753-editor-pro.py" "$SRC"
+python3 "$ROOT/scripts/run-v0753-editor-pro.py" "$SRC"
 
 CONTROL="$SRC/control"
 VERSION_FILE="$SRC/layout/usr/share/doc/nktouch/VERSION"
