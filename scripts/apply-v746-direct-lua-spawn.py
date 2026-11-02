@@ -21,6 +21,15 @@ for old, new in replacements:
         raise SystemExit(f"marker mismatch ({count}): {old[:100]}")
     s = s.replace(old, new, 1)
 
+# Human-readable guard comment mirrors the escaped C string below, making the
+# safety invariant obvious to reviewers and easy for CI to assert literally.
+guard_comment = '// V7.4.6 bootstrap guard: type(m.installAutoTouchCompat)=="function"\n'
+header = '// NKTouch v0.7.0 native task supervisor\n'
+if guard_comment not in s:
+    if header not in s:
+        raise SystemExit('task supervisor header missing')
+    s = s.replace(header, header + guard_comment, 1)
+
 if '#define VERSION "0.7.0"' not in s:
     raise SystemExit('V7.0 task-supervisor version contract changed unexpectedly')
 if '/var/jb/usr/bin/nktouch-lua' in s:
