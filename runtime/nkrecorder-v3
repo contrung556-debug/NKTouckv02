@@ -1,0 +1,320 @@
+#!/var/jb/bin/sh
+set -eu
+
+VERSION="0.7.5.2"
+PATH="/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin"
+CORE="/var/jb/usr/libexec/nktouch/nktouchctl-core"
+LUA="/var/jb/usr/libexec/nktouch/lua54"
+EXPORTER="/var/jb/usr/share/nktouch/nkrecorder.lua"
+TASK="/var/jb/usr/bin/nktask"
+STATE="/var/mobile/Library/NKTouch/recorder-v3"
+OUT="/var/mobile/Library/NKTouch/recordings"
+SCRIPTS="/var/mobile/Library/NKTouch/scripts"
+LEGACY="/var/mobile/Library/ZXTouch/scripts/recording"
+MODE="$STATE/mode"
+CURRENT="$STATE/current_bundle"
+SEGMENTS="$STATE/segments"
+STARTED="$STATE/started_at"
+SESSION="$STATE/session_id"
+
+mkdir_state() {
+  mkdir -p "$STATE" "$OUT" "$SCRIPTS" 2>/dev/null || {
+    echo "NKTouch Recorder V3: cannot create state directories" >&2
+    exit 4
+  }
+}
+
+need_runtime() {
+  [ -x "$CORE" ] || { echo "NKTouch Recorder V3: missing core runtime: $CORE" >&2; exit 4; }
+  [ -x "$LUA" ] || { echo "NKTouch Recorder V3: missing Lua runtime: $LUA" >&2; exit 4; }
+  [ -x "$TASK" ] || { echo "NKTouch Recorder V3: missing task runtime: $TASK" >&2; exit 4; }
+  [ -r "$EXPORTER" ] || { echo "NKTouch Recorder V3: missing exporter: $EXPORTER" >&2; exit 4; }
+}
+
+read_mode() {
+  if [ -s "$MODE" ]; then cat "$MODE"; else printf '%s\n' idle; fi
+}
+
+set_mode() { printf '%s\n' "$1" > "$MODE"; }
+
+latest_bdl() {
+  [ -d "$LEGACY" ] || return 1
+  set -- "$LEGACY"/*.bdl
+  [ -d "$1" ] || return 1
+  ls -1dt "$LEGACY"/*.bdl 2>/dev/null | head -n 1
+}
+
+raw_for_bdl() {
+  bdl="$1"
+  [ -d "$bdl" ] || return 1
+  set -- "$bdl"/*.raw
+  [ -f "$1" ] || return 1
+  printf '%s\n' "$1"
+}
+
+wait_for_new_bdl() {
+  before="$1"; i=0
+  while [ "$i" -lt 40 ]; do
+    now="$(latest_bdl 2>/dev/null || true)"
+    if [ -n "$now" ] && [ "$now" != "$before" ]; then printf '%s\n' "$now"; return 0; fi
+    "$CORE" sleep 50 >/dev/null 2>&1 || true
+    i=$((i + 1))
+  done
+  return 1
+}
+
+wait_raw_stable() {
+  raw="$1"; previous="-1"; stable=0; i=0
+  while [ "$i" -lt 40 ]; do
+    if [ -f "$raw" ]; then size="$(wc -c < "$raw" 2>/dev/null | tr -d ' ')"; else size="0"; fi
+    if [ "$size" = "$previous" ]; then stable=$((stable + 1)); else stable=0; previous="$size"; fi
+    [ "$stable" -ge 2 ] && return 0
+    "$CORE" sleep 100 >/dev/null 2>&1 || true
+    i=$((i + 1))
+  done
+  return 0
+}
+
+safe_name() { printf '%s' "$1" | tr -cd 'A-Za-z0-9._-'; }
+
+session_name() {
+  if [ -s "$SESSION" ]; then cat "$SESSION"; else date '+rec-%Y%m%d-%H%M%S'; fi
+}
+
+start_segment() {
+  before="$(latest_bdl 2>/dev/null || true)"
+  "$CORE" record start >/dev/null
+  bdl="$(wait_for_new_bdl "$before" 2>/dev/null || true)"
+  if [ -z "$bdl" ]; then
+    "$CORE" record stop >/dev/null 2>&1 || true
+    echo "NKTouch Recorder V3: core recorder started but no new bundle appeared" >&2
+    return 5
+  fi
+  printf '%s\n' "$bdl" > "$CURRENT"
+  set_mode recording
+  echo "bundle=$bdl"
+}
+
+append_current_segment() {
+  [ -s "$CURRENT" ] || return 0
+  bdl="$(cat "$CURRENT")"
+  raw="$(raw_for_bdl "$bdl" 2>/dev/null || true)"
+  [ -n "$raw" ] || { echo "NKTouch Recorder V3: bundle has no raw recording: $bdl" >&2; return 5; }
+  wait_raw_stable "$raw"
+  printf '%s\n' "$raw" >> "$SEGMENTS"
+  rm -f "$CURRENT"
+}
+
+clear_session() {
+  rm -f "$MODE" "$CURRENT" "$SEGMENTS" "$STARTED" "$SESSION" "$STATE/merged.raw"
+}
+
+segment_count() {
+  if [ -s "$SEGMENTS" ]; then wc -l < "$SEGMENTS" | tr -d ' '; else printf '0'; fi
+}
+
+latest_timeline() {
+  set -- "$OUT"/*.nktl
+  [ -f "$1" ] || return 1
+  ls -1t "$OUT"/*.nktl 2>/dev/null | head -n 1
+}
+
+need_timeline() {
+  p="$1"
+  [ -f "$p" ] || { echo "NKTouch Recorder V3: timeline not found: $p" >&2; exit 6; }
+}
+
+cmd="${1:-help}"
+[ "$#" -gt 0 ] && shift || true
+
+case "$cmd" in
+  version)
+    echo "$VERSION"
+    ;;
+
+  doctor)
+    mkdir_state; need_runtime
+    echo "recorder=$VERSION"
+    echo "core=ok"
+    echo "lua=ok"
+    echo "task=ok"
+    echo "exporter=ok"
+    echo "timeline=ok"
+    echo "result=PASS"
+    ;;
+
+  start)
+    [ "$#" -eq 0 ] || { echo "usage: nkrecorder start" >&2; exit 2; }
+    mkdir_state; need_runtime
+    mode="$(read_mode)"
+    [ "$mode" = idle ] || { echo "NKTouch Recorder V3: recorder is $mode" >&2; exit 3; }
+    clear_session
+    id="$(date '+rec-%Y%m%d-%H%M%S')"
+    printf '%s\n' "$id" > "$SESSION"
+    date '+%Y-%m-%dT%H:%M:%S%z' > "$STARTED" 2>/dev/null || true
+    : > "$SEGMENTS"
+    start_segment
+    echo "state=recording"
+    echo "session=$id"
+    ;;
+
+  pause)
+    [ "$#" -eq 0 ] || { echo "usage: nkrecorder pause" >&2; exit 2; }
+    mkdir_state; need_runtime
+    [ "$(read_mode)" = recording ] || { echo "NKTouch Recorder V3: recorder is not recording" >&2; exit 3; }
+    "$CORE" record stop >/dev/null
+    append_current_segment
+    set_mode paused
+    echo "state=paused"
+    echo "segments=$(segment_count)"
+    ;;
+
+  resume)
+    [ "$#" -eq 0 ] || { echo "usage: nkrecorder resume" >&2; exit 2; }
+    mkdir_state; need_runtime
+    [ "$(read_mode)" = paused ] || { echo "NKTouch Recorder V3: recorder is not paused" >&2; exit 3; }
+    start_segment
+    echo "state=recording"
+    echo "segments=$(segment_count)"
+    ;;
+
+  stop)
+    [ "$#" -le 1 ] || { echo "usage: nkrecorder stop [name]" >&2; exit 2; }
+    mkdir_state; need_runtime
+    mode="$(read_mode)"
+    [ "$mode" = recording ] || [ "$mode" = paused ] || { echo "NKTouch Recorder V3: no active recording" >&2; exit 3; }
+    if [ "$mode" = recording ]; then
+      "$CORE" record stop >/dev/null
+      append_current_segment
+    fi
+    [ -s "$SEGMENTS" ] || { clear_session; echo "NKTouch Recorder V3: no recording segments" >&2; exit 5; }
+    if [ "$#" -eq 1 ]; then
+      base="$(safe_name "$1")"
+      [ -n "$base" ] || { echo "NKTouch Recorder V3: invalid name" >&2; exit 2; }
+      base="${base%.lua}"; base="${base%.nktl}"
+    else
+      base="$(session_name)"
+    fi
+    merged="$STATE/merged.raw"
+    : > "$merged"
+    while IFS= read -r raw; do
+      [ -f "$raw" ] || continue
+      cat "$raw" >> "$merged"
+      printf '\n' >> "$merged"
+    done < "$SEGMENTS"
+    timeline="$OUT/$base.nktl"
+    "$LUA" "$EXPORTER" timeline "$merged" "$timeline"
+    clear_session
+    echo "state=stopped"
+    echo "timeline=$timeline"
+    echo "name=$base"
+    ;;
+
+  cancel)
+    mkdir_state
+    if [ "$(read_mode)" = recording ]; then "$CORE" record stop >/dev/null 2>&1 || true; fi
+    clear_session
+    echo "state=idle"
+    ;;
+
+  status)
+    mkdir_state
+    mode="$(read_mode)"
+    echo "state=$mode"
+    [ -s "$SESSION" ] && echo "session=$(cat "$SESSION")"
+    [ -s "$STARTED" ] && echo "started_at=$(cat "$STARTED")"
+    echo "segments=$(segment_count)"
+    [ -s "$CURRENT" ] && echo "bundle=$(cat "$CURRENT")"
+    last="$(latest_timeline 2>/dev/null || true)"
+    [ -n "$last" ] && echo "latest=$last"
+    ;;
+
+  latest)
+    mkdir_state
+    latest_timeline || { echo "NKTouch Recorder V3: no timelines" >&2; exit 6; }
+    ;;
+
+  list)
+    mkdir_state
+    set -- "$OUT"/*.nktl
+    if [ ! -f "$1" ]; then echo "(no timelines)"; exit 0; fi
+    ls -1t "$OUT"/*.nktl
+    ;;
+
+  inspect)
+    [ "$#" -eq 1 ] || { echo "usage: nkrecorder inspect <timeline.nktl>" >&2; exit 2; }
+    mkdir_state; need_runtime; need_timeline "$1"
+    exec "$LUA" "$EXPORTER" inspect "$1"
+    ;;
+
+  edit)
+    [ "$#" -ge 3 ] || { echo "usage: nkrecorder edit <timeline.nktl> <index> field=value [...]" >&2; exit 2; }
+    mkdir_state; need_runtime; need_timeline "$1"
+    exec "$LUA" "$EXPORTER" edit "$@"
+    ;;
+
+  delete)
+    [ "$#" -eq 2 ] || { echo "usage: nkrecorder delete <timeline.nktl> <index>" >&2; exit 2; }
+    mkdir_state; need_runtime; need_timeline "$1"
+    exec "$LUA" "$EXPORTER" delete "$1" "$2"
+    ;;
+
+  move)
+    [ "$#" -eq 3 ] || { echo "usage: nkrecorder move <timeline.nktl> <from> <to>" >&2; exit 2; }
+    mkdir_state; need_runtime; need_timeline "$1"
+    exec "$LUA" "$EXPORTER" move "$1" "$2" "$3"
+    ;;
+
+  render)
+    [ "$#" -ge 1 ] && [ "$#" -le 2 ] || { echo "usage: nkrecorder render <timeline.nktl> [name]" >&2; exit 2; }
+    mkdir_state; need_runtime; need_timeline "$1"
+    timeline="$1"
+    if [ "$#" -eq 2 ]; then base="$(safe_name "$2")"; else base="$(basename "$timeline" .nktl)"; fi
+    [ -n "$base" ] || { echo "NKTouch Recorder V3: invalid script name" >&2; exit 2; }
+    case "$base" in *.lua) ;; *) base="$base.lua" ;; esac
+    out="$SCRIPTS/$base"
+    "$LUA" "$EXPORTER" render "$timeline" "$out"
+    echo "script=$out"
+    ;;
+
+  test)
+    [ "$#" -eq 1 ] || { echo "usage: nkrecorder test <timeline.nktl>" >&2; exit 2; }
+    mkdir_state; need_runtime; need_timeline "$1"
+    base="__recorder-preview-$(date '+%Y%m%d-%H%M%S').lua"
+    out="$SCRIPTS/$base"
+    "$LUA" "$EXPORTER" render "$1" "$out" >/dev/null
+    echo "script=$out"
+    exec "$TASK" start "$out"
+    ;;
+
+  help|-h|--help)
+    cat <<'HELP'
+NKTouch Recorder V3 v0.7.5.2
+
+  nkrecorder start
+  nkrecorder pause
+  nkrecorder resume
+  nkrecorder stop [name]
+  nkrecorder cancel
+  nkrecorder status
+  nkrecorder latest
+  nkrecorder list
+  nkrecorder inspect <timeline.nktl>
+  nkrecorder edit <timeline.nktl> <index> field=value [...]
+  nkrecorder delete <timeline.nktl> <index>
+  nkrecorder move <timeline.nktl> <from> <to>
+  nkrecorder render <timeline.nktl> [name]
+  nkrecorder test <timeline.nktl>
+  nkrecorder doctor
+
+Recorder V3 records real HID touch segments, supports pause/resume, converts them
+to an editable .nktl timeline, then renders or tests the timeline through the
+retained NKTouch Lua/task runtime. Keyboard input remains physical recorded taps.
+HELP
+    ;;
+
+  *)
+    echo "NKTouch Recorder V3: unknown command: $cmd" >&2
+    exit 2
+    ;;
+esac
