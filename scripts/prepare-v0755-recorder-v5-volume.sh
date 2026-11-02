@@ -8,6 +8,24 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Retain the proven V4 recorder/timeline/editor stack, then replace the primary
 # stop mechanism with an AutoTouch-style global hardware trigger.
 bash "$ROOT/scripts/prepare-v0754-recorder-smart-stop.sh" "$SRC"
+
+# V4's refreshStatus body can differ slightly depending on which Recorder hotfix
+# supplied the status-error branch. Normalize only the method prologue so the V5
+# completion poll can be layered without depending on the rest of that body.
+python3 - "$SRC/zxtouch/zxtouch/Settings/SettingsPageViewController.m" <<'PY'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]); s=p.read_text()
+sig='- (void)refreshStatus{'
+if sig not in s:
+    raise SystemExit('Recorder refreshStatus signature missing')
+start=s.index(sig)
+window=s[start:start+160]
+if 'if(self.smartFinishing)return;' not in window:
+    s=s[:start]+s[start:].replace(sig, sig+'if(self.smartFinishing)return;', 1)
+p.write_text(s)
+PY
+
 python3 "$ROOT/scripts/apply-v0755-recorder-v5-volume.py" "$SRC"
 
 CONTROL="$SRC/control"
