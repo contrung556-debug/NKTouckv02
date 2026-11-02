@@ -1,0 +1,45 @@
+name: Validate NKTouch v0.7.5.4 Recorder Smart Stop
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ v0.7.5.4-recorder-smart-stop ]
+    paths:
+      - scripts/apply-v0754-recorder-smart-stop.py
+      - scripts/prepare-v0754-recorder-smart-stop.sh
+      - .github/workflows/validate-v0754-recorder-smart-stop.yml
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned upstream
+        run: |
+          git init upstream
+          git -C upstream remote add origin https://github.com/epic0001/zxtouchrootless.git
+          git -C upstream fetch --depth 1 origin a602da112ef1a688fb2601424443abb1ccc28c63
+          git -C upstream checkout --detach FETCH_HEAD
+      - name: Syntax and retained tests
+        run: |
+          set -euxo pipefail
+          python3 -m py_compile scripts/apply-v0754-recorder-smart-stop.py
+          bash -n scripts/prepare-v0754-recorder-smart-stop.sh
+          python3 -m unittest tests/test_v0752_recorder_v3.py -v
+          python3 -m unittest tests/test_v0753_editor_pro.py -v
+      - name: Apply complete Smart Stop layer
+        run: bash scripts/prepare-v0754-recorder-smart-stop.sh upstream
+      - name: Contract guards
+        run: |
+          set -euxo pipefail
+          REC=upstream/layout/usr/bin/nkrecorder
+          EXP=upstream/layout/usr/share/nktouch/nkrecorder.lua
+          UI=upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
+          grep -q '^Version: 0.7.5.4$' upstream/control
+          grep -q '^  finish)' "$REC"
+          grep -q 'cmd == "trim-tail"' "$EXP"
+          grep -q 'smartFinishWithTrim' "$UI"
+          grep -q 'UIApplicationDidBecomeActiveNotification' "$UI"
+          grep -q 'Rebuild Lua' "$UI"
+          grep -q 'posix_spawn(&pid,shell.UTF8String' "$UI"
+          ! grep -q 'posix_spawn(&pid,NKRecorderV3Tool.UTF8String' "$UI"
