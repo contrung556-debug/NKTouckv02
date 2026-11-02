@@ -55,6 +55,9 @@ PY
 # Video-review UX rebuild: replace the legacy Scripts-first shell, keep the
 # proven Lua/editor/task engine, and make Home/Workspace/Settings visually one app.
 python3 "$ROOT/scripts/apply-v743-shell-ux.py" "$SRC"
+# Compile-safe normalization for generated Objective-C source. This catches
+# source-string escaping and upstream ivar/property differences before xcodebuild.
+python3 "$ROOT/scripts/fix-v743-shell-compile.py" "$SRC"
 
 grep -q '^Version: 0.7.4.3$' "$CONTROL"
 grep -q '^NKTouch 0.7.4.3 Stability$' "$VERSION_FILE"
@@ -64,6 +67,8 @@ grep -q 'V7.4.3 shell UX rebuild' "$SETTINGS"
 grep -q 'Lua Studio' "$SETTINGS"
 grep -q 'vc.hidesBottomBarWhenPushed=YES' "$SETTINGS"
 grep -q 'self.title = @"Cài đặt"' "$SETTINGS"
+grep -Fq 'Viết • Check • Run • Debug\nKhông cần rời NKTouch' "$SETTINGS"
+grep -q '_tableView.backgroundColor = NKShellBG();' "$SETTINGS"
 grep -q 'V7.4.3 NKTouch root shell' "$SCENE"
 grep -q 'NSClassFromString(@"NKLuaWorkspaceViewController")' "$SCENE"
 grep -q 'nav.tabBarItem.title = @"NKTouch"' "$SCENE"
