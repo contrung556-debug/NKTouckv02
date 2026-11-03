@@ -302,3 +302,19 @@ Description: NKCrane v1.0 physical-profile container manager. Switches app-owned
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 1.1.0
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 576
+Depends: firmware (>= 15.0), mobilesubstrate | ellekit, com.opa334.libsandy
+Filename: debs/com.nktouch.nkcrane_1.1.0_iphoneos-arm64.deb
+Size: 84112
+MD5sum: 17354c14afd5506cda1a4e3441064bae
+SHA1: 716a6750c7e47c91c3f1c3fccf265f9e76ccb5cf
+SHA256: 503f34228dd52bedae40141f2bc00f27c1b10f517b3baa48adde4915eefe26dc
+Section: Tweaks
+Description: NKCrane v1.1 clean-room multi-container engine using a central registry with sandbox-safe app state routing.
+Author: NKTouch
+Name: NKCrane
+
