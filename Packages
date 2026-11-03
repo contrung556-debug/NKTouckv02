@@ -158,3 +158,19 @@ Description: Clean-room multi-container engine for NKTouch. v0.8 adds app search
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 0.8.1
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 508
+Depends: mobilesubstrate, preferenceloader
+Filename: debs/com.nktouch.nkcrane_0.8.1_iphoneos-arm64.deb
+Size: 73646
+MD5sum: dfe817a80de09de7ed493d8bd76b27d2
+SHA1: 4adf0504712b7916f6a32dcbb459a06977a9396d
+SHA256: 1d02ab0176fea71647f101eb0c3455198ab0c5385c533aed3ef999b5cd6fb8cd
+Section: Tweaks
+Description: Clean-room multi-container engine for NKTouch. v0.8.1 hotfix disables the runtime-swizzled Settings enhancements that could crash Preferences on some jailbreak/iOS combinations while keeping the container engine, backup/restore and stable base manager UI intact.
+Author: NKTouch
+Name: NKCrane
+
