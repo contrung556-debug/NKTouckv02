@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout NKTouch v0.2 layer
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Fetch pinned GPL automation core
         run: |
