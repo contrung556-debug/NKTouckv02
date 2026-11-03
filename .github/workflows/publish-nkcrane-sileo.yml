@@ -1,0 +1,100 @@
+name: Publish NKCrane to Sileo
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'modules/NKCrane'
+      - '.gitmodules'
+      - '.github/workflows/publish-nkcrane-sileo.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout NKTouch with NKCrane
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Theos
+        uses: Randomblock1/theos-action@v1
+        with:
+          theos-sdks: https://github.com/theos/sdks
+
+      - name: Build NKCrane rootless package
+        working-directory: modules/NKCrane
+        run: make clean package FINALPACKAGE=1
+
+      - name: Prepare Sileo repository branch
+        run: |
+          git fetch origin sileo-repo:sileo-repo
+          git worktree add repo-out sileo-repo
+          mkdir -p repo-out/debs
+
+      - name: Copy NKCrane package
+        run: |
+          DEB=$(ls -t modules/NKCrane/packages/*.deb | head -1)
+          test -n "$DEB"
+          PKG=$(dpkg-deb -f "$DEB" Package)
+          VER=$(dpkg-deb -f "$DEB" Version)
+          ARCH=$(dpkg-deb -f "$DEB" Architecture)
+          DEST="repo-out/debs/${PKG}_${VER}_${ARCH}.deb"
+          cp "$DEB" "$DEST"
+          echo "Published package candidate: $DEST"
+          dpkg-deb -I "$DEST"
+
+      - name: Rebuild APT metadata
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dpkg-dev
+          cd repo-out
+          dpkg-scanpackages -m debs /dev/null > Packages
+          gzip -9c Packages > Packages.gz
+
+          P_MD5=$(md5sum Packages | awk '{print $1}')
+          G_MD5=$(md5sum Packages.gz | awk '{print $1}')
+          P_SHA256=$(sha256sum Packages | awk '{print $1}')
+          G_SHA256=$(sha256sum Packages.gz | awk '{print $1}')
+          P_SIZE=$(stat -c%s Packages)
+          G_SIZE=$(stat -c%s Packages.gz)
+
+          cat > Release <<EOF
+          Origin: NKTouch
+          Label: NKTouch Repository
+          Suite: stable
+          Version: 1.0
+          Codename: nktouch
+          Architectures: iphoneos-arm64
+          Components: main
+          Description: NKTouch and NKCrane rootless packages for Sileo
+          MD5Sum:
+           ${P_MD5} ${P_SIZE} Packages
+           ${G_MD5} ${G_SIZE} Packages.gz
+          SHA256:
+           ${P_SHA256} ${P_SIZE} Packages
+           ${G_SHA256} ${G_SIZE} Packages.gz
+          EOF
+
+          grep -A18 -B2 'Package: com.nktouch.nkcrane' Packages || true
+          cat Release
+
+      - name: Commit and publish to sileo-repo
+        run: |
+          cd repo-out
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add debs Packages Packages.gz Release
+          if git diff --cached --quiet; then
+            echo 'Sileo repository already up to date.'
+            exit 0
+          fi
+          VERSION=$(dpkg-deb -f debs/com.nktouch.nkcrane_*_iphoneos-arm64.deb Version | tail -1)
+          git commit -m "Publish NKCrane ${VERSION} to Sileo"
+          git push origin HEAD:sileo-repo
