@@ -1,151 +1,160 @@
 Package: com.nk.nktouch
-Name: NKTouch
-Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
-Description: NKTouch v0.7.5.4 Recorder V4 Smart Stop with auto-stop on return, tail trim, automatic Lua generation/open Editor, Recorder V3 timeline editing, Editor Pro, Task Center and direct lua54 runtime
-Maintainer: NKTouch
-Author: NKTouch + ZXTouch contributors
-Section: Utilities
-Tag: role::developer
-Conflicts: com.nk.topstatus, com.zjx.ioscontrol
-Architecture: iphoneos-arm64
-Version: 0.7.5.4
-Installed-Size: 6644
-Filename: debs/com.nk.nktouch_0.7.5.4_iphoneos-arm64.deb
-Size: 1297620
-MD5sum: 37491fc5fcaf14f41598d852afb298e3
-SHA1: bcc39b11d02671e64275a93aff07c75d439821ab
-SHA256: 2eddc07bed93f7cf9b79d7b6546a13982a0af9cad9a76821d9b9d6fb124f22a7
-Homepage: https://github.com/contrung556-debug/NKTouckv02
-
-Package: com.nk.nktouch
-Name: NKTouch
-Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
-Description: NKTouch v0.7.5.3.3 Recorder status hotfix; valid recording status exits 0, trusted shell spawn retained, Editor Pro and direct lua54 runtime retained
-Maintainer: NKTouch
-Author: NKTouch + ZXTouch contributors
-Section: Utilities
-Tag: role::developer
-Conflicts: com.nk.topstatus, com.zjx.ioscontrol
-Architecture: iphoneos-arm64
-Version: 0.7.5.3.3
-Installed-Size: 6628
-Filename: debs/com.nk.nktouch_0.7.5.3.3_iphoneos-arm64.deb
-Size: 1296892
-MD5sum: 5fcbecceee8bb61d43aade13a3ae5829
-SHA1: 670d1432cc858c8dda865579d371b3fe074ebc15
-SHA256: 96deb78bd2fe291b16982fbbcbea5f10c52b996cb752fcff29d4cfbff29fd168
-Homepage: https://github.com/contrung556-debug/NKTouckv02
-
-Package: com.nk.nktouch
-Name: NKTouch
-Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
-Description: NKTouch v0.7.5.3.2 Recorder V3 spawn fix using trusted shell execution with rootless path fallback, visible diagnostics, Editor Pro, Task Center and direct lua54 runtime
-Maintainer: NKTouch
-Author: NKTouch + ZXTouch contributors
-Section: Utilities
-Tag: role::developer
-Conflicts: com.nk.topstatus, com.zjx.ioscontrol
-Architecture: iphoneos-arm64
-Version: 0.7.5.3.2
-Installed-Size: 6628
-Filename: debs/com.nk.nktouch_0.7.5.3.2_iphoneos-arm64.deb
-Size: 1296682
-MD5sum: faed37b9fbacb6ec0e4bea634e235a06
-SHA1: b4969ed8724ff2af9accc786547983d15747b67f
-SHA256: 85897fe3fc410b8ac65b63bd7acde1c4b7a001016a8c628969d88fcd3ea525e5
-Homepage: https://github.com/contrung556-debug/NKTouckv02
-
-Package: com.nk.nktouch
-Name: NKTouch
-Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
-Description: NKTouch v0.7.5.3.1 Recorder V3 hotfix with corrected rootless shell launcher, visible recorder diagnostics, Editor Pro, Recorder V3, Task Center and retained direct lua54 runtime
-Maintainer: NKTouch
-Author: NKTouch + ZXTouch contributors
-Section: Utilities
-Tag: role::developer
-Conflicts: com.nk.topstatus, com.zjx.ioscontrol
-Architecture: iphoneos-arm64
-Version: 0.7.5.3.1
-Installed-Size: 6612
-Filename: debs/com.nk.nktouch_0.7.5.3.1_iphoneos-arm64.deb
-Size: 1297276
-MD5sum: eb8604b5f45e862424e169c0bc04e7e4
-SHA1: 88149d48497395e7f72f52807c078570ea25f5b3
-SHA256: 54f002a000aa27c7f5d3762dbb568dcaa0f45ae6b3b78310829a21a8517dbf36
-Homepage: https://github.com/contrung556-debug/NKTouckv02
-
-Package: com.nk.nktouch
-Name: NKTouch
-Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
-Description: NKTouch v0.7.5.3 Editor Pro with line numbers, Find/Replace, API snippets, autosave backups, Recorder V3, Task Center and retained direct lua54 runtime (GPL ZXTouch core)
-Maintainer: NKTouch
-Author: NKTouch + ZXTouch contributors
-Section: Utilities
-Tag: role::developer
-Conflicts: com.nk.topstatus, com.zjx.ioscontrol
-Architecture: iphoneos-arm64
-Version: 0.7.5.3
-Installed-Size: 6628
-Filename: debs/com.nk.nktouch_0.7.5.3_iphoneos-arm64.deb
-Size: 1297732
-MD5sum: f667d500392f21794ccdc99f6581cfd5
-SHA1: fb207f297071207920d99b3a59bfdcbac1a97c7c
-SHA256: 4c4c0d4d4a4a209c0df571740e8e06d7c0abbe7f1a50be8c699fb3c06c050a34
-Homepage: https://github.com/contrung556-debug/NKTouckv02
-
-Package: com.nk.nktouch
-Name: NKTouch
-Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
-Description: NKTouch v0.7.5.2 Recorder V3 with record/pause/resume, editable touch timeline, test replay, Lua conversion, Task Center and retained direct lua54 runtime (GPL ZXTouch core)
-Maintainer: NKTouch
-Author: NKTouch + ZXTouch contributors
-Section: Utilities
-Tag: role::developer
-Conflicts: com.nk.topstatus, com.zjx.ioscontrol
-Architecture: iphoneos-arm64
-Version: 0.7.5.2
-Installed-Size: 6556
-Filename: debs/com.nk.nktouch_0.7.5.2_iphoneos-arm64.deb
-Size: 1287156
-MD5sum: 33276527f675f5c3e07b2bb7e476bff4
-SHA1: a83ef400de3e5a75f874e5c69f4e01b7e8b7e563
-SHA256: 89e80cf73c91ec0748764ed9eeb31bc061be8ba766c5a76e776f8d81c6e13e84
-Homepage: https://github.com/contrung556-debug/NKTouckv02
-
-Package: com.nk.nktouch
-Name: NKTouch
-Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
-Description: NKTouch 7.4.7 Daily Driver build for Sileo with Self Test, Task Center, improved Logs UX and retained direct lua54 task runtime
-Maintainer: NKTouch
-Author: NKTouch + ZXTouch contributors
-Section: Utilities
-Tag: role::developer
-Conflicts: com.nk.topstatus, com.zjx.ioscontrol
-Architecture: iphoneos-arm64
-Version: 0.7.5.1
-Installed-Size: 6480
-Filename: debs/com.nk.nktouch_0.7.5.1_iphoneos-arm64.deb
-Size: 1263144
-MD5sum: b3142e0a78ac782e018f20d576f4cd94
-SHA1: aea2270f6f23f914bbd1aac749456babec859ea6
-SHA256: 6735e0dcdc1ea0001cd2e6cf98ee377e8fe6a067afd4249130a12e22421bd689
-Homepage: https://github.com/contrung556-debug/NKTouckv02
-
-Package: com.nk.nktouch
-Name: NKTouch
-Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
-Description: NKTouch v0.7.5 Editor + Runner + Console with Lua Studio, realtime logs, task controls, HTTP/JSON, Recorder V2 and rootless runtime
-Maintainer: NKTouch
-Author: NKTouch + ZXTouch contributors
-Section: Utilities
-Tag: role::developer
-Conflicts: com.nk.topstatus, com.zjx.ioscontrol
-Architecture: iphoneos-arm64
 Version: 0.7.5
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
 Installed-Size: 6448
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
 Filename: debs/com.nk.nktouch_0.7.5_iphoneos-arm64.deb
 Size: 1259244
 MD5sum: ee9be6ed1e5b52f691bfd0e5a458a92b
 SHA1: 9d52e9cd2c3b3e7c47c5c0baac92f56e47bf1926
 SHA256: 0b4eb241afe21630b562fa0f035b8083f8f2ba4ee7d3ad318d7db3a360370b4d
-Homepage: https://github.com/contrung556-debug/NKTouckv02
+Section: Utilities
+Description: NKTouch v0.7.5 Editor + Runner + Console with Lua Studio, realtime logs, task controls, HTTP/JSON, Recorder V2 and rootless runtime
+Tag: role::developer
+Author: NKTouch + ZXTouch contributors
+Name: NKTouch
+
+Package: com.nk.nktouch
+Version: 0.7.5.1
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 6480
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Filename: debs/com.nk.nktouch_0.7.5.1_iphoneos-arm64.deb
+Size: 1263144
+MD5sum: b3142e0a78ac782e018f20d576f4cd94
+SHA1: aea2270f6f23f914bbd1aac749456babec859ea6
+SHA256: 6735e0dcdc1ea0001cd2e6cf98ee377e8fe6a067afd4249130a12e22421bd689
+Section: Utilities
+Description: NKTouch 7.4.7 Daily Driver build for Sileo with Self Test, Task Center, improved Logs UX and retained direct lua54 task runtime
+Tag: role::developer
+Author: NKTouch + ZXTouch contributors
+Name: NKTouch
+
+Package: com.nk.nktouch
+Version: 0.7.5.2
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 6556
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Filename: debs/com.nk.nktouch_0.7.5.2_iphoneos-arm64.deb
+Size: 1287156
+MD5sum: 33276527f675f5c3e07b2bb7e476bff4
+SHA1: a83ef400de3e5a75f874e5c69f4e01b7e8b7e563
+SHA256: 89e80cf73c91ec0748764ed9eeb31bc061be8ba766c5a76e776f8d81c6e13e84
+Section: Utilities
+Description: NKTouch v0.7.5.2 Recorder V3 with record/pause/resume, editable touch timeline, test replay, Lua conversion, Task Center and retained direct lua54 runtime (GPL ZXTouch core)
+Tag: role::developer
+Author: NKTouch + ZXTouch contributors
+Name: NKTouch
+
+Package: com.nk.nktouch
+Version: 0.7.5.3
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 6628
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Filename: debs/com.nk.nktouch_0.7.5.3_iphoneos-arm64.deb
+Size: 1297732
+MD5sum: f667d500392f21794ccdc99f6581cfd5
+SHA1: fb207f297071207920d99b3a59bfdcbac1a97c7c
+SHA256: 4c4c0d4d4a4a209c0df571740e8e06d7c0abbe7f1a50be8c699fb3c06c050a34
+Section: Utilities
+Description: NKTouch v0.7.5.3 Editor Pro with line numbers, Find/Replace, API snippets, autosave backups, Recorder V3, Task Center and retained direct lua54 runtime (GPL ZXTouch core)
+Tag: role::developer
+Author: NKTouch + ZXTouch contributors
+Name: NKTouch
+
+Package: com.nk.nktouch
+Version: 0.7.5.3.1
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 6612
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Filename: debs/com.nk.nktouch_0.7.5.3.1_iphoneos-arm64.deb
+Size: 1297276
+MD5sum: eb8604b5f45e862424e169c0bc04e7e4
+SHA1: 88149d48497395e7f72f52807c078570ea25f5b3
+SHA256: 54f002a000aa27c7f5d3762dbb568dcaa0f45ae6b3b78310829a21a8517dbf36
+Section: Utilities
+Description: NKTouch v0.7.5.3.1 Recorder V3 hotfix with corrected rootless shell launcher, visible recorder diagnostics, Editor Pro, Recorder V3, Task Center and retained direct lua54 runtime
+Tag: role::developer
+Author: NKTouch + ZXTouch contributors
+Name: NKTouch
+
+Package: com.nk.nktouch
+Version: 0.7.5.3.2
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 6628
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Filename: debs/com.nk.nktouch_0.7.5.3.2_iphoneos-arm64.deb
+Size: 1296682
+MD5sum: faed37b9fbacb6ec0e4bea634e235a06
+SHA1: b4969ed8724ff2af9accc786547983d15747b67f
+SHA256: 85897fe3fc410b8ac65b63bd7acde1c4b7a001016a8c628969d88fcd3ea525e5
+Section: Utilities
+Description: NKTouch v0.7.5.3.2 Recorder V3 spawn fix using trusted shell execution with rootless path fallback, visible diagnostics, Editor Pro, Task Center and direct lua54 runtime
+Tag: role::developer
+Author: NKTouch + ZXTouch contributors
+Name: NKTouch
+
+Package: com.nk.nktouch
+Version: 0.7.5.3.3
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 6628
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Filename: debs/com.nk.nktouch_0.7.5.3.3_iphoneos-arm64.deb
+Size: 1296892
+MD5sum: 5fcbecceee8bb61d43aade13a3ae5829
+SHA1: 670d1432cc858c8dda865579d371b3fe074ebc15
+SHA256: 96deb78bd2fe291b16982fbbcbea5f10c52b996cb752fcff29d4cfbff29fd168
+Section: Utilities
+Description: NKTouch v0.7.5.3.3 Recorder status hotfix; valid recording status exits 0, trusted shell spawn retained, Editor Pro and direct lua54 runtime retained
+Tag: role::developer
+Author: NKTouch + ZXTouch contributors
+Name: NKTouch
+
+Package: com.nk.nktouch
+Version: 0.7.5.4
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 6644
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Filename: debs/com.nk.nktouch_0.7.5.4_iphoneos-arm64.deb
+Size: 1297620
+MD5sum: 37491fc5fcaf14f41598d852afb298e3
+SHA1: bcc39b11d02671e64275a93aff07c75d439821ab
+SHA256: 2eddc07bed93f7cf9b79d7b6546a13982a0af9cad9a76821d9b9d6fb124f22a7
+Section: Utilities
+Description: NKTouch v0.7.5.4 Recorder V4 Smart Stop with auto-stop on return, tail trim, automatic Lua generation/open Editor, Recorder V3 timeline editing, Editor Pro, Task Center and direct lua54 runtime
+Tag: role::developer
+Author: NKTouch + ZXTouch contributors
+Name: NKTouch
+
+Package: com.nktouch.nkcrane
+Version: 0.8.0
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 528
+Depends: mobilesubstrate, preferenceloader
+Filename: debs/com.nktouch.nkcrane_0.8.0_iphoneos-arm64.deb
+Size: 81372
+MD5sum: da6ad35982497efd6f7f732c776e0494
+SHA1: 7951d06f94b76edc2d35efc69ab3f9e48614306f
+SHA256: 75f13a64d6246c461c1a12a35213f1fea51f9c24a2eedf9849b8668d90af7778
+Section: Tweaks
+Description: Clean-room multi-container engine for NKTouch. v0.8 adds app search/icons, container size and backup metadata, live job refresh and a Quick Switch manager.
+Author: NKTouch
+Name: NKCrane
+

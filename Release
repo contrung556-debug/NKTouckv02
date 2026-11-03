@@ -5,10 +5,10 @@ Version: 1.0
 Codename: nktouch
 Architectures: iphoneos-arm64
 Components: main
-Description: NKTouch rootless automation packages for Sileo
+Description: NKTouch and NKCrane rootless packages for Sileo
 MD5Sum:
- f5b28b7b44d568181b2c5941f50fd198 6193 Packages
- cdbbc70127aa942b2f433a2d53141468 1728 Packages.gz
+ b703965b2f2b6376d2f90c3f6ea6c028 6335 Packages
+ 775e19fc27d71dd7733d2199bcb47001 1933 Packages.gz
 SHA256:
- 03b718791eb3a19f847621de58f74f8eaffef7dc751b79d4c9374dafad3ba3c6 6193 Packages
- 69e734fe0084d8f372de72cc512603ca2063d5a0fc567678c4767607fed020bc 1728 Packages.gz
+ 90abbef134b602ef4ffcb1dc71b30c13aa115d18ba49c8cffb66b64982e505d5 6335 Packages
+ fdc0720d12dba5af9cc57fd217c0a566edd7ac1d23a26589012049edb8cd2255 1933 Packages.gz
