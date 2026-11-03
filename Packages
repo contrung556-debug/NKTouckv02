@@ -286,3 +286,19 @@ Description: Clean-room multi-container engine for NKTouch. v0.9.4 writes and ve
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 444
+Depends: firmware (>= 15.0)
+Filename: debs/com.nktouch.nkcrane_1.0.0_iphoneos-arm64.deb
+Size: 65418
+MD5sum: 8bb122b4ba46c0ab0672de2fed82bb8b
+SHA1: 8cd4d922be3493ceb5d4c8abfbe17ae7d808a1ea
+SHA256: 21620c89b9693a78013b1a13c954385b4320204938dfc9d54caaa7fd46c84930
+Section: Utilities
+Description: NKCrane v1.0 physical-profile container manager. Switches app-owned Documents/Library/tmp/SystemData by transactional on-disk profile swap with rollback, without injecting a tweak into target apps.
+Author: NKTouch
+Name: NKCrane
+
