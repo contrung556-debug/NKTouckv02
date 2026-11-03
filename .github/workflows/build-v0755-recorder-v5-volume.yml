@@ -195,17 +195,31 @@ jobs:
           test "$(dpkg-deb -f "$OUT" Package)" = 'com.nk.nktouch'
           rm -rf /tmp/nk755 && mkdir -p /tmp/nk755
           dpkg-deb -x "$OUT" /tmp/nk755
-          TRIGGER_DYLIB="$(find /tmp/nk755 -type f -name 'NKTouchRecorderTrigger.dylib' -print -quit)"
-          TRIGGER_PLIST="$(find /tmp/nk755 -type f -name 'NKTouchRecorderTrigger.plist' -print -quit)"
+
+          echo '--- Recorder V5 package payload ---'
+          dpkg-deb -c "$OUT" | grep -E 'NKTouchRecorderTrigger|zxtouch-runner|var/jb/Library/MobileSubstrate/DynamicLibraries' || true
+
+          TRIGGER_DIR=/tmp/nk755/var/jb/Library/MobileSubstrate/DynamicLibraries
+          TRIGGER_DYLIB="$TRIGGER_DIR/NKTouchRecorderTrigger.dylib"
+          TRIGGER_PLIST="$TRIGGER_DIR/NKTouchRecorderTrigger.plist"
+          test -f "$TRIGGER_DYLIB"
+          test -f "$TRIGGER_PLIST"
+
+          if find /tmp/nk755 -path '*/var/jb/var/jb/*' -print -quit | grep -q .; then
+            echo 'ERROR: nested rootless prefix /var/jb/var/jb detected in package' >&2
+            find /tmp/nk755 -path '*/var/jb/var/jb/*' -print >&2
+            exit 1
+          fi
+
+          test "$(find /tmp/nk755 -type f -name 'NKTouchRecorderTrigger.dylib' | wc -l | tr -d ' ')" = '1'
+          test "$(find /tmp/nk755 -type f -name 'NKTouchRecorderTrigger.plist' | wc -l | tr -d ' ')" = '1'
+
           RUNNER_BIN="$(find /tmp/nk755 -type f -name 'zxtouch-runner' -print -quit)"
-          test -n "$TRIGGER_DYLIB"
-          test -n "$TRIGGER_PLIST"
           test -n "$RUNNER_BIN"
           test -x "$RUNNER_BIN"
           echo "Recorder trigger dylib: $TRIGGER_DYLIB"
           echo "Recorder trigger plist: $TRIGGER_PLIST"
           echo "Recorder runner: $RUNNER_BIN"
-          dpkg-deb -c "$OUT" | grep -E 'NKTouchRecorderTrigger|zxtouch-runner'
           dpkg-deb -I "$OUT"
 
       - name: Upload Recorder V5 deb
