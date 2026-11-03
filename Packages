@@ -254,3 +254,19 @@ Description: Clean-room multi-container engine for NKTouch. v0.9.2 writes per-ap
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 0.9.3
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 568
+Depends: mobilesubstrate
+Filename: debs/com.nktouch.nkcrane_0.9.3_iphoneos-arm64.deb
+Size: 81316
+MD5sum: e3f87e1d9420b059963cba6d21711f34
+SHA1: b8e28f17d0b8f5293875fd9d041861facda66d7e
+SHA256: 47f6fcec3a50b5d26347933dbd9754e8a0a1233a91803c6bd44476b0110b8e59
+Section: Tweaks
+Description: Clean-room multi-container engine for NKTouch. v0.9.3 replaces fragile CLI method-swizzle config syncing with deterministic post-command sandbox config writes so enable/switch reliably reaches the target app runtime.
+Author: NKTouch
+Name: NKCrane
+
