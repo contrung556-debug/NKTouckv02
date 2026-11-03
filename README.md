@@ -14,20 +14,6 @@ NKTouch is a rootless iOS automation project for jailbroken devices. v0.2 keeps 
 - Basic Lua module (`nktouch.lua`) for gradual migration from AutoTouch scripts
 - Rootless GitHub Actions build
 
-## NKCrane module
-
-NKCrane is now linked into this repository at `modules/NKCrane` as a pinned Git submodule. The current pin is **NKCrane v0.8.0** at commit `f0de13bade4cad8349b8715f6d2820c17cf2fd5e`.
-
-NKCrane provides multi-container app data management, background backup/restore, supported Keychain/App Group isolation, Settings management UI, app search/icons, storage metadata, background jobs and Quick Switch. Its source remains independently maintained in `contrung556-debug/Nkcrane`, while NKTouch pins a known-good revision.
-
-Clone NKTouch with modules using:
-
-```sh
-git clone --recurse-submodules https://github.com/contrung556-debug/NKTouckv02.git
-```
-
-GitHub Actions checkout is also configured with `submodules: recursive`.
-
 ## Install/build on iPhone
 
 1. Create a GitHub repository named `NKTouch`.
