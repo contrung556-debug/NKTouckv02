@@ -1,6 +1,7 @@
 #!/var/jb/bin/sh
 set -u
 
+PACKAGE_VERSION="0.7.5.6"
 VERSION="0.7.4"
 CORE="/var/jb/usr/libexec/nktouch/nktouchctl-core"
 TASK="/var/jb/usr/bin/nktask"
@@ -9,12 +10,22 @@ EDITOR="/var/jb/usr/bin/nkeditor"
 BUNDLE="/var/jb/usr/bin/nkbundle"
 NETWORK="/var/jb/usr/bin/nknetwork"
 
-need_core(){ [ -x "$CORE" ] || { echo "NKTouch v$VERSION: missing core runtime $CORE" >&2; exit 4; }; }
-need_task(){ [ -x "$TASK" ] || { echo "NKTouch v$VERSION: missing task engine $TASK" >&2; exit 4; }; }
-need_recorder(){ [ -x "$RECORDER" ] || { echo "NKTouch v$VERSION: missing Recorder V2 $RECORDER" >&2; exit 4; }; }
-need_editor(){ [ -x "$EDITOR" ] || { echo "NKTouch v$VERSION: missing Script Editor $EDITOR" >&2; exit 4; }; }
-need_bundle(){ [ -x "$BUNDLE" ] || { echo "NKTouch v$VERSION: missing Task Bundle manager $BUNDLE" >&2; exit 4; }; }
-need_network(){ [ -x "$NETWORK" ] || { echo "NKTouch v$VERSION: missing Network/API controller $NETWORK" >&2; exit 4; }; }
+need_core(){ [ -x "$CORE" ] || { echo "NKTouch v$PACKAGE_VERSION: missing core runtime $CORE" >&2; exit 4; }; }
+need_task(){ [ -x "$TASK" ] || { echo "NKTouch v$PACKAGE_VERSION: missing task engine $TASK" >&2; exit 4; }; }
+need_recorder(){ [ -x "$RECORDER" ] || { echo "NKTouch v$PACKAGE_VERSION: missing recorder $RECORDER" >&2; exit 4; }; }
+need_editor(){ [ -x "$EDITOR" ] || { echo "NKTouch v$PACKAGE_VERSION: missing Script Editor $EDITOR" >&2; exit 4; }; }
+need_bundle(){ [ -x "$BUNDLE" ] || { echo "NKTouch v$PACKAGE_VERSION: missing Task Bundle manager $BUNDLE" >&2; exit 4; }; }
+need_network(){ [ -x "$NETWORK" ] || { echo "NKTouch v$PACKAGE_VERSION: missing Network/API controller $NETWORK" >&2; exit 4; }; }
+
+print_versions(){
+  echo "package=$PACKAGE_VERSION"
+  echo "network=$VERSION"
+  if [ -x "$TASK" ]; then echo "task-engine=$($TASK version 2>/dev/null || echo unknown)"; else echo "task-engine=missing"; fi
+  if [ -x "$RECORDER" ]; then echo "recorder=$($RECORDER version 2>/dev/null || echo unknown)"; else echo "recorder=missing"; fi
+  if [ -x "$EDITOR" ]; then echo "editor=$($EDITOR version 2>/dev/null || echo unknown)"; else echo "editor=missing"; fi
+  if [ -x "$BUNDLE" ]; then echo "bundle=$($BUNDLE version 2>/dev/null || echo unknown)"; else echo "bundle=missing"; fi
+  if [ -x "$CORE" ]; then "$CORE" backend 2>/dev/null || true; else echo "core=missing"; fi
+}
 
 cmd="${1:-help}"
 [ "$#" -gt 0 ] && shift || true
@@ -41,10 +52,15 @@ case "$cmd" in
     exec "$NETWORK" "$@"
     ;;
   version)
-    echo "$VERSION"
+    if [ "${1:-}" = "--all" ]; then
+      print_versions
+    else
+      echo "$PACKAGE_VERSION"
+    fi
     ;;
   backend)
-    echo "runtime=$VERSION"
+    echo "package=$PACKAGE_VERSION"
+    echo "network=$VERSION"
     need_core
     "$CORE" backend
     rc=$?
@@ -52,7 +68,7 @@ case "$cmd" in
     if [ -x "$RECORDER" ]; then echo "recorder=$($RECORDER version 2>/dev/null || echo unknown)"; else echo "recorder=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     if [ -x "$EDITOR" ]; then echo "editor=$($EDITOR version 2>/dev/null || echo unknown)"; else echo "editor=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     if [ -x "$BUNDLE" ]; then echo "bundle=$($BUNDLE version 2>/dev/null || echo unknown)"; else echo "bundle=missing"; [ "$rc" -eq 0 ] && rc=4; fi
-    if [ -x "$NETWORK" ]; then echo "network=$($NETWORK version 2>/dev/null || echo unknown)"; else echo "network=missing"; [ "$rc" -eq 0 ] && rc=4; fi
+    if [ -x "$NETWORK" ]; then echo "network-controller=$($NETWORK version 2>/dev/null || echo unknown)"; else echo "network-controller=missing"; [ "$rc" -eq 0 ] && rc=4; fi
     exit "$rc"
     ;;
   doctor)
@@ -79,7 +95,14 @@ case "$cmd" in
     ;;
   help|-h|--help)
     cat <<'HELP'
-NKTouch v0.7.4 Network/API + Task Bundle + Script Editor + Recorder V2 + Task Engine
+NKTouch v0.7.5.6 Control Foundation
+
+Version / diagnostics:
+  nktouchctl version
+  nktouchctl version --all
+  nktouchctl backend
+  nktouchctl doctor full
+  nktouchctl selftest
 
 Network/API:
   nktouchctl network doctor
@@ -114,15 +137,12 @@ Task manager:
   nktouchctl task start <script.lua> [--timeout SEC] [-- args...]
   nktouchctl task status|pause|resume|stop|list|logs ...
 
-Recorder V2:
-  nktouchctl recorder start|status|stop|export|latest|list|doctor ...
+Recorder:
+  nktouchctl recorder start|pause|resume|status|stop|finish|render|latest|list|doctor ...
 
-V7.4 network is explicit/on-demand only and has no automatic retries.
+Network component version remains 0.7.4 and is explicit/on-demand only.
 HTTPS uses iOS system certificate validation; insecure TLS bypass is not provided.
-Headers/bodies are passed through temporary files rather than nkhttp process arguments.
-No new SpringBoard task IDs are introduced. OCR remains explicit/on-demand only.
-
-Existing V6.4 native/Lua commands remain available unchanged.
+No new SpringBoard protocol IDs are introduced. OCR remains explicit/on-demand only.
 HELP
     if [ -x "$CORE" ]; then
       echo
