@@ -398,3 +398,19 @@ Description: NKCrane v1.2.0 moves non-default app container data into the app sa
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 1.2.1
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 580
+Depends: firmware (>= 15.0), mobilesubstrate | ellekit, com.opa334.libsandy
+Filename: debs/com.nktouch.nkcrane_1.2.1_iphoneos-arm64.deb
+Size: 83260
+MD5sum: a23b6fde3227ebd32057375886aead51
+SHA1: 0e66a961fdf731fa9ecd45903dce967202a5483d
+SHA256: 181405cbc09ec3369cb7de04bd2fd6e3833eca6a77fc71c65829d626a7789f0e
+Section: Tweaks
+Description: NKCrane v1.2.1 permission hotfix. Disables the CLI-side in-sandbox layout bridge that could fail when nkcranectl inherits the Manager sandbox, while retaining crash-safe registry routing and loader-truth diagnostics.
+Author: NKTouch
+Name: NKCrane
+
