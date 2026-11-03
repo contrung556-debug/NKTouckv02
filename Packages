@@ -174,3 +174,19 @@ Description: Clean-room multi-container engine for NKTouch. v0.8.1 hotfix disabl
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 0.8.2
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 480
+Depends: mobilesubstrate
+Filename: debs/com.nktouch.nkcrane_0.8.2_iphoneos-arm64.deb
+Size: 71140
+MD5sum: 39ced367898f5b43712d32f25c0e55dc
+SHA1: c134ea7334bc4163b76351b9c25434d0ef22cbcc
+SHA256: db78d4a8211d78217d9f0780eeb8d988cb778913580fe87ff4dfa56b09528d19
+Section: Tweaks
+Description: Clean-room multi-container engine for NKTouch. v0.8.2 removes the crash-prone Settings/PreferenceLoader UI and ships a standalone NKCrane manager app with app search, enable/disable, create, switch, background backup, clone, rename and delete controls.
+Author: NKTouch
+Name: NKCrane
+
