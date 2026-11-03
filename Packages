@@ -382,3 +382,19 @@ Description: NKCrane v1.1.4 loader-truth diagnostics. Adds Any-mode bundle/execu
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 1.2.0
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 596
+Depends: firmware (>= 15.0), mobilesubstrate | ellekit, com.opa334.libsandy
+Filename: debs/com.nktouch.nkcrane_1.2.0_iphoneos-arm64.deb
+Size: 86786
+MD5sum: 93318d2983d6f10b52e3f33632f48e57
+SHA1: 9f13a66bca42b3b7afd31b3e04360439dc5a7f76
+SHA256: 1ddfcef576f9653f41d620fe79354c98e0f32651936916fb6a97c8903987cb84
+Section: Tweaks
+Description: NKCrane v1.2.0 moves non-default app container data into the app sandbox at Library/__NKCrane_Containers/<UUID>/ with safe legacy migration and compatibility symlinks, while retaining crash-safe registry routing and loader-truth diagnostics.
+Author: NKTouch
+Name: NKCrane
+
