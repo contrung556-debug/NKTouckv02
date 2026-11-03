@@ -22,16 +22,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y dpkg-dev
 
-      - name: Download verified NKCrane 1.3.1
+      - name: Download verified NKCrane 1.3.2
         run: |
           set -euo pipefail
           curl -fL --retry 3 \
-            -o /tmp/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb \
-            https://raw.githubusercontent.com/contrung556-debug/Nkcrane/gh-pages/debs/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb
+            -o /tmp/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb \
+            https://raw.githubusercontent.com/contrung556-debug/Nkcrane/gh-pages/debs/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb
 
-          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb Package)" = "com.nktouch.nkcrane"
-          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb Version)" = "1.3.1"
-          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb Architecture)" = "iphoneos-arm64"
+          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb Package)" = "com.nktouch.nkcrane"
+          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb Version)" = "1.3.2"
+          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb Architecture)" = "iphoneos-arm64"
 
       - name: Checkout existing Sileo branch
         uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p debs
-          cp /tmp/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb debs/
+          cp /tmp/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb debs/
 
           dpkg-scanpackages --multiversion debs /dev/null > Packages
           rm -f Packages.gz Packages.bz2 Packages.xz Packages.zst
@@ -58,7 +58,7 @@ jobs:
           Origin: NKTouch Repository
           Label: NKTouch Repository
           Suite: stable
-          Version: 1.3.1
+          Version: 1.3.2
           Codename: nktouch
           Architectures: iphoneos-arm64
           Components: main
@@ -70,7 +70,7 @@ jobs:
            $PKG_SHA $PKG_SIZE Packages
           EOF
 
-          grep -A18 -B2 '^Version: 1.3.1$' Packages
+          grep -A18 -B2 '^Version: 1.3.2$' Packages
 
       - name: Commit to existing Sileo source
         working-directory: repo
@@ -83,5 +83,5 @@ jobs:
             echo "Sileo repository already up to date"
             exit 0
           fi
-          git commit -m "Publish NKCrane 1.3.1 flat index"
+          git commit -m "Publish NKCrane 1.3.2 flat index"
           git push origin HEAD:sileo-repo
