@@ -1,0 +1,99 @@
+name: Publish NKCrane to existing Sileo repo
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/publish-nkcrane.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Install repo tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev bzip2
+
+      - name: Download verified NKCrane 1.3.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 \
+            -o /tmp/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb \
+            https://raw.githubusercontent.com/contrung556-debug/Nkcrane/gh-pages/debs/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb
+
+          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb Package)" = "com.nktouch.nkcrane"
+          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb Version)" = "1.3.1"
+          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb Architecture)" = "iphoneos-arm64"
+          sha256sum /tmp/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb
+
+      - name: Checkout existing Sileo branch
+        uses: actions/checkout@v4
+        with:
+          ref: sileo-repo
+          path: repo
+          fetch-depth: 0
+
+      - name: Add package and rebuild APT metadata
+        working-directory: repo
+        run: |
+          set -euo pipefail
+          mkdir -p debs
+          cp /tmp/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb debs/
+
+          dpkg-scanpackages --multiversion debs /dev/null > Packages
+          gzip -9c Packages > Packages.gz
+          bzip2 -9c Packages > Packages.bz2
+
+          PKG_MD5=$(md5sum Packages | awk '{print $1}')
+          GZ_MD5=$(md5sum Packages.gz | awk '{print $1}')
+          BZ_MD5=$(md5sum Packages.bz2 | awk '{print $1}')
+          PKG_SHA=$(sha256sum Packages | awk '{print $1}')
+          GZ_SHA=$(sha256sum Packages.gz | awk '{print $1}')
+          BZ_SHA=$(sha256sum Packages.bz2 | awk '{print $1}')
+          PKG_SIZE=$(stat -c%s Packages)
+          GZ_SIZE=$(stat -c%s Packages.gz)
+          BZ_SIZE=$(stat -c%s Packages.bz2)
+
+          cat > Release <<EOF
+          Origin: NKTouch Repository
+          Label: NKTouch Repository
+          Suite: stable
+          Version: 1.3.1
+          Codename: nktouch
+          Architectures: iphoneos-arm64
+          Components: main
+          Description: NKTouch and NKCrane rootless repository for Sileo/Zebra
+          Date: $(date -Ru)
+          MD5Sum:
+           $PKG_MD5 $PKG_SIZE Packages
+           $GZ_MD5 $GZ_SIZE Packages.gz
+           $BZ_MD5 $BZ_SIZE Packages.bz2
+          SHA256:
+           $PKG_SHA $PKG_SIZE Packages
+           $GZ_SHA $GZ_SIZE Packages.gz
+           $BZ_SHA $BZ_SIZE Packages.bz2
+          EOF
+
+          grep -A18 -B2 '^Version: 1.3.1$' Packages
+
+      - name: Commit to existing Sileo source
+        working-directory: repo
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add debs/com.nktouch.nkcrane_1.3.1_iphoneos-arm64.deb Packages Packages.gz Packages.bz2 Release
+          if git diff --cached --quiet; then
+            echo "Sileo repository already contains NKCrane 1.3.1"
+            exit 0
+          fi
+          git commit -m "Publish NKCrane 1.3.1"
+          git push origin HEAD:sileo-repo
