@@ -350,3 +350,19 @@ Description: NKCrane v1.1.2 keeps the crash-safe registry shim and fixes runtime
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 1.1.3
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 576
+Depends: firmware (>= 15.0), mobilesubstrate | ellekit, com.opa334.libsandy
+Filename: debs/com.nktouch.nkcrane_1.1.3_iphoneos-arm64.deb
+Size: 80554
+MD5sum: 9f852b6b006f63f1fbb3b2ec0762def3
+SHA1: 7ec81cdb790b80ba4673836a03a43ceb76ff9fb0
+SHA256: 9c08653677732cc50044ffe4c49ab06d2b968f39a65837d4af3bdb4aeedb1b77
+Section: Tweaks
+Description: NKCrane v1.1.3 loader diagnostic build. Keeps the crash-safe registry shim and explicitly targets Facebook to verify tweak injection before further routing changes.
+Author: NKTouch
+Name: NKCrane
+
