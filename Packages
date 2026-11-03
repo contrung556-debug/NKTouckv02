@@ -366,3 +366,19 @@ Description: NKCrane v1.1.3 loader diagnostic build. Keeps the crash-safe regist
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 1.1.4
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 580
+Depends: firmware (>= 15.0), mobilesubstrate | ellekit, com.opa334.libsandy
+Filename: debs/com.nktouch.nkcrane_1.1.4_iphoneos-arm64.deb
+Size: 83514
+MD5sum: 94f4dca56dd8f1db7f91d8cf537eadaf
+SHA1: 36a74889d701d4252a4b74fe65515f85d72b9a42
+SHA256: 4e9d957ca02aed5b424046e518384f908e1eace330bde6630f7f5228fb762642
+Section: Tweaks
+Description: NKCrane v1.1.4 loader-truth diagnostics. Adds Any-mode bundle/executable filters and live process/Choicy/safe-mode diagnostics before further routing changes.
+Author: NKTouch
+Name: NKCrane
+
