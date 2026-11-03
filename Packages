@@ -206,3 +206,19 @@ Description: Clean-room multi-container engine for NKTouch. v0.8.3 fixes standal
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 0.9.0
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 500
+Depends: mobilesubstrate
+Filename: debs/com.nktouch.nkcrane_0.9.0_iphoneos-arm64.deb
+Size: 75070
+MD5sum: 9d9e850bf60a4b4d4f5c2a84118464e1
+SHA1: 1c742372e05ff79daa75980b7cd79334d7123243
+SHA256: 8ae60f99d567af75985ef07b3ebe31fc46cb1c666ceeb57dfd3d22e1ea49e89f
+Section: Tweaks
+Description: Clean-room multi-container engine for NKTouch. v0.9.0 adds low-level filesystem path virtualization so app file access under the real sandbox is redirected into the active NKCrane container, improving separation for modern frameworks that bypass NSHomeDirectory-style APIs.
+Author: NKTouch
+Name: NKCrane
+
