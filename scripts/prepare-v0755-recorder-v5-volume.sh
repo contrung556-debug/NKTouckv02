@@ -28,13 +28,15 @@ PY
 
 python3 "$ROOT/scripts/apply-v0755-recorder-v5-volume.py" "$SRC"
 
-# The upstream package uses layout/ as the Theos staging root. Under the rootless
-# scheme tweak.mk installs MobileSubstrate tweaks below layout/var/jb/..., but it
-# does not create this nested directory before its copy step. Create only the
-# staging directory here; Theos still performs the rootless install-prefix rewrite
-# when the final package is assembled (no device-specific /private/preboot path).
-TRIGGER_STAGE="$SRC/layout/var/jb/Library/MobileSubstrate/DynamicLibraries"
-mkdir -p "$TRIGGER_STAGE"
+# Keep layout scheme-neutral. The upstream Makefile already exports
+# THEOS_PACKAGE_SCHEME=rootless, so Theos must be the only layer that adds the
+# /var/jb install prefix for tweak.mk products. Pre-creating layout/var/jb here
+# causes a nested /var/jb/var/jb path in the final package.
+if [[ -e "$SRC/layout/var/jb" ]]; then
+  echo 'V5 rootless staging regression: layout/var/jb must not be pre-prefixed' >&2
+  find "$SRC/layout/var/jb" -maxdepth 5 -print >&2 || true
+  exit 1
+fi
 
 CONTROL="$SRC/control"
 VERSION_FILE="$SRC/layout/usr/share/doc/nktouch/VERSION"
@@ -96,7 +98,10 @@ if grep -q 'nkRecorderDidBecomeActive.*smartFinishWithTrim:1' "$SETTINGS"; then
 fi
 grep -q 'Rebuild Lua' "$SETTINGS"
 grep -q 'shellCandidates=@\[@"/var/jb/bin/sh",@"/var/jb/usr/bin/sh",@"/bin/sh"\]' "$SETTINGS"
-test -d "$TRIGGER_STAGE"
+
+# Double-prefix protection: source layout must stay scheme-neutral. The final
+# /var/jb path is asserted from the built .deb by the workflow after packaging.
+test ! -e "$SRC/layout/var/jb"
 
 echo "--- NKTouch v0.7.5.5 Recorder V5 Volume Trigger package ---"
 cat "$CONTROL"
