@@ -190,3 +190,19 @@ Description: Clean-room multi-container engine for NKTouch. v0.8.2 removes the c
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 0.8.3
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 484
+Depends: mobilesubstrate
+Filename: debs/com.nktouch.nkcrane_0.8.3_iphoneos-arm64.deb
+Size: 71598
+MD5sum: 64c1fa33b926f560a44d214013dde293
+SHA1: cb9f1e64f02657e8ffaacaaf6fd2ed2c4c5fc24d
+SHA256: 6caae86bfa1ee432b872ab15c11505607fcc1da5fb558a6319a8d980930018fe
+Section: Tweaks
+Description: Clean-room multi-container engine for NKTouch. v0.8.3 fixes standalone manager icon registration by packaging Info.plist inside NKCraneManager.app and refreshing LaunchServices with uicache after Sileo installation.
+Author: NKTouch
+Name: NKCrane
+
