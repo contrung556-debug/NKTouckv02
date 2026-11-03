@@ -238,3 +238,19 @@ Description: Clean-room multi-container engine for NKTouch. v0.9.1 adds per-cont
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 0.9.2
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 568
+Depends: mobilesubstrate
+Filename: debs/com.nktouch.nkcrane_0.9.2_iphoneos-arm64.deb
+Size: 81402
+MD5sum: ea2ca51c1aec6a17d46b8136998f76ca
+SHA1: c4c8b3b8b15b2b895bf040015ee9cf4ba97b2d53
+SHA256: 4a1aea356faf8a2ec4c128243bcd823a25e98715835a4498809a17f059d98481
+Section: Tweaks
+Description: Clean-room multi-container engine for NKTouch. v0.9.2 writes per-app runtime config inside the target sandbox and bootstraps filesystem/defaults isolation from that local config, avoiding cross-sandbox CFPreferences visibility failures.
+Author: NKTouch
+Name: NKCrane
+
