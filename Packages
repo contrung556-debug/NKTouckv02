@@ -270,3 +270,19 @@ Description: Clean-room multi-container engine for NKTouch. v0.9.3 replaces frag
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 0.9.4
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 568
+Depends: mobilesubstrate
+Filename: debs/com.nktouch.nkcrane_0.9.4_iphoneos-arm64.deb
+Size: 81632
+MD5sum: e47a0ec0510b63959a6a28ee503d2ad6
+SHA1: 11da3b1e58769a90106a4f86f5134373d2e744eb
+SHA256: a5cc2113584a242caecb7c2a62257ce73757ca9f1ed3583e92ef760b91cd4591
+Section: Tweaks
+Description: Clean-room multi-container engine for NKTouch. v0.9.4 writes and verifies the target app local config before termination/relaunch so container switches cannot silently proceed without runtime bootstrap state.
+Author: NKTouch
+Name: NKCrane
+
