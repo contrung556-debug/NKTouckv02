@@ -334,3 +334,19 @@ Description: NKCrane v1.1.1 crash-safe registry shim. Removes duplicate low-leve
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 1.1.2
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 576
+Depends: firmware (>= 15.0), mobilesubstrate | ellekit, com.opa334.libsandy
+Filename: debs/com.nktouch.nkcrane_1.1.2_iphoneos-arm64.deb
+Size: 80732
+MD5sum: d5a14713c4ce44274d8c2c8b04adb755
+SHA1: ba3f29b168445a785edcf70250a4ed55aef033c3
+SHA256: 7e9c05f63acdc3f4b96556b2a2719cb47148bfe057e513895cdd33a04318417b
+Section: Tweaks
+Description: NKCrane v1.1.2 keeps the crash-safe registry shim and fixes runtime diagnostics by writing the injection marker to the real app sandbox even after NSHomeDirectory virtualization.
+Author: NKTouch
+Name: NKCrane
+
