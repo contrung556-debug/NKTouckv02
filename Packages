@@ -414,3 +414,19 @@ Description: NKCrane v1.2.1 permission hotfix. Disables the CLI-side in-sandbox 
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 1.2.2
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 580
+Depends: firmware (>= 15.0), mobilesubstrate | ellekit, com.opa334.libsandy
+Filename: debs/com.nktouch.nkcrane_1.2.2_iphoneos-arm64.deb
+Size: 84964
+MD5sum: 9fe051cf249415279d6126007e391c79
+SHA1: f7d03782267ec3fbabb3060ea69c6aadd0508739
+SHA256: 71dae9c357a0502594bd84a7f022bbf8d101244f8b42617e1c3337e793d9c6e2
+Section: Tweaks
+Description: NKCrane v1.2.2 moves non-default app-data layout creation into the target app process itself. CLI/Manager only switch state and relaunch, avoiding cross-sandbox permission failures while using Library/__NKCrane_Containers/<id> inside the app sandbox.
+Author: NKTouch
+Name: NKCrane
+
