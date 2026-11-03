@@ -181,10 +181,18 @@ jobs:
         env:
           THEOS: ${{ github.workspace }}/upstream/theos
 
+      - name: Install Debian package inspection tools
+        run: |
+          set -euxo pipefail
+          brew install dpkg
+          command -v dpkg-deb
+          dpkg-deb --version
+
       - name: Inspect and collect deb
         working-directory: upstream
         run: |
           set -euo pipefail
+          command -v dpkg-deb >/dev/null
           mkdir -p ../artifacts
           DEB=''
           while IFS= read -r -d '' file; do if [[ -z "$DEB" || "$file" -nt "$DEB" ]]; then DEB="$file"; fi; done < <(find packages -maxdepth 1 -type f -name '*.deb' -print0)
@@ -223,6 +231,7 @@ jobs:
           dpkg-deb -I "$OUT"
 
       - name: Upload Recorder V5 deb
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: NKTouch-v0.7.5.5-recorder-v5-volume-trigger-rootless
