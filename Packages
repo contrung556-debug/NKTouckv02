@@ -318,3 +318,19 @@ Description: NKCrane v1.1 clean-room multi-container engine using a central regi
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 1.1.1
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 576
+Depends: firmware (>= 15.0), mobilesubstrate | ellekit, com.opa334.libsandy
+Filename: debs/com.nktouch.nkcrane_1.1.1_iphoneos-arm64.deb
+Size: 79680
+MD5sum: 0d79f3d1d2f8a6ba83456a197912a724
+SHA1: b7f8880d6eb03724fedd3aefeadbecdc6f45caa5
+SHA256: 01c8c85832772edde70fcf9d87b3f33eb8c1203412947253ccdcb70addf8a3e9
+Section: Tweaks
+Description: NKCrane v1.1.1 crash-safe registry shim. Removes duplicate low-level/runtime hooks from v1.1.0 and fails open if central registry access is unavailable.
+Author: NKTouch
+Name: NKCrane
+
