@@ -46,13 +46,10 @@ library_start=src.index("#pragma mark - Library\n")
 library_end=src.index("#pragma mark - Editor\n",library_start)
 section=src[library_start:library_end]
 assert section.count(row) == 1, "cannot find Lua Library Samples row"
-start=section.index(row)
-end=section.index("\n",start)
-line=section[start:end]
-needle='}else if(ip.row==self.scripts.count){[self.navigationController pushViewController:[[NSClassFromString(@"NKLuaToolsViewController") alloc]init] animated:YES];}}'
-assert line.count(needle) == 1, "unexpected Samples handler baseline"
-extra='}else if(ip.row==self.scripts.count+1){[self.navigationController pushViewController:[[NKLuaEditorViewController alloc]initWithScriptName:@"test_inputtext_notes.lua"] animated:YES];}}'
-section=section[:start]+line.replace(needle,needle[:-2]+extra,1)+section[end:]
+# Handle the Samples row first. The retained Editor Pro patches modify the
+# remainder of didSelectRowAtIndexPath; don't match or rewrite their branches.
+sample_handler='if(ip.row==self.scripts.count+1){[self.navigationController pushViewController:[[NKLuaEditorViewController alloc]initWithScriptName:@"test_inputtext_notes.lua"] animated:YES];return;}'
+section=section.replace(row,row+sample_handler,1)
 src=src[:library_start]+section+src[library_end:]
 assert 'NKSaveTarget(sampleName,@"com.apple.mobilenotes",@"Ghi chú")' in src
 assert 'initWithScriptName:@"test_inputtext_notes.lua"' in src
