@@ -14,6 +14,7 @@ on:
       - tests/test_v0710_input_engine_v2.py
       - V0710_INPUT_ENGINE_V2.md
       - .github/workflows/build-v0710-input-engine-v2.yml
+      - scripts/publish-v0710-sileo.sh
 
 permissions:
   contents: read
@@ -317,3 +318,42 @@ jobs:
           path: upstream/xcode_build.log
           if-no-files-found: ignore
 
+  publish-sileo:
+    name: Publish verified v0.7.10 to existing Sileo source
+    needs: build-rootless
+    if: needs.build-rootless.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: nktouch-sileo-v0710-publisher
+      cancel-in-progress: false
+    steps:
+      - name: Checkout NKTouch release scripts
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download rootless deb from this green build
+        uses: actions/download-artifact@v4
+        with:
+          name: NKTouch-v0.7.10-input-engine-v2-rootless
+          path: sileo-artifact
+
+      - name: Validate package and publish metadata
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y dpkg-dev
+          bash scripts/publish-v0710-sileo.sh
+
+      - name: Verify package appears on Sileo branch
+        run: |
+          set -euo pipefail
+          git fetch origin sileo-repo
+          test "$(git show FETCH_HEAD:Packages | grep -c '^Version: 0.7.10$')" -eq 1
+          git show FETCH_HEAD:Packages | grep -Fq 'Filename: debs/com.nk.nktouch_0.7.10_iphoneos-arm64.deb'
+          git show FETCH_HEAD:README.md | grep -Fq 'Current package: com.nk.nktouch 0.7.10'
+          git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.7.10_iphoneos-arm64.deb'
+          echo 'Sileo source now contains verified NKTouch v0.7.10'
