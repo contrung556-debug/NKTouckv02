@@ -23,7 +23,7 @@ class TargetAppsContract(unittest.TestCase):
 
     def test_worker_first_and_safe_stop(self):
         s=ROOT.joinpath("scripts/apply-v0711-target-apps.py").read_text()
-        self.assertIn('targetRun?@"/var/jb/usr/bin/nktask":NKLuaEditorTool',s)
+        self.assertIn('tool = NKLuaTaskTool;',s)
         self.assertIn('NSString *wrapper=[w nkTargetWrapper]',s)
         self.assertIn('if(!wrapper){[w nkSelectTargetApp];return;}',s)
         self.assertIn("nk.openApp(%@)",s)
@@ -41,13 +41,21 @@ class TargetAppsContract(unittest.TestCase):
 
     def test_patch_smoke_fixture(self):
         fake='''static NSString *NKLuaRun(NSArray<NSString *> *arguments, int *exitCode) {
-    NSUInteger argc = arguments.count + 2;
-    char **argv = calloc(argc, sizeof(char *));
-    argv[0] = strdup(NKLuaEditorTool.UTF8String);
-    for (NSUInteger i=0;i<arguments.count;i++) argv[i+1] = strdup(arguments[i].UTF8String);
-    argv[arguments.count+1] = NULL;
-    int spawnCode = posix_spawn(&pid, NKLuaEditorTool.UTF8String, &a, NULL, argv, environ);
-    for (NSUInteger i=0;i<arguments.count+1;i++) free(argv[i]);
+    NSArray<NSString *> *spawnArgs = arguments ?: @[];
+    NSString *tool = NKLuaEditorTool;
+    if (arguments.count > 0) {
+        NSString *cmd = arguments[0];
+        if ([cmd isEqualToString:@"check"] && arguments.count == 2) {
+            tool=NKLuaCompilerTool;
+            spawnArgs=@[@"-p",arguments[1]];
+        }
+    }
+    NSUInteger argc = spawnArgs.count + 2;
+    char **argv = calloc(argc,sizeof(char *));
+    argv[0] = strdup(tool.UTF8String);
+    for (NSUInteger i=0;i<spawnArgs.count;i++) argv[i+1] = strdup(spawnArgs[i].UTF8String);
+    argv[spawnArgs.count+1] = NULL;
+    int spawnCode = posix_spawn(&pid, tool.UTF8String, &a, NULL, argv, environ);
 }
 static NSArray<NSString *> *NKScripts(void) { return @[]; }
 #pragma mark - Editor
@@ -71,8 +79,8 @@ static NSArray<NSString *> *NKScripts(void) { return @[]; }
             self.assertIn("TARGET_NOT_FOREGROUND",changed)
             self.assertIn('NSString *wrapper=[w nkTargetWrapper]',changed)
             self.assertIn("NKTargetAppPickerViewController",changed)
-            self.assertIn("BOOL targetRun=arguments.count==2",changed)
-            self.assertIn("for (NSUInteger i=0;i<effective.count;i++)",changed)
+            self.assertIn('[cmd isEqualToString:@"target-run"]',changed)
+            self.assertIn("for (NSUInteger i=0;i<spawnArgs.count;i++)",changed)
 
 if __name__=="__main__":
     unittest.main()
