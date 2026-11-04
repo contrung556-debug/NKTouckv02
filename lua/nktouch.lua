@@ -174,6 +174,21 @@ end
 
 function M.text(t) if core then return sideCall("text",core.text,t or "") end; return run({"text",t or ""}) end
 M.inputText=M.text
+-- v0.7.10 Input Engine v2 is opt-in. No mutation retries: callers must
+-- never duplicate a password or field value after an uncertain dispatch.
+M.INPUT_VERSION="0.7.10"
+function M._inputNativeV2(value,mode)
+  if not core or type(core.inputTextV2)~="function" then
+    return nil,"Input Engine v2 native transport unavailable","NO_BACKEND"
+  end
+  return sideCall("inputTextV2",core.inputTextV2,value,mode)
+end
+function M.inputTextV2(value,options)
+  return require("nkinput_v2").input(M,value,options)
+end
+function M.inputPassword(value,options)
+  return require("nkinput_v2").password(M,value,options)
+end
 function M.showKeyboard() if core then return sideCall("keyboard",core.keyboard,true) end; return run({"keyboard","show"}) end
 function M.hideKeyboard() if core then return sideCall("keyboard",core.keyboard,false) end; return run({"keyboard","hide"}) end
 function M.moveCursor(o) if core then return sideCall("cursor",core.cursor,tonumber(o) or 0) end; return run({"cursor",tonumber(o) or 0}) end
