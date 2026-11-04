@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.7.11 Target Apps - per-script user-selected target app and verified foreground handoff before Lua actions; retains v0.7.10 Input Engine v2
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.7.11
+Installed-Size: 6952
+Filename: debs/com.nk.nktouch_0.7.11_iphoneos-arm64.deb
+Size: 1324462
+MD5sum: 32f38e5f67e93e84c1881a23f44ae936
+SHA1: 48df0410f4b53f38494871591f8ae1cb9095aae5
+SHA256: 9d090baf8b4ad39a35627f02f79734de1119e4125bddeba0aa2611759d66ba4d
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.7.10 Input Engine v2 - opt-in Unicode safe input, password protection and OCR verification; retains v0.7.9 Vision Core
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
