@@ -45,8 +45,12 @@ it is fallible (animations, diacritics, pixel rotation, masked fields).
   deduplicated by request ID (up to the recent 128 IDs per process).
 - Default method uses first responder. Explicit keyboard fallback uses
   UIKeyboardImpl. No clipboard handling in v2.
-- Secure mode bypasses all OCR and does not log or copy password text.
-  Neither the native transport nor the new API logs payload contents.
+- Secure mode bypasses OCR and does not log or copy password text.
+  Neither the native transport nor the new API deliberately logs payload contents.
+- SECURITY LIMITATION: base64 is **not encryption**. The retained upstream
+  architecture forwards text through cross-process distributed notifications,
+  so this experimental mode is **not a confidential password transport**.
+  Avoid production credentials until a scoped/verified recipient IPC exists.
 - Opt-in verification with a pixel OCR rectangle; returns UNVERIFIED if
   not confirmed, *without* resending text.
 
