@@ -1,7 +1,7 @@
 #!/var/jb/bin/sh
 set -u
 
-PACKAGE_VERSION="0.7.6"
+PACKAGE_VERSION="0.7.5.6"
 VERSION="0.7.4"
 CORE="/var/jb/usr/libexec/nktouch/nktouchctl-core"
 TASK="/var/jb/usr/bin/nktask"
@@ -95,7 +95,7 @@ case "$cmd" in
     ;;
   help|-h|--help)
     cat <<'HELP'
-NKTouch v0.7.6 Recorder V6 Gesture Engine
+NKTouch v0.7.5.6 Control Foundation
 
 Version / diagnostics:
   nktouchctl version
