@@ -38,6 +38,12 @@ if count != 1:
 if '[SELFTEST] task=ok' not in method:
     raise SystemExit("existing Self Test log marker missing")
 method = method.replace('[SELFTEST] task=ok', '[NKCORE][SUMMARY] status=PASS')
+# A non-core doctor probe checks optional Recorder/bundle/network components.
+# A failure there must not mark a successful Lua Core Self-Test as failed.
+doctor_gate='BOOL pass=wrote&&cc==0&&dc==0&&rc==0&&'
+if method.count(doctor_gate) != 1:
+    raise SystemExit("unexpected Core Self-Test PASS predicate; refusing unsafe edit")
+method = method.replace(doctor_gate, 'BOOL pass=wrote&&cc==0&&rc==0&&', 1)
 method = method.replace('for(int i=0;i<50;i++', 'for(int i=0;i<120;i++')
 method = method.replace('message:@"Đang kiểm tra Lua → nktask → Logs…"',
                         'message:@"Đang kiểm tra Lua, màn hình và màu sắc…"')
@@ -45,7 +51,7 @@ method = method.replace('withTitle:@"Self Test"', 'withTitle:@"Core Self-Test"')
 method = method.replace('@"Self Test hoàn tất"', '@"Core Self-Test: PASS"')
 method = method.replace('@"Self Test phát hiện lỗi"', '@"Core Self-Test: FAIL"')
 method = method.replace('Lua syntax: %@\\nTask doctor: %@\\nTask run: %@\\nFinal state: %@\\nLogs: %@',
-                        'Lua: %@\\nRuntime: %@\\nTest run: %@\\nState: %@\\nCore checks: %@')
+                        'Lua check: %@\\nDoctor (optional): %@\\nTask run: %@\\nState: %@\\nCore checks: %@')
 if 'stringWithContentsOfFile:' not in method or '[NKCORE][SUMMARY] status=PASS' not in method:
     raise SystemExit("Core Self-Test staging patch lost its verification marker")
 src = src[:start] + method + src[end:]
