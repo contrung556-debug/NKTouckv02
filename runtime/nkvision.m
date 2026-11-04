@@ -339,7 +339,8 @@ static int nv_find_image(lua_State *L) {
         free(rgba);
         int bestScore=-10001;size_t bestX=0,bestY=0,bestW=0,bestH=0;
         size_t budget=NV_MAX_MATCH_EVAL;
-        for (int variant=0;variant<1+maxTry*2;variant++) {
+        int variants=1+(int)maxTry*2;
+        for (int variant=0;variant<variants && budget>1;variant++) {
             double factor=(variant==0)?1.0:
                  (variant%2 ? pow(scale,(variant+1)/2) : pow(2.0-scale,variant/2));
             size_t tw=(size_t)llround(iw*factor),th=(size_t)llround(ih*factor);
@@ -357,34 +358,52 @@ static int nv_find_image(lua_State *L) {
                 }
             size_t step=(tw<th?tw:th)/8;
             if(step<1) step=1;
-            size_t searchW=f->w-tw+1,searchH=f->h-th+1;
-            // Adapt the grid to leave enough CPU time for the remaining scales.
-            while (((searchW+step-1)/step)*((searchH+step-1)/step)>
-                   budget/(size_t)(1+maxTry*2) && step<100) step++;
+            size_t searchW=f->w-tw+1, searchH=f->h-th+1;
+            // Bound total correlation evaluations across ALL scales.
+            // Reserve up to 625 local refinements plus one full verification.
+            size_t target=budget/(size_t)(variants-variant);
+            if (target<2) target=2;
+            size_t gridTarget=target>650?target-626:target/2;
+            if (gridTarget<1) gridTarget=1;
+            size_t maxStep=searchW>searchH?searchW:searchH;
+            while (((searchW+step-1)/step)*((searchH+step-1)/step)>gridTarget
+                   && step<maxStep) {
+                size_t next=step+step/2+1;
+                step=next>maxStep?maxStep:next;
+            }
             size_t sample=(tw<th?tw:th)/12;
             if(sample<1) sample=1;
             int localScore=-10001;size_t localX=0,localY=0;
-            for (size_t y=0;y<searchH;y+=step)
-                for(size_t x=0;x<searchW;x+=step) {
+            size_t gridCount=0;
+            for(size_t y=0;y<searchH && gridCount<gridTarget && budget>1;y+=step)
+                for(size_t x=0;x<searchW && gridCount<gridTarget && budget>1;x+=step) {
                     int score=nv_score(f->gray,f->w,x,y,pattern,tw,th,sample);
+                    gridCount++;
+                    budget--;
                     if(score>localScore){localScore=score;localX=x;localY=y;}
                 }
-            // Refine nearby coordinates with a bounded sample density.
-            // Full-pixel verification is performed exactly once on the winner.
+            // Refine the grid winner without exceeding our shared CPU budget.
             size_t radius=step>12?12:step;
-            size_t x1=(localX>radius)?localX-radius:0;
-            size_t y1=(localY>radius)?localY-radius:0;
-            size_t x2=(localX+radius<searchW)?localX+radius:searchW-1;
-            size_t y2=(localY+radius<searchH)?localY+radius:searchH-1;
+            size_t x1=localX>radius?localX-radius:0;
+            size_t y1=localY>radius?localY-radius:0;
+            size_t x2=localX+radius<searchW?localX+radius:searchW-1;
+            size_t y2=localY+radius<searchH?localY+radius:searchH-1;
             size_t refineSample=sample>2?sample/2:1;
+            size_t refinedLimit=target>gridCount+1?target-gridCount-1:0;
+            if(refinedLimit>625) refinedLimit=625;
+            size_t refinedCount=0;
             int refinedScore=-10001;size_t refinedX=localX,refinedY=localY;
-            for(size_t y=y1;y<=y2;y++)
-                for(size_t x=x1;x<=x2;x++) {
+            for(size_t y=y1;y<=y2 && refinedCount<refinedLimit && budget>1;y++)
+                for(size_t x=x1;x<=x2 && refinedCount<refinedLimit && budget>1;x++) {
                     int score=nv_score(f->gray,f->w,x,y,pattern,tw,th,refineSample);
+                    budget--;
+                    refinedCount++;
                     if(score>refinedScore){
                         refinedScore=score;refinedX=x;refinedY=y;
                     }
                 }
+            // One full-resolution check before accepting the match.
+            budget--;
             int verifiedScore=nv_score(f->gray,f->w,refinedX,refinedY,pattern,tw,th,1);
             if(verifiedScore>bestScore){
                 bestScore=verifiedScore;bestX=refinedX;bestY=refinedY;
