@@ -17,6 +17,14 @@ class V0756ControlFoundationContract(unittest.TestCase):
         self.assertIn('notify_post(NKRecorderVolumeHoldNotification)', s)
         self.assertIn('%orig;', s)
 
+    def test_feedback_window_lookup_avoids_deprecated_uikit_property(self):
+        s = self.text('patches/NKTouchHotkeyEngine.xm')
+        self.assertIn('@available(iOS 13.0, *)', s)
+        self.assertIn('application.connectedScenes', s)
+        self.assertIn('windowScene.windows', s)
+        self.assertIn('[application valueForKey:@"windows"]', s)
+        self.assertNotIn('UIApplication.sharedApplication.windows', s)
+
     def test_feedback_is_completion_driven_not_fake_recorder_state(self):
         s = self.text('patches/NKTouchHotkeyEngine.xm')
         self.assertIn('com.nk.nktouch.recorder.accepted', s)
