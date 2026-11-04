@@ -55,7 +55,7 @@ static NSArray<NSString *> *NKScripts(void) { return @[]; }
 - (void)viewDidLoad {
     [super viewDidLoad];self.title=self.scriptName;self.view.backgroundColor=NKBG();
 }
-- (void)runTapped {
+- (void)runTapped{
     [w command:@[@"run",w.scriptName] state:@"● Đang khởi động…" done:^(int rc,NSString *ro){}];
 }
 @end
