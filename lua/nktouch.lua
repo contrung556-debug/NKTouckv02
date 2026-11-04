@@ -221,6 +221,71 @@ function M.waitColor(x,y,w,h,rmin,rmax,gmin,gmax,bmin,bmax,t,i,skip)
   local p={"wait-color",x,y,w,h,rmin,rmax,gmin,gmax,bmin,bmax,t or 5000}; if i or skip then p[#p+1]=i or 200 end; if skip then p[#p+1]=skip end
   local s,e,code=capture(p); if not s then return nil,e,code end; return splitColor(s,true)
 end
+
+-- v0.7.7 Color API. All inputs use native screenshot pixel coordinates.
+-- The same single-frame color engine backs getColor and findColor.
+M.COLOR_VERSION="0.7.7"
+
+local function validInteger(value, minimum, maximum)
+  local n=tonumber(value)
+  if not n or n~=n or n==math.huge or n==-math.huge
+     or n%1~=0 or n<minimum or n>maximum then return nil end
+  return n
+end
+
+local function colorArguments(r,g,b,tolerance)
+  local rv=validInteger(r,0,255)
+  local gv=validInteger(g,0,255)
+  local bv=validInteger(b,0,255)
+  local tol=validInteger(tolerance or 0,0,255)
+  if not rv or not gv or not bv or not tol then
+    return nil,"RGB/tolerance must be integer values from 0 to 255","INVALID"
+  end
+  return {r=rv,g=gv,b=bv,tolerance=tol}
+end
+
+-- Returns false,color for an ordinary color mismatch. Returns nil,error,kind
+-- for invalid input/capture failure; never silently converts errors to false.
+function M.matchColor(x,y,r,g,b,tolerance)
+  if not validInteger(x,0,10000) or not validInteger(y,0,10000) then
+    return nil,"invalid pixel coordinates","INVALID"
+  end
+  local opts,err,kind=colorArguments(r,g,b,tolerance)
+  if not opts then return nil,err,kind end
+  local color,cerr,ccode=M.getColor(x,y)
+  if not color then return nil,cerr,ccode end
+  if not validInteger(color.red,0,255) or not validInteger(color.green,0,255)
+     or not validInteger(color.blue,0,255) then
+    return nil,"invalid RGB returned from color backend","CORE"
+  end
+  return math.abs(color.red-opts.r)<=opts.tolerance
+     and math.abs(color.green-opts.g)<=opts.tolerance
+     and math.abs(color.blue-opts.b)<=opts.tolerance,color
+end
+
+-- Wait for a pixel matching RGB +/- tolerance within a *pixel* rectangle.
+-- Timeout is bounded. Native core scans each captured screen once per poll.
+function M.waitColorMatch(r,g,b,tolerance,region,timeoutMs,intervalMs)
+  local opts,err,kind=colorArguments(r,g,b,tolerance)
+  if not opts then return nil,err,kind end
+  if type(region)~="table" then return nil,"region table required","INVALID" end
+  local x=validInteger(region.x,0,10000)
+  local y=validInteger(region.y,0,10000)
+  local w=validInteger(region.w,1,10000)
+  local h=validInteger(region.h,1,10000)
+  local timeout=validInteger(timeoutMs or 5000,0,300000)
+  local interval=validInteger(intervalMs or 200,50,10000)
+  if not x or not y or not w or not h or not timeout or not interval then
+    return nil,"invalid region/timeout/interval","INVALID"
+  end
+  local t=opts.tolerance
+  return M.waitColor(x,y,w,h,
+    math.max(0,opts.r-t),math.min(255,opts.r+t),
+    math.max(0,opts.g-t),math.min(255,opts.g+t),
+    math.max(0,opts.b-t),math.min(255,opts.b+t),
+    timeout,interval,0)
+end
+
 function M.tapColor(x,y,w,h,rmin,rmax,gmin,gmax,bmin,bmax,t,i,skip)
   if core then
     local hit,err,code=M.waitColor(x,y,w,h,rmin,rmax,gmin,gmax,bmin,bmax,t,i,skip); if not hit then return nil,err,code end
