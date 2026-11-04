@@ -415,6 +415,45 @@ static int text_action(lua_State *L, int sub, const char *text) {
     return rc;
 }
 
+// Input Engine v2: one UTF-8 payload, base64 encoded for the CRLF/";;"
+// framed legacy socket protocol. This is a dispatch acknowledgement only.
+// Do NOT retry a text mutation automatically after an uncertain result.
+#define NK_INPUT_V2_MAX_BYTES 8192
+static int l_input_text_v2(lua_State *L) {
+    size_t len=0;
+    const unsigned char *raw=(const unsigned char *)luaL_checklstring(L,1,&len);
+    const char *mode=luaL_optstring(L,2,"direct");
+    int sub=0;
+    if (strcmp(mode,"direct")==0) sub=8;
+    else if (strcmp(mode,"keyboard")==0) sub=9;
+    else return push_error(L,"invalid input mode");
+    if (!len || len>NK_INPUT_V2_MAX_BYTES || memchr(raw,0,len))
+        return push_error(L,"input requires 1..8192 UTF-8 bytes and no NUL");
+    const char alphabet[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    size_t encoded=4*((len+2)/3);
+    char *packet=(char*)malloc(encoded+4);
+    if(!packet) return push_error(L,"out of memory");
+    packet[0]='0'+sub/10;
+    packet[1]='0'+sub%10;
+    packet[2]=';';
+    packet[3]=';';
+    size_t p=4;
+    for(size_t i=0;i<len;i+=3){
+        size_t remaining=len-i;
+        uint32_t value=(uint32_t)raw[i]<<16;
+        if(remaining>1) value|=(uint32_t)raw[i+1]<<8;
+        if(remaining>2) value|=(uint32_t)raw[i+2];
+        packet[p++]=alphabet[(value>>18)&63];
+        packet[p++]=alphabet[(value>>12)&63];
+        packet[p++]=(remaining>1)?alphabet[(value>>6)&63]:'=';
+        packet[p++]=(remaining>2)?alphabet[value&63]:'=';
+    }
+    packet[p]='\0';
+    int result=action_task(L,TASK_TEXT,packet);
+    free(packet);
+    return result;
+}
+
 static int l_text(lua_State *L) { return text_action(L, 1, luaL_checkstring(L, 1)); }
 static int l_paste(lua_State *L) { return text_action(L, 5, luaL_checkstring(L, 1)); }
 static int l_clipboard_set(lua_State *L) { return text_action(L, 7, luaL_checkstring(L, 1)); }
@@ -681,6 +720,7 @@ static const luaL_Reg nkcore_funcs[] = {
     {"recordStart", l_record_start},
     {"recordStop", l_record_stop},
     {"text", l_text},
+    {"inputTextV2", l_input_text_v2},
     {"paste", l_paste},
     {"keyboard", l_keyboard},
     {"cursor", l_cursor},
