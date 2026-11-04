@@ -16,7 +16,7 @@ class SelfTestFalseFailHotfixTests(unittest.TestCase):
         self.assertIn("prepare-v078-core-selftest.sh", s)
         self.assertIn("Version: 0.7.8.1", s)
         self.assertIn('PACKAGE_VERSION="0.7.8.1"', s)
-        self.assertIn("doctor false-fail hotfix verified", s)
+        self.assertIn("Core Self-Test false-fail hotfix verified", s)
         self.assertIn("test -f", s)
         self.assertIn("test ! -e", s)
 
