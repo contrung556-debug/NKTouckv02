@@ -22,7 +22,7 @@ class RecorderV6Contract(unittest.TestCase):
         self.assertIn("TOUCH_MOVE, points[i].x", src)
         self.assertIn("TOUCH_UP, last_x, last_y", src)
         self.assertIn("path timestamps must increase from zero", src)
-        self.assertIn("Best effort release", src)
+        self.assertIn("release_err", src)
         self.assertIn("function M.path(points)", (ROOT / "lua/nktouch.lua").read_text())
         self.assertIn("native continuous path playback unavailable", (ROOT / "lua/nktouch.lua").read_text())
 
