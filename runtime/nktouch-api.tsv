@@ -8,6 +8,8 @@ nk.openApp|nk.openApp(bundleId)|app|Bring an app to foreground|must(nk.openApp("
 nk.waitApp|nk.waitApp(bundleId, timeoutMs, intervalMs)|app|Wait until an app is foreground|must(nk.waitApp("com.example.app", 5000, 200))
 nk.foreground|nk.foreground()|app|Read foreground bundle identifier|local app = must(nk.foreground())
 nk.text|nk.text(text)|keyboard|Insert text through the native text API|must(nk.text("hello"))
+nk.inputTextV2|nk.inputTextV2(text,opts)|keyboard|Dispatch UTF-8 in one safe packet; optional OCR verify region; never auto retry|local ok,meta=nk.inputTextV2("Xin chào 😀")
+nk.inputPassword|nk.inputPassword(text,opts)|keyboard|Dispatch secret text without clipboard or OCR; secure mode by default|local ok,meta=nk.inputPassword("Secret123!")
 nk.inputText|nk.inputText(text)|keyboard|Alias of nk.text|must(nk.inputText("hello"))
 nk.showKeyboard|nk.showKeyboard()|keyboard|Show software keyboard|must(nk.showKeyboard())
 nk.hideKeyboard|nk.hideKeyboard()|keyboard|Hide software keyboard|must(nk.hideKeyboard())
