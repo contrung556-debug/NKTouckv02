@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "lua.h"
 #include "lauxlib.h"
 
@@ -90,6 +91,16 @@ static int nv_decoded(CGImageRef image, uint8_t **out, size_t *outW,
 }
 static uint8_t nv_gray(uint8_t r,uint8_t g,uint8_t b) {
     return (uint8_t)((77u*r+150u*g+29u*b+128u)>>8);
+}
+// Reserve a collision-resistant per-capture filename with mode 0600.
+// Lua must remove it even on failed screenshot, before returning to caller.
+static int nv_temp_path(lua_State *L) {
+    char path[]="/var/mobile/Library/NKTouch/vision-XXXXXX.jpg";
+    int fd=mkstemps(path,4);
+    if (fd<0) return nv_error(L,"cannot reserve temporary snapshot","FRAME_IO");
+    close(fd);
+    lua_pushstring(L,path);
+    return 1;
 }
 static int nv_open(lua_State *L) {
     size_t len=0;
@@ -399,7 +410,7 @@ static const luaL_Reg nv_methods[]={
     {"findImage",nv_find_image},{"ocr",nv_ocr},
     {"save",nv_save},{"info",nv_info},{"close",nv_close},{NULL,NULL}
 };
-static const luaL_Reg nv_module[]={{"open",nv_open},{NULL,NULL}};
+static const luaL_Reg nv_module[]={{"open",nv_open},{"tempPath",nv_temp_path},{NULL,NULL}};
 int luaopen_nkvision_native(lua_State *L) {
     luaL_newmetatable(L,NV_MT);
     lua_pushcfunction(L,nv_gc);
