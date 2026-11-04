@@ -75,7 +75,7 @@ static UIView *NKInputV2FocusedView(UIView *view, NSUInteger depth) {
 
 '''
 r=r.replace(hook,helper+hook)
-legacy="        if (taskId == INSERT_TEXT)\n"
+legacy="\t\tif (taskId == INSERT_TEXT)\n"
 assert r.count(legacy)==1, "unexpected receiver input handler"
 branch=r'''        // Opt-in v2 direct text dispatch. Dedup on the main queue: some
         // UIKeyboardImpl instances register twice or coexist in one process.
