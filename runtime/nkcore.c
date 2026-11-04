@@ -359,6 +359,11 @@ static int l_swipe(lua_State *L) {
         if (wait > 0) sleep_us(wait);
         double t = (double)i / (double)steps;
         if (touch_packet(fd, TOUCH_MOVE, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, err, sizeof(err))) {
+            // Side-effecting gestures are never retried. Try releasing the
+            // active finger if an intermediate packet failed.
+            char release_error[128] = {0};
+            (void)touch_packet(fd, TOUCH_UP, x1 + (x2 - x1) * t,
+                               y1 + (y2 - y1) * t, release_error, sizeof(release_error));
             close(fd);
             return push_error(L, err);
         }
@@ -555,7 +560,9 @@ static int l_get_color(lua_State *L) {
     (void)snprintf(body, sizeof(body), "%lld;;%lld", (long long)x, (long long)y);
     if (request_task(TASK_COLOR_PICKER, body, reply, sizeof(reply), err, sizeof(err))) return push_error(L, err);
     long r, g, b;
-    if (sscanf(payload(reply), "%ld;;%ld;;%ld", &r, &g, &b) != 3) return push_error(L, "invalid color reply");
+    if (sscanf(payload(reply), "%ld;;%ld;;%ld", &r, &g, &b) != 3 ||
+        r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255)
+        return push_error(L, "invalid color reply (RGB outside 0..255)");
     lua_createtable(L, 0, 4);
     lua_pushinteger(L, r); lua_setfield(L, -2, "red");
     lua_pushinteger(L, g); lua_setfield(L, -2, "green");
@@ -582,8 +589,13 @@ static int l_find_color(lua_State *L) {
     if (n <= 0 || (size_t)n >= sizeof(body)) return push_error(L, "color packet overflow");
     if (request_task(TASK_COLOR_SEARCH, body, reply, sizeof(reply), err, sizeof(err))) return push_error(L, err);
     long x, y, r, g, b;
-    if (sscanf(payload(reply), "%ld;;%ld;;%ld;;%ld;;%ld", &x, &y, &r, &g, &b) != 5 || x < 0 || y < 0)
-        return push_error(L, "color not found");
+    if (sscanf(payload(reply), "%ld;;%ld;;%ld;;%ld;;%ld", &x, &y, &r, &g, &b) != 5)
+        return push_error(L, "invalid findColor reply");
+    // -1 for x/y is the existing ZXTouch "no match" sentinel.
+    if (x == -1 && y == -1) return push_error(L, "color not found");
+    if (x < 0 || y < 0 || x > 10000 || y > 10000 ||
+        r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255)
+        return push_error(L, "invalid findColor reply (coordinates/RGB out of range)");
     lua_createtable(L, 0, 6);
     lua_pushinteger(L, x); lua_setfield(L, -2, "x");
     lua_pushinteger(L, y); lua_setfield(L, -2, "y");
