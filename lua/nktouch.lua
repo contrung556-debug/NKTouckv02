@@ -146,6 +146,14 @@ function M.cleanup() return run({"cleanup"}) end
 function M.tap(x,y) if core then return sideCall("tap",core.tap,x,y,45) end; return run({"tap",x,y}) end
 function M.hold(x,y,ms) if core then return sideCall("hold",core.hold,x,y,ms or 500) end; return run({"hold",x,y,ms or 500}) end
 function M.swipe(x1,y1,x2,y2,ms) if core then return sideCall("swipe",core.swipe,x1,y1,x2,y2,ms or 400) end; return run({"swipe",x1,y1,x2,y2,ms or 400}) end
+-- Preserve continuous finger contact across every move. Never emulate this with
+-- several nk.swipe calls: those would lift the finger between segments.
+function M.path(points)
+  if not core or not core.path then
+    return nil,"native continuous path playback unavailable","NO_DIRECT"
+  end
+  return sideCall("path",core.path,points)
+end
 function M.openApp(id) if core then return sideCall("openApp",core.openApp,id) end; return run({"openapp",id}) end
 function M.sleep(ms) if core then return core.sleep(ms or 0) end; return run({"sleep",ms or 0}) end
 function M.recordStart() if core then return sideCall("recordStart",core.recordStart) end; return run({"record","start"}) end
