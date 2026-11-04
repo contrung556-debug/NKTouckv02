@@ -1,0 +1,72 @@
+name: Publish verified NKTouch v0.7.10 to Sileo (one-shot)
+
+on:
+  push:
+    branches: [ v0.7.10-input-engine-v2 ]
+    paths:
+      - .github/workflows/publish-v0710-sileo-now.yml
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish already-green v0.7.10 rootless artifact
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: nktouch-sileo-v0710-publisher
+      cancel-in-progress: false
+    steps:
+      - name: Checkout publisher scripts and source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Confirm selected artifact source is a successful v0.7.10 run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --retry-all-errors \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/contrung556-debug/NKTouckv02/actions/runs/41820774869 \
+            -o /tmp/green-run.json
+          python3 - <<'PY'
+          import json
+          run=json.load(open('/tmp/green-run.json'))
+          assert run['status']=='completed', 'artifact source run not completed'
+          assert run['conclusion']=='success', 'artifact source run not green'
+          assert run['head_sha']=='2f8dddc830e341b461bee1477b87b34a15c4754f', 'wrong source commit'
+          assert run['head_branch']=='v0.7.10-input-engine-v2', 'wrong branch'
+          print('Verified green Input Engine v2 artifact from run',run['id'])
+          PY
+
+      - name: Download exact approved artifact from green build
+        uses: actions/download-artifact@v4
+        with:
+          name: NKTouch-v0.7.10-input-engine-v2-rootless
+          run-id: 41820774869
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: sileo-artifact
+
+      - name: Validate package and publish existing Sileo source
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y dpkg-dev
+          bash -n scripts/publish-v0710-sileo.sh
+          bash scripts/publish-v0710-sileo.sh
+
+      - name: Verify actual Sileo branch and package filename
+        run: |
+          set -euo pipefail
+          git fetch origin sileo-repo
+          test "$(git show FETCH_HEAD:Packages | grep -c '^Version: 0.7.10$')" -eq 1
+          git show FETCH_HEAD:Packages | grep -Fq 'Filename: debs/com.nk.nktouch_0.7.10_iphoneos-arm64.deb'
+          git show FETCH_HEAD:README.md | grep -Fq 'Current package: com.nk.nktouch 0.7.10'
+          git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.7.10_iphoneos-arm64.deb'
+          echo 'NKTouch v0.7.10 is published on Sileo'
