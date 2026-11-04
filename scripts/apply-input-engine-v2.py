@@ -17,6 +17,8 @@ if not sender.is_file() or not receiver.is_file():
     raise SystemExit("missing pinned upstream keyboard implementation")
 
 s=sender.read_text()
+if "#include <string.h>" not in s:
+    s=s.replace('#include "UIKeyboard.h"', '#include "UIKeyboard.h"\n#include <string.h>',1)
 marker="    // Forward to appdelegate tweak injected in the frontmost app."
 assert s.count(marker)==1, "unexpected sender baseline"
 sender_add=r'''    // NKTouch Input Engine v2. Base64 safely carries Unicode, CR/LF and ';;'.
