@@ -267,6 +267,71 @@ static int l_tap(lua_State *L) {
     return 1;
 }
 
+// V6 path playback uses ONE continuous touch contact for every sampled point.
+// The Lua argument is an array of {x=..., y=..., t=msSinceDown} points.
+// No automatic retries: repeating a partially delivered gesture is unsafe.
+typedef struct { double x, y; lua_Integer t; } NKPathPoint;
+#define NK_PATH_MAX_POINTS 256
+
+static int l_path(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+    size_t count = lua_rawlen(L, 1);
+    luaL_argcheck(L, count >= 2 && count <= NK_PATH_MAX_POINTS, 1,
+                  "path must contain 2..256 points");
+    NKPathPoint points[NK_PATH_MAX_POINTS];
+    lua_Integer last_t = -1;
+    for (size_t i = 0; i < count; ++i) {
+        lua_rawgeti(L, 1, (lua_Integer)i + 1);
+        luaL_checktype(L, -1, LUA_TTABLE);
+        lua_getfield(L, -1, "x");
+        double x = luaL_checknumber(L, -1);
+        lua_pop(L, 1);
+        lua_getfield(L, -1, "y");
+        double y = luaL_checknumber(L, -1);
+        lua_pop(L, 1);
+        lua_getfield(L, -1, "t");
+        lua_Integer ms = luaL_checkinteger(L, -1);
+        lua_pop(L, 2);
+        int sx, sy;
+        luaL_argcheck(L, coord(x, &sx) == 0 && coord(y, &sy) == 0, 1,
+                      "path coordinates out of range");
+        luaL_argcheck(L, ms >= 0 && ms <= 300000, 1,
+                      "path time out of range");
+        luaL_argcheck(L, (i == 0 && ms == 0) || (i > 0 && ms > last_t), 1,
+                      "path timestamps must increase from zero");
+        points[i].x = x;
+        points[i].y = y;
+        points[i].t = ms;
+        last_t = ms;
+    }
+
+    char err[512] = {0};
+    int fd = connect_core(err, sizeof(err));
+    if (fd < 0) return push_error(L, err);
+    if (touch_packet(fd, TOUCH_DOWN, points[0].x, points[0].y, err, sizeof(err))) {
+        close(fd);
+        return push_error(L, err);
+    }
+    double last_x = points[0].x, last_y = points[0].y;
+    long long start = now_us();
+    for (size_t i = 1; i < count; ++i) {
+        long long wait = start + (long long)points[i].t * 1000LL - now_us();
+        if (wait > 0) sleep_us(wait);
+        int type = (i + 1 == count) ? TOUCH_UP : TOUCH_MOVE;
+        if (touch_packet(fd, type, points[i].x, points[i].y, err, sizeof(err))) {
+            // Best effort release prevents a stuck touch on transport errors.
+            char release_err[128] = {0};
+            (void)touch_packet(fd, TOUCH_UP, last_x, last_y, release_err, sizeof(release_err));
+            close(fd);
+            return push_error(L, err);
+        }
+        last_x = points[i].x; last_y = points[i].y;
+    }
+    close(fd);
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
 static int l_swipe(lua_State *L) {
     double x1 = luaL_checknumber(L, 1), y1 = luaL_checknumber(L, 2);
     double x2 = luaL_checknumber(L, 3), y2 = luaL_checknumber(L, 4);
@@ -594,6 +659,7 @@ static const luaL_Reg nkcore_funcs[] = {
     {"tap", l_tap},
     {"hold", l_tap},
     {"swipe", l_swipe},
+    {"path", l_path},
     {"openApp", l_open_app},
     {"stop", l_stop},
     {"recordStart", l_record_start},
