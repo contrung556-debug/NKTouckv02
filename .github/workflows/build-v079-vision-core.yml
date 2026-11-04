@@ -68,7 +68,7 @@ jobs:
         run: |
           set -euxo pipefail
           SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
-          curl -fsSL "https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz" -o /tmp/lua.tar.gz
+          curl --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -fsSL "https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz" -o /tmp/lua.tar.gz
           printf '%s  %s\n' "$LUA_SHA256" /tmp/lua.tar.gz | shasum -a 256 -c -
           rm -rf lua-src && mkdir lua-src
           tar -xzf /tmp/lua.tar.gz -C lua-src --strip-components=1
@@ -291,7 +291,7 @@ jobs:
           dpkg-deb -I "$OUT"
 
       - name: Upload v0.7.9 deb
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: NKTouch-v0.7.9-vision-core-rootless
