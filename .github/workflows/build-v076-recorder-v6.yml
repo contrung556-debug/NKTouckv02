@@ -125,8 +125,8 @@ jobs:
           RUNNER=upstream/zxtouch-runner/main.m
           TRIGGER=upstream/nktouch-trigger/Tweak.xm
           CTL=upstream/layout/usr/bin/nktouchctl
-          grep -q '^Version: 0.7.6
-          grep -q '^NKTouch 0.7.6 Recorder V6 Gesture Engine
+          grep -q '^Version: 0.7.6$' upstream/control
+          grep -q '^NKTouch 0.7.6 Recorder V6 Gesture Engine$' upstream/layout/usr/share/doc/nktouch/VERSION
           grep -q '^  finish)' "$REC"
           grep -q 'NKHotkeyActionRecorderFinish' "$TRIGGER"
           grep -q 'REC STOPPING' "$TRIGGER"
