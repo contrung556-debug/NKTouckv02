@@ -1,13 +1,13 @@
 Origin: NKTouch Repository
 Label: NKTouch Repository
 Suite: stable
-Version: 1.4.0
+Version: 1.4.1
 Codename: nktouch
 Architectures: iphoneos-arm64
 Components: main
 Description: NKTouch and NKCrane rootless repository for Sileo/Zebra
-Date: Wed, 04 Nov 2026 08:00:57 +0000
+Date: Wed, 04 Nov 2026 08:34:46 +0000
 MD5Sum:
- 909ebb297263a89ebabe7b752e087404 19973 Packages
+ bd52321ef36fd18a420e0e2b3fab9d2c 20639 Packages
 SHA256:
- 69e7f39864b579b5a0fcf6fff8ad0da61bcc0d7b901855c723a8ca071d144d5f 19973 Packages
+ efecc71dd3a5241f397ca7f7930a2056c29873db65198cef38d8e3b93e4ed938 20639 Packages

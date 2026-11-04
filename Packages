@@ -478,3 +478,19 @@ Description: NKCrane v1.4.0 safety foundation. Validated named-container leaf de
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 1.4.1
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 628
+Depends: firmware (>= 15.0), mobilesubstrate | ellekit, com.opa334.libsandy
+Filename: debs/com.nktouch.nkcrane_1.4.1_iphoneos-arm64.deb
+Size: 93356
+MD5sum: 0e56a2ef627f5f492b0ef943178a417b
+SHA1: bd1f6bb1eeea488c751f1887a2c29ff15f6d6119
+SHA256: e1b6ec612500c889446aa1134df9f9bb28b3ab53ef0d63fa20af8c617a71a45e
+Section: Tweaks
+Description: NKCrane v1.4.1 corrects named-container canonical path routing, preserves legacy data, and improves runtime/symlink/injection diagnostics. Default build has no RunningBoard injection.
+Author: NKTouch
+Name: NKCrane
+
