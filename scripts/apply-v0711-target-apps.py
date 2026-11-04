@@ -22,7 +22,7 @@ helpers=r'''
 static NSString * const NKTargetAppsPath=@"/var/mobile/Library/NKTouch/target_apps.plist";
 static BOOL NKTargetValidID(NSString *s) {
     if (![s isKindOfClass:NSString.class] || s.length<3 || s.length>255 || [s isEqualToString:@"com.zjx.zxtouch"]) return NO;
-    NSMutableCharacterSet *valid=[NSMutableCharacterSet alphanumericCharacterSet];
+    NSMutableCharacterSet *valid=[[NSCharacterSet alphanumericCharacterSet] mutableCopy];
     [valid addCharactersInString:@".-_"];
     return [s containsString:@"."] && [s rangeOfCharacterFromSet:valid.invertedSet].location==NSNotFound;
 }
@@ -204,15 +204,15 @@ methods=r'''
     NSString *file=[base stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.lua",NSUUID.UUID.UUIDString]];
     NSString *script=NKPath(self.scriptName);
     NSString *lua=[NSString stringWithFormat:
-      @"-- NKTouch Target App bootstrap v0.7.11\\n"
-       "local nk=require('nktouch')\\n"
-       "os.remove(%@)\\n"
-       "local ok,err,code=nk.openApp(%@)\\n"
-       "assert(ok, 'TARGET_OPEN_FAILED: '..tostring(code)..' '..tostring(err))\\n"
-       "local ready,why,whyCode=nk.waitApp(%@,8000,200)\\n"
-       "assert(ready, 'TARGET_NOT_FOREGROUND: '..tostring(whyCode)..' '..tostring(why))\\n"
-       "local run=assert(loadfile(%@,'t'))\\n"
-       "return run()\\n",NKLuaQuoted(file),NKLuaQuoted(bundle),NKLuaQuoted(bundle),NKLuaQuoted(script)];
+      @"-- NKTouch Target App bootstrap v0.7.11\n"
+       @"local nk=require('nktouch')\n"
+       @"os.remove(%@)\n"
+       @"local ok,err,code=nk.openApp(%@)\n"
+       @"assert(ok, 'TARGET_OPEN_FAILED: '..tostring(code)..' '..tostring(err))\n"
+       @"local ready,why,whyCode=nk.waitApp(%@,8000,200)\n"
+       @"assert(ready, 'TARGET_NOT_FOREGROUND: '..tostring(whyCode)..' '..tostring(why))\n"
+       @"local run=assert(loadfile(%@,'t'))\n"
+       @"return run()\n",NKLuaQuoted(file),NKLuaQuoted(bundle),NKLuaQuoted(bundle),NKLuaQuoted(script)];
     if(![lua writeToFile:file atomically:YES encoding:NSUTF8StringEncoding error:&err])return nil;
     return file;
 }
