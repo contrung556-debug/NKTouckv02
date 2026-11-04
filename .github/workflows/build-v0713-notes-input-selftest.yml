@@ -14,6 +14,7 @@ on:
       - tests/test_v0710_input_engine_v2.py
       - V0710_INPUT_ENGINE_V2.md
       - .github/workflows/build-v0711-target-apps.yml
+      - .github/workflows/build-v0713-notes-input-selftest.yml
       - scripts/apply-v0711-target-apps.py
       - scripts/prepare-v0711-target-apps.sh
       - tests/test_v0711_target_apps.py
