@@ -4,4 +4,4 @@ Add this source in Sileo:
 
 https://raw.githubusercontent.com/contrung556-debug/NKTouckv02/sileo-repo/
 
-Current package: com.nk.nktouch 0.7.12 (iphoneos-arm64) — InputText Fix (beta)
+Current package: com.nk.nktouch 0.7.13 (iphoneos-arm64) — Notes InputText Selftest (beta)

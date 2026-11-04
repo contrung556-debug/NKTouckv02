@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.7.13 Notes InputText Selftest - built-in guided Lua example in Samples; retains v0.7.12 InputText Fix and v0.7.11 Target Apps
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.7.13
+Installed-Size: 6976
+Filename: debs/com.nk.nktouch_0.7.13_iphoneos-arm64.deb
+Size: 1325692
+MD5sum: d603929761613fffc74aa69b2be5ed89
+SHA1: 7352913ddfeca3ab13ce1eebacda130209e545f7
+SHA256: d31fdf976fe25cde8fc9855347795c133c59194781a290bfe663875080b70210
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.7.12 InputText Fix - Unicode safe inputText default and AutoTouch global in Lua editor; retains v0.7.11 Target Apps
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
