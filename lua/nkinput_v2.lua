@@ -37,7 +37,7 @@ local function optionsValid(opts)
       return nil,"verify must be a region table","INVALID"
     end
     for _,key in ipairs({"x","y","w","h"}) do
-      if not integer(verify[key],key=="x" or key=="y" and 0 or 1,10000) then
+      if not integer(verify[key],(key=="x" or key=="y") and 0 or 1,10000) then
         return nil,"verify requires valid x,y,w,h integers","INVALID"
       end
     end
