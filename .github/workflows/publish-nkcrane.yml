@@ -22,16 +22,34 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y dpkg-dev
 
-      - name: Download verified NKCrane 1.3.2
+      - name: Download verified NKCrane 1.4.0
         run: |
           set -euo pipefail
-          curl -fL --retry 3 \
-            -o /tmp/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb \
-            https://raw.githubusercontent.com/contrung556-debug/Nkcrane/gh-pages/debs/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb
+          # The NKCrane source repo builds gh-pages independently.
+          # Poll for the exact verified version rather than downloading stale 1.3.2.
+          DEB="/tmp/com.nktouch.nkcrane_1.4.0_iphoneos-arm64.deb"
+          URL="https://raw.githubusercontent.com/contrung556-debug/Nkcrane/gh-pages/debs/com.nktouch.nkcrane_1.4.0_iphoneos-arm64.deb"
+          for attempt in $(seq 1 30); do
+            if curl -fLsS --retry 2 -H 'Cache-Control: no-cache' -o "$DEB" "$URL" &&
+               dpkg-deb -f "$DEB" Version 2>/dev/null | grep -qx '1.4.0'; then
+              echo "Verified upstream NKCrane v1.4.0 available on attempt $attempt"
+              break
+            fi
+            echo "Waiting for upstream signed rootless build ($attempt/30)"
+            rm -f "$DEB"
+            sleep 10
+          done
+          test -s "$DEB"
 
-          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb Package)" = "com.nktouch.nkcrane"
-          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb Version)" = "1.3.2"
-          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb Architecture)" = "iphoneos-arm64"
+          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.4.0_iphoneos-arm64.deb Package)" = "com.nktouch.nkcrane"
+          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.4.0_iphoneos-arm64.deb Version)" = "1.4.0"
+          test "$(dpkg-deb -f /tmp/com.nktouch.nkcrane_1.4.0_iphoneos-arm64.deb Architecture)" = "iphoneos-arm64"
+          # This Sileo source ships only the safe default v1.4 build.
+          VERIFY_ROOT="$(mktemp -d)"
+          dpkg-deb -x "$DEB" "$VERIFY_ROOT"
+          test -n "$(find "$VERIFY_ROOT" -type f -name 'NKCrane.dylib' | head -n1)"
+          ! find "$VERIFY_ROOT" -type f \( -name 'NKCraneRB.dylib' -o -name 'NKCraneRB.plist' \) | grep -q .
+
 
       - name: Checkout existing Sileo branch
         uses: actions/checkout@v4
@@ -45,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p debs
-          cp /tmp/com.nktouch.nkcrane_1.3.2_iphoneos-arm64.deb debs/
+          cp /tmp/com.nktouch.nkcrane_1.4.0_iphoneos-arm64.deb debs/
 
           dpkg-scanpackages --multiversion debs /dev/null > Packages
           rm -f Packages.gz Packages.bz2 Packages.xz Packages.zst
@@ -58,7 +76,7 @@ jobs:
           Origin: NKTouch Repository
           Label: NKTouch Repository
           Suite: stable
-          Version: 1.3.2
+          Version: 1.4.0
           Codename: nktouch
           Architectures: iphoneos-arm64
           Components: main
@@ -70,7 +88,7 @@ jobs:
            $PKG_SHA $PKG_SIZE Packages
           EOF
 
-          grep -A18 -B2 '^Version: 1.3.2$' Packages
+          grep -A18 -B2 '^Version: 1.4.0$' Packages
 
       - name: Commit to existing Sileo source
         working-directory: repo
@@ -83,5 +101,5 @@ jobs:
             echo "Sileo repository already up to date"
             exit 0
           fi
-          git commit -m "Publish NKCrane 1.3.2 flat index"
+          git commit -m "Publish NKCrane 1.4.0 flat index"
           git push origin HEAD:sileo-repo
