@@ -75,6 +75,12 @@ static UIView *NKInputV2FocusedView(UIView *view, NSUInteger depth) {
 
 '''
 r=r.replace(hook,helper+hook)
+# Fix upstream observer cleanup for both the legacy and v2 notification route.
+# Otherwise stale keyboard instances remain subscribed after deallocation.
+old_observer='removeObserver:self name:@"com.zjx.zxtouch.textinput" object:nil'
+new_observer='removeObserver:self name:@"com.zjx.zxtouch.keyboardcontrol" object:nil'
+assert r.count(old_observer)==1,"unexpected observer cleanup baseline"
+r=r.replace(old_observer,new_observer,1)
 legacy="\t\tif (taskId == INSERT_TEXT)\n"
 assert r.count(legacy)==1, "unexpected receiver input handler"
 branch=r'''        // Opt-in v2 direct text dispatch. Dedup on the main queue: some
