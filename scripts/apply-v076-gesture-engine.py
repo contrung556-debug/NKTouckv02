@@ -32,7 +32,7 @@ s = s.replace('local VERSION = "0.7.5.4"', 'local VERSION = "0.7.6"', 1)
 s = s.replace('-- NKTouch Recorder V4 exporter v0.7.5.4',
               '-- NKTouch Recorder V6 Gesture Engine v0.7.6', 1)
 s = replace_between(s, 'local function parse_raw(path)', 'local function normalize_action(a)',
-                    'local gesture = require("nkgesture_v6")\nlocal parse_raw = gesture.parseRaw\n\n')
+                    'local gesture_dir = (arg and type(arg[0]) == "string" and arg[0]:match("^(.*)/[^/]+$")) or "/var/jb/usr/share/nktouch"\nlocal gesture = dofile(gesture_dir .. "/nkgesture_v6.lua")\nlocal parse_raw = gesture.parseRaw\n\n')
 s = replace_between(s, 'local function normalize_action(a)', 'local function write_timeline(path, rows, source, ignored)',
                     'local normalize_row = gesture.normalizeRow\n\n')
 s = replace_between(s, 'local function write_timeline(path, rows, source, ignored)', 'local function split_tabs(line)',
@@ -84,4 +84,15 @@ u = u.replace('NKTouch 0.7.5.6', 'NKTouch 0.7.6')
 u = u.replace('nkLabel:@"0.7.5.6"', 'nkLabel:@"0.7.6"')
 u = u.replace('text:@"0.7.5.6"', 'text:@"0.7.6"')
 settings.write_text(u)
+
+ctl = root / "layout/usr/bin/nktouchctl"
+if not ctl.is_file():
+    raise SystemExit("staged nktouchctl missing")
+v = ctl.read_text()
+if 'PACKAGE_VERSION="0.7.5.6"' not in v:
+    raise SystemExit("v0.7.5.6 staged package version marker missing")
+v = v.replace('PACKAGE_VERSION="0.7.5.6"', 'PACKAGE_VERSION="0.7.6"', 1)
+v = v.replace("NKTouch v0.7.5.6 Control Foundation",
+              "NKTouch v0.7.6 Recorder V6 Gesture Engine")
+ctl.write_text(v)
 print("Applied NKTouch 0.7.6 Recorder V6 Gesture Engine")
