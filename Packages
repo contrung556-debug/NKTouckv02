@@ -462,3 +462,19 @@ Description: NKCrane v1.3.2 fixes named-container launch crashes by removing bro
 Author: NKTouch
 Name: NKCrane
 
+Package: com.nktouch.nkcrane
+Version: 1.4.0
+Architecture: iphoneos-arm64
+Maintainer: NKTouch
+Installed-Size: 628
+Depends: firmware (>= 15.0), mobilesubstrate | ellekit, com.opa334.libsandy
+Filename: debs/com.nktouch.nkcrane_1.4.0_iphoneos-arm64.deb
+Size: 92248
+MD5sum: 65838ed7e2ebf552af4049b6cb9d9147
+SHA1: a268e38d91948f3b93dd05beeee68b7409382555
+SHA256: 68ac631ff6822a8e52c5544969844d93927e763aed9f539e6e1cf96cb6529e7c
+Section: Tweaks
+Description: NKCrane v1.4.0 safety foundation. Validated named-container leaf deletion/wipe, read-only PID launch capsule diagnostics, fail-closed capsule parser. Existing app runtime hooks unchanged; RunningBoard redirection remains disabled pending on-device testing.
+Author: NKTouch
+Name: NKCrane
+
