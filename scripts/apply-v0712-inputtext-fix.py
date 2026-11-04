@@ -37,10 +37,10 @@ ui = settings.read_text()
 # Scripts launched from the editor already import nktouch in their bootstrap;
 # install its compatibility globals there so unqualified inputText("..."),
 # tap(...), sleep(...) also work without a separate require in user scripts.
-needle = """      @"local nk=require('nktouch')\\n"
+needle = """@"local nk=require('nktouch')\\n"
 """
 assert ui.count(needle) == 1, "unexpected Target Apps bootstrap baseline"
-replacement = needle + """      @"nk.installAutoTouchCompat()\\n"
+replacement = needle + """       @"nk.installAutoTouchCompat()\\n"
 """
 ui = ui.replace(needle, replacement, 1)
 assert ui.index('nk.installAutoTouchCompat()') < ui.index('loadfile(%@')
