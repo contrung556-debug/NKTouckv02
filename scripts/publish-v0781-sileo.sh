@@ -21,7 +21,7 @@ rm -rf "$TARGET"
 git worktree add --detach "$TARGET" FETCH_HEAD
 
 for attempt in 1 2 3; do
-  git fetch origin sileo-repo
+  git -C "$TARGET" fetch origin sileo-repo
   git -C "$TARGET" reset --hard FETCH_HEAD
   mkdir -p "$TARGET/debs"
   cp "$SOURCE" "$TARGET/debs/$DEB_NAME"
