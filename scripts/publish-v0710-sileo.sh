@@ -23,6 +23,15 @@ git worktree add --detach "$TARGET" FETCH_HEAD
 for attempt in 1 2 3; do
   git -C "$TARGET" fetch origin sileo-repo
   git -C "$TARGET" reset --hard FETCH_HEAD
+  # Never silently overwrite an already-published version with a different
+  # artifact. Use a new version number for follow-up fixes.
+  if [[ -f "$TARGET/debs/$DEB_NAME" ]] &&
+     grep -Fq "Filename: debs/$DEB_NAME" "$TARGET/Packages" &&
+     grep -Fq "Version: 0.7.10" "$TARGET/Packages" &&
+     grep -Fq "Current package: com.nk.nktouch 0.7.10" "$TARGET/README.md"; then
+    echo 'NKTouch 0.7.10 is already published; preserving exact .deb bytes'
+    exit 0
+  fi
   mkdir -p "$TARGET/debs"
   cp "$SOURCE" "$TARGET/debs/$DEB_NAME"
 
