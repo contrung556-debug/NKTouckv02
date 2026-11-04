@@ -10,6 +10,7 @@ on:
       - tests/test_v0781_core_selftest_hotfix.py
       - V0781_CORE_SELFTEST_HOTFIX.md
       - .github/workflows/build-v0781-core-selftest-hotfix.yml
+      - scripts/publish-v0781-sileo.sh
 
 permissions:
   contents: read
@@ -289,3 +290,43 @@ jobs:
           name: NKTouch-v0.7.8.1-build-logs
           path: upstream/xcode_build.log
           if-no-files-found: ignore
+
+  publish-sileo:
+    name: Publish verified v0.7.8.1 to Sileo
+    needs: build-rootless
+    if: needs.build-rootless.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: nktouch-sileo-v0781-publisher
+      cancel-in-progress: false
+    steps:
+      - name: Checkout NKTouch release tools
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download green package from this workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: NKTouch-v0.7.8.1-core-selftest-hotfix-rootless
+          path: sileo-artifact
+
+      - name: Validate package version and publish existing Sileo repo
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y dpkg-dev
+          bash scripts/publish-v0781-sileo.sh
+
+      - name: Verify Sileo metadata after publication
+        run: |
+          set -euo pipefail
+          git fetch origin sileo-repo
+          test "$(git show FETCH_HEAD:Packages | grep -c '^Version: 0.7.8.1$')" -eq 1
+          git show FETCH_HEAD:Packages | grep -Fq 'Filename: debs/com.nk.nktouch_0.7.8.1_iphoneos-arm64.deb'
+          git show FETCH_HEAD:README.md | grep -Fq 'Current package: com.nk.nktouch 0.7.8.1'
+          git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.7.8.1_iphoneos-arm64.deb'
+          echo 'Sileo metadata and .deb committed successfully'
