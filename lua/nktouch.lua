@@ -356,6 +356,22 @@ function M.stress(iterations)
   return {iterations=iterations,failures=failures,elapsed_ms=elapsed,ops_per_sec=(iterations+math.floor(iterations/10))*1000/elapsed,memory_delta_kb=memAfter-memBefore,last_error=lastErr,last_code=lastCode}
 end
 
+-- v0.7.9 Vision Core (opt-in; old live-screen functions are unchanged).
+-- Capture ONCE, then use frame:getColor/findColor/findImage/ocr/save.
+-- JPEG snapshots may differ slightly from the raw RGB Color Engine. Use
+-- tolerances if comparing native getColor with a decoded JPEG snapshot.
+M.VISION_VERSION="0.7.9"
+
+function M.captureFrame()
+  local vision=require("nkvision")
+  return vision.capture(M)
+end
+
+function M.withFrame(callback)
+  local vision=require("nkvision")
+  return vision.withFrame(M,callback)
+end
+
 function M.runScript(path,...)
   local p={"run",path}; for _,v in ipairs({...}) do p[#p+1]=v end; return run(p)
 end
