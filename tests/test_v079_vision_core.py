@@ -16,8 +16,9 @@ class VisionCoreContract(unittest.TestCase):
             self.assertIn(marker,old)
         self.assertIn("return M",old)
         frame=(ROOT/"lua/nkvision.lua").read_text()
-        for marker in ("nk.screenshot(path)", "pcall(native.open, path)",
-                       "os.remove(path)", "pcall(frame.close, frame)",
+        for marker in ("pcall(nk.screenshot, path)", "pcall(native.open, path)",
+                       "pcall(os.remove, path)", "native.tempPath",
+                       "pcall(frame.close, frame)",
                        "function M.withFrame", "return table.unpack"):
             self.assertIn(marker,frame)
 
@@ -31,6 +32,7 @@ class VisionCoreContract(unittest.TestCase):
                        'lua_setfield(L,-2,"packed")', "VNRecognizeTextRequest",
                        "VNImageRequestHandler", "nv_find_image",
                        "nv_get_color", "nv_find_color", "nv_ocr", "nv_close",
+                       "mkstemps(path,4)", "budget--", "gridTarget",
                        'return nv_error(L,"color not found in captured frame","NOT_FOUND")'):
             self.assertIn(marker,native)
         self.assertNotIn("createScreenShotCGImageRef",native)
@@ -79,10 +81,13 @@ function nativeFrame:findColor(x,y,w,h,rmin,rmax,gmin,gmax,bmin,bmax,skip)
   return {x=x,y=y,red=13,green=14,blue=15}
 end
 function nativeFrame:close() closes=closes+1;return true end
-package.loaded["nkvision_native"]={open=function(path)
-  opens=opens+1
-  return nativeFrame
-end}
+package.loaded["nkvision_native"]={
+  tempPath=function() return "/var/mobile/Library/NKTouch/vision-abc123.jpg" end,
+  open=function(path)
+    opens=opens+1
+    return nativeFrame
+  end
+}
 local nk={screenshot=function(path)
   shots=shots+1
   return path
@@ -100,16 +105,33 @@ local result,err,code=nv.withFrame(nk,function(frame)
 end)
 assert(result==nil and code=="CALLBACK" and err:find("callback failure"))
 assert(shots==2 and opens==2 and closes==2 and removes==2)
-package.loaded["nkvision_native"]={open=function(path)
-  return nil,"bad JPEG","DECODE"
-end}
+package.loaded["nkvision_native"]={
+  tempPath=function() return "/var/mobile/Library/NKTouch/vision-def123.jpg" end,
+  open=function(path) return nil,"bad JPEG","DECODE" end
+}
 local frame,err,code=nv.capture(nk)
 assert(frame==nil and err=="bad JPEG" and code=="DECODE")
 assert(shots==3 and removes==3)
 nk.screenshot=function()return nil,"offline","CONNECT"end
 local frame,err,code=nv.capture(nk)
 assert(frame==nil and code=="CONNECT")
-assert(shots==3 and removes==3)
+assert(shots==3 and removes==4)
+nk.screenshot=function()error("backend panic")end
+local frame,err,code=nv.capture(nk)
+assert(frame==nil and code=="CAPTURE" and err:find("backend panic"))
+assert(removes==5)
+nk.screenshot=function()return "/var/mobile/wrong.jpg"end
+local frame,err,code=nv.capture(nk)
+assert(frame==nil and code=="CAPTURE")
+assert(removes==6)
+package.loaded["nkvision_native"]={
+  tempPath=function()return nil,"no directory","FRAME_IO"end,
+  open=function()error("never open")end
+}
+local frame,err,code=nv.capture(nk)
+assert(frame==nil and code=="FRAME_IO")
+assert(removes==6)
+
 os.remove=realRemove
 print("[HOST][VISION] PASS")
 '''
