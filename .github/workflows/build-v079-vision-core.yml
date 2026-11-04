@@ -9,6 +9,7 @@ on:
       - lua/nkvision.lua
       - lua/nkvision_selftest.lua
       - runtime/nkvision.m
+      - runtime/nktouch-api.tsv
       - scripts/prepare-v079-vision-core.sh
       - tests/test_v079_vision_core.py
       - V079_VISION_CORE.md
