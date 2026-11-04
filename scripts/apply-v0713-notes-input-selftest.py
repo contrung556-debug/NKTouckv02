@@ -11,6 +11,15 @@ if not ui.is_file():
     raise SystemExit("missing staged Lua Workspace")
 src = ui.read_text()
 
+# Target Apps functions were defined after the Library section in v0.7.11;
+# provide explicit declarations before the newly added Library call sites.
+library_anchor = "#pragma mark - Library\n"
+assert src.count(library_anchor) == 1, "missing Lua Library section"
+src = src.replace(library_anchor, """static NSDictionary *NKTargetForScript(NSString *script);
+static BOOL NKSaveTarget(NSString *script, NSString *bundle, NSString *name);
+
+""" + library_anchor, 1)
+
 anchor = '    if(NKScripts().count==0)[NKStarter() writeToFile:NKPath(@"main.lua") atomically:YES encoding:NSUTF8StringEncoding error:nil];'
 assert src.count(anchor) == 1, "cannot find Lua Library installation hook"
 sample = r'''
