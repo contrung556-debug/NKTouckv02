@@ -42,14 +42,18 @@ src = src.replace(anchor,anchor+"\n"+sample,1)
 # Existing Samples row is decorative in v0.7.12; wire it to the actual
 # bundled script so the example is discoverable without typing a filename.
 row = '- (void)tableView:(UITableView*)tv didSelectRowAtIndexPath:(NSIndexPath*)ip{'
-assert src.count(row) == 1, "cannot find Lua Library Samples row"
-start = src.index(row)
-end = src.index("\n",start)
-line=src[start:end]
+library_start=src.index("#pragma mark - Library\n")
+library_end=src.index("#pragma mark - Editor\n",library_start)
+section=src[library_start:library_end]
+assert section.count(row) == 1, "cannot find Lua Library Samples row"
+start=section.index(row)
+end=section.index("\n",start)
+line=section[start:end]
 needle='}else if(ip.row==self.scripts.count){[self.navigationController pushViewController:[[NSClassFromString(@"NKLuaToolsViewController") alloc]init] animated:YES];}}'
 assert line.count(needle) == 1, "unexpected Samples handler baseline"
 extra='}else if(ip.row==self.scripts.count+1){[self.navigationController pushViewController:[[NKLuaEditorViewController alloc]initWithScriptName:@"test_inputtext_notes.lua"] animated:YES];}}'
-src=src[:start]+line.replace(needle,needle[:-2]+extra,1)+src[end:]
+section=section[:start]+line.replace(needle,needle[:-2]+extra,1)+section[end:]
+src=src[:library_start]+section+src[library_end:]
 assert 'NKSaveTarget(sampleName,@"com.apple.mobilenotes",@"Ghi chú")' in src
 assert 'initWithScriptName:@"test_inputtext_notes.lua"' in src
 ui.write_text(src)
