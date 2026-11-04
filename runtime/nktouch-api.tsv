@@ -23,6 +23,8 @@ nk.findImage|nk.findImage(path, maxTry, confidence, scale)|vision|Find an image 
 nk.waitImage|nk.waitImage(path, timeoutMs, intervalMs, confidence)|vision|Wait until an image template appears|local hit = must(nk.waitImage("/var/mobile/button.png", 5000, 250, 0.8))
 nk.tapImage|nk.tapImage(path, timeoutMs, intervalMs, confidence)|vision|Wait for an image then tap its center|must(nk.tapImage("/var/mobile/button.png", 5000, 250, 0.8))
 nk.getColor|nk.getColor(x, y)|vision|Read RGB color at one point|local c = must(nk.getColor(100, 100))
+nk.matchColor|nk.matchColor(x, y, r, g, b, tolerance)|vision|Check a physical pixel color with per-channel tolerance|local match, actual = nk.matchColor(100, 100, 250, 20, 20, 10)
+nk.waitColorMatch|nk.waitColorMatch(r, g, b, tolerance, region, timeoutMs, intervalMs)|vision|Wait for an RGB color range within a physical pixel rectangle|local hit = must(nk.waitColorMatch(250,20,20,10,{x=0,y=0,w=200,h=300},5000))
 nk.findColor|nk.findColor(x, y, w, h, rmin, rmax, gmin, gmax, bmin, bmax, skip)|vision|Find a color range inside a rectangle|local hit = must(nk.findColor(0, 0, 750, 1334, 200, 255, 0, 80, 0, 80, 0))
 nk.waitColor|nk.waitColor(x, y, w, h, rmin, rmax, gmin, gmax, bmin, bmax, timeoutMs, intervalMs, skip)|vision|Wait for a color range|local hit = must(nk.waitColor(0, 0, 750, 1334, 200, 255, 0, 80, 0, 80, 5000, 200, 0))
 nk.tapColor|nk.tapColor(x, y, w, h, rmin, rmax, gmin, gmax, bmin, bmax, timeoutMs, intervalMs, skip)|vision|Wait for a color and tap its location|must(nk.tapColor(0, 0, 750, 1334, 200, 255, 0, 80, 0, 80, 5000, 200, 0))
