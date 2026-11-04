@@ -358,18 +358,27 @@ static int nv_find_image(lua_State *L) {
                     int score=nv_score(f->gray,f->w,x,y,pattern,tw,th,sample);
                     if(score>localScore){localScore=score;localX=x;localY=y;}
                 }
-            // Precise local refinement always evaluates the full-pixel pattern.
-            size_t x1=(localX>step)?localX-step:0;
-            size_t y1=(localY>step)?localY-step:0;
-            size_t x2=(localX+step<searchW)?localX+step:searchW-1;
-            size_t y2=(localY+step<searchH)?localY+step:searchH-1;
+            // Refine nearby coordinates with a bounded sample density.
+            // Full-pixel verification is performed exactly once on the winner.
+            size_t radius=step>12?12:step;
+            size_t x1=(localX>radius)?localX-radius:0;
+            size_t y1=(localY>radius)?localY-radius:0;
+            size_t x2=(localX+radius<searchW)?localX+radius:searchW-1;
+            size_t y2=(localY+radius<searchH)?localY+radius:searchH-1;
+            size_t refineSample=sample>2?sample/2:1;
+            int refinedScore=-10001;size_t refinedX=localX,refinedY=localY;
             for(size_t y=y1;y<=y2;y++)
                 for(size_t x=x1;x<=x2;x++) {
-                    int score=nv_score(f->gray,f->w,x,y,pattern,tw,th,1);
-                    if(score>bestScore){
-                        bestScore=score;bestX=x;bestY=y;bestW=tw;bestH=th;
+                    int score=nv_score(f->gray,f->w,x,y,pattern,tw,th,refineSample);
+                    if(score>refinedScore){
+                        refinedScore=score;refinedX=x;refinedY=y;
                     }
                 }
+            int verifiedScore=nv_score(f->gray,f->w,refinedX,refinedY,pattern,tw,th,1);
+            if(verifiedScore>bestScore){
+                bestScore=verifiedScore;bestX=refinedX;bestY=refinedY;
+                bestW=tw;bestH=th;
+            }
             free(pattern);
             if(bestScore>=(int)ceil(confidence*10000.0)) break;
         }
