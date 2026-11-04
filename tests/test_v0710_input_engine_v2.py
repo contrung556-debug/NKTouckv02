@@ -52,7 +52,10 @@ class InputEngineV2(unittest.TestCase):
         for key in ("NK_VERSION: 0.7.10","test_v0710_input_engine_v2.py",
                     "prepare-v0710-input-engine-v2.sh"):
             self.assertIn(key,build)
-        self.assertNotIn("publish-sileo:",build)
+        self.assertIn("publish-sileo:",build)
+        self.assertIn("needs: build-rootless",build)
+        self.assertIn("if: needs.build-rootless.result == 'success'",build)
+        self.assertIn("publish-v0710-sileo.sh",build)
 
     @unittest.skipUnless(shutil.which("lua"),"lua unavailable")
     def test_unicode_password_verification_and_no_retry(self):
