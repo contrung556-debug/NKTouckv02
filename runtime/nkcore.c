@@ -317,15 +317,19 @@ static int l_path(lua_State *L) {
     for (size_t i = 1; i < count; ++i) {
         long long wait = start + (long long)points[i].t * 1000LL - now_us();
         if (wait > 0) sleep_us(wait);
-        int type = (i + 1 == count) ? TOUCH_UP : TOUCH_MOVE;
-        if (touch_packet(fd, type, points[i].x, points[i].y, err, sizeof(err))) {
-            // Best effort release prevents a stuck touch on transport errors.
+        // Send the final MOVE as well: lifting at a distant endpoint without
+        // a MOVE can make a two-point path behave like a tap.
+        if (touch_packet(fd, TOUCH_MOVE, points[i].x, points[i].y, err, sizeof(err))) {
             char release_err[128] = {0};
             (void)touch_packet(fd, TOUCH_UP, last_x, last_y, release_err, sizeof(release_err));
             close(fd);
             return push_error(L, err);
         }
         last_x = points[i].x; last_y = points[i].y;
+    }
+    if (touch_packet(fd, TOUCH_UP, last_x, last_y, err, sizeof(err))) {
+        close(fd);
+        return push_error(L, err);
     }
     close(fd);
     lua_pushboolean(L, 1);
