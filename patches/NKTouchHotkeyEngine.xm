@@ -27,7 +27,33 @@ typedef NS_ENUM(NSInteger, NKHotkeyAction) {
 };
 
 static UIWindow *NKFeedbackHostWindow(void) {
-    NSArray<UIWindow *> *windows = UIApplication.sharedApplication.windows;
+    UIApplication *application = UIApplication.sharedApplication;
+    NSMutableArray<UIWindow *> *windows = [NSMutableArray array];
+
+    // Prefer scene-owned windows on iOS 13+. Accessing UIApplication.windows
+    // directly is deprecated and fails under Theos' -Werror flags.
+    if (@available(iOS 13.0, *)) {
+        for (UIScene *scene in application.connectedScenes) {
+            if (![scene isKindOfClass:[UIWindowScene class]]) continue;
+            UIWindowScene *windowScene = (UIWindowScene *)scene;
+            [windows addObjectsFromArray:windowScene.windows];
+        }
+    }
+
+    // SpringBoard may expose system-managed windows outside connected scenes.
+    // Keep the legacy lookup as a guarded runtime fallback, not a deprecated
+    // compile-time property reference.
+    if (windows.count == 0) {
+        id legacyWindows = [application valueForKey:@"windows"];
+        if ([legacyWindows isKindOfClass:[NSArray class]]) {
+            for (id candidate in (NSArray *)legacyWindows) {
+                if ([candidate isKindOfClass:[UIWindow class]]) {
+                    [windows addObject:(UIWindow *)candidate];
+                }
+            }
+        }
+    }
+
     for (UIWindow *window in [windows reverseObjectEnumerator]) {
         if (!window.hidden && window.alpha > 0.01 && window.windowLevel >= UIWindowLevelNormal) return window;
     }
