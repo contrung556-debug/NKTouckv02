@@ -150,29 +150,24 @@ static NSString *NKLuaQuoted(NSString *s) {
 
 '''
 s=s.replace(anchor,helpers+anchor,1)
-# Keep NKLuaRun single process-spawn implementation; route target-run to nktask
-# without changing any existing nkeditor Check/Run/Logs protocol.
+# Keep the retained direct native lifecycle from the v0.7.4.4 fix:
+# it already routes commands with spawnArgs + NKLuaTaskTool.
 start=s.index("static NSString *NKLuaRun(")
 end=s.index("static NSArray<NSString *> *NKScripts(",start)
 fn=s[start:end]
-old="    NSUInteger argc = arguments.count + 2;\n"
-new='''    BOOL targetRun=arguments.count==2 && [arguments[0] isEqualToString:@"target-run"];
-    NSArray<NSString *> *effective=targetRun?@[@"start",arguments[1]]:arguments;
-    NSString *executable=targetRun?@"/var/jb/usr/bin/nktask":NKLuaEditorTool;
-    NSUInteger argc = effective.count + 2;
-'''
-assert fn.count(old)==1, "NKLuaRun argc marker missing"
-fn=fn.replace(old,new,1)
-assert fn.count("argv[0] = strdup(NKLuaEditorTool.UTF8String);")==1
-fn=fn.replace("argv[0] = strdup(NKLuaEditorTool.UTF8String);","argv[0] = strdup(executable.UTF8String);")
-fn=fn.replace("arguments.count","effective.count").replace("arguments[i+1]","effective[i+1]").replace("arguments[i]","effective[i]")
-# Correct references modified by generic replacement in the initial routing declaration.
-fn=fn.replace("BOOL targetRun=effective.count==2","BOOL targetRun=arguments.count==2")
-fn=fn.replace("posix_spawn(&pid, NKLuaEditorTool.UTF8String,","posix_spawn(&pid, executable.UTF8String,")
+check='        if ([cmd isEqualToString:@"check"] && arguments.count == 2) {'
+assert fn.count(check)==1, "NKLuaRun direct task router missing"
+fn=fn.replace(check,'''        if ([cmd isEqualToString:@"target-run"] && arguments.count == 2) {
+            tool = NKLuaTaskTool;
+            spawnArgs = @[@"start", arguments[1]];
+        } else if ([cmd isEqualToString:@"check"] && arguments.count == 2) {''',1)
 s=s[:start]+fn+s[end:]
-init='[super viewDidLoad];self.title=self.scriptName;self.view.backgroundColor=NKBG();'
-assert s.count(init)==1, "editor viewDidLoad marker missing"
-s=s.replace(init,init+'self.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc]initWithTitle:@"Ứng dụng +" style:UIBarButtonItemStylePlain target:self action:@selector(nkSelectTargetApp)];[self nkRefreshTargetButton];',1)
+editor=s.index("@implementation NKLuaEditorViewController")
+editor_body=s[editor:]
+init='self.title=self.scriptName;'
+assert editor_body.count(init)==1, "editor viewDidLoad title marker missing"
+editor_body=editor_body.replace(init,init+'self.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc]initWithTitle:@"Ứng dụng +" style:UIBarButtonItemStylePlain target:self action:@selector(nkSelectTargetApp)];[self nkRefreshTargetButton];',1)
+s=s[:editor]+editor_body
 # Modify only the editor's successful syntax-check branch.
 needle='[w command:@[@"run",w.scriptName]'
 assert s.count(needle)==1,"editor task-run marker missing"
