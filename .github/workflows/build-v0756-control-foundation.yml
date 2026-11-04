@@ -187,7 +187,7 @@ jobs:
       - name: Inspect and collect deb
         working-directory: upstream
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           command -v dpkg-deb >/dev/null
           mkdir -p ../artifacts
           DEB=''
@@ -205,11 +205,8 @@ jobs:
           TRIGGER_PLIST="$TRIGGER_DIR/NKTouchRecorderTrigger.plist"
           test -f "$TRIGGER_DYLIB"
           test -f "$TRIGGER_PLIST"
-          strings "$TRIGGER_DYLIB" | grep -Fq 'com.nk.nktouch.recorder.accepted'
-          strings "$TRIGGER_DYLIB" | grep -Fq 'com.nk.nktouch.recorder.completed.ok'
-          strings "$TRIGGER_DYLIB" | grep -Fq 'REC SAVED'
 
-          if find /tmp/nk756 -path '*/var/jb/var/jb/*' -print -quit | grep -q .; then
+          if [[ -n "$(find /tmp/nk756 -path '*/var/jb/var/jb/*' -print -quit)" ]]; then
             echo 'ERROR: nested rootless prefix /var/jb/var/jb detected in package' >&2
             exit 1
           fi
@@ -217,7 +214,27 @@ jobs:
           RUNNER_BIN="$(find /tmp/nk756 -type f -name 'zxtouch-runner' -print -quit)"
           test -n "$RUNNER_BIN"
           test -x "$RUNNER_BIN"
-          strings "$RUNNER_BIN" | grep -Fq 'com.nk.nktouch.recorder.completed.failed'
+          # Objective-C constant strings can be stored as UTF-16 in Mach-O.
+          # Read bytes directly: strings|grep -q can exit 141 under pipefail.
+          python3 - "$TRIGGER_DYLIB" "$RUNNER_BIN" <<'PY'
+          from pathlib import Path
+          import sys
+
+          checks = {
+              Path(sys.argv[1]): (
+                  "com.nk.nktouch.recorder.accepted",
+                  "com.nk.nktouch.recorder.completed.ok",
+                  "REC SAVED",
+              ),
+              Path(sys.argv[2]): ("com.nk.nktouch.recorder.completed.failed",),
+          }
+          for binary, values in checks.items():
+              data = binary.read_bytes()
+              for value in values:
+                  if not any(value.encode(encoding) in data for encoding in ("utf-8", "utf-16le", "utf-16be")):
+                      raise SystemExit(f"Missing expected binary marker {value!r} in {binary}")
+                  print(f"PASS {binary.name}: {value}")
+          PY
           CTL_BIN=/tmp/nk756/var/jb/usr/bin/nktouchctl
           test -x "$CTL_BIN"
           grep -Fq 'PACKAGE_VERSION="0.7.5.6"' "$CTL_BIN"
