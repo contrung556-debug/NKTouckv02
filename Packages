@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.8.0 Integrated Lua SDK beta: Test Lab OCR Color Touch InputText Memory, diagnostics, snapshot batching, safe actions and reports; device validation pending
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.8.0
+Installed-Size: 7188
+Filename: debs/com.nk.nktouch_0.8.0_iphoneos-arm64.deb
+Size: 1369550
+MD5sum: 334cdfe900895df90c59c8af6981cfed
+SHA1: 65f0167bce37c2842f6963b05d671cd9a9229b57
+SHA256: 1e4aa25079391d6672ac07e96beff057f9417c3acc6ec3f5a0af8299e9667985
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.7.17 Stability and Memory Core beta (device crash/RSS verification pending); retains InputText and seven-group Test Lab
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
