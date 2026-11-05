@@ -5,7 +5,7 @@ local input=require("nkinput_v2")
 local json=require("nkjson")
 local n=0
 local function check(condition,msg) assert(condition,msg);n=n+1 end
-local function invalid(value,err,code,expected)
+local function invalid(expected,value,err,code)
   check(value==nil and code==expected and type(err)=="string",expected.." expected")
 end
 local sent,keyboard=0,nil
@@ -24,37 +24,37 @@ good,meta=input.input(nk,decomposed)
 check(good and sent==3,"decomposed combining UTF-8")
 good,meta=input.input(nk,string.rep("a",8192))
 check(good and sent==4,"8192 boundary")
-invalid(input.input(nk,string.rep("a",8193)),"INVALID")
+invalid("INVALID",input.input(nk,string.rep("a",8193)))
 check(sent==4,"8193 must not dispatch")
-invalid(input.input(nk,"bad\255"),"INVALID")
+invalid("INVALID",input.input(nk,"bad\255"))
 check(sent==4,"invalid UTF-8 no dispatch")
-invalid(input.input(nk,"hello",{verify={x=0,y=0,w=100,h=60,expected="bad\255"}}),"INVALID")
-invalid(input.input(nk,"hello",{verify={x=0,y=0,w=100,h=60,language="en\n-US"}}),"INVALID")
+invalid("INVALID",input.input(nk,"hello",{verify={x=0,y=0,w=100,h=60,expected="bad\255"}}))
+invalid("INVALID",input.input(nk,"hello",{verify={x=0,y=0,w=100,h=60,language="en\n-US"}}))
 check(sent==4,"bad OCR preflight no dispatch")
 local brokenNative={_inputNativeV2=function()
  sent=sent+1
  error("device disconnected midway")
 end}
 local v,e,c=input.input(brokenNative,"A")
-invalid(v,e,c,"DISPATCH_UNCERTAIN")
+invalid("DISPATCH_UNCERTAIN",v,e,c)
 check(sent==5,"thrown native dispatch must never retry")
 local brokenOCR={_inputNativeV2=function()sent=sent+1;return true end,
   ocr=function()error("Vision service crash")end}
 local result,err,code,info=input.input(brokenOCR,"A",
   {verify={x=0,y=0,w=100,h=50},settleMs=0})
-invalid(result,err,code,"UNVERIFIED")
+invalid("UNVERIFIED",result,err,code)
 check(info.sent and not info.verified and sent==6,"OCR exception after send: no retype")
 local brokenSleep={_inputNativeV2=function()sent=sent+1;return true end,
  sleep=function()error("sleep interrupted")end,
  ocr=function()error("must not OCR before settling")end}
 result,err,code,info=input.input(brokenSleep,"A",
   {verify={x=0,y=0,w=100,h=50},settleMs=200})
-invalid(result,err,code,"UNVERIFIED")
+invalid("UNVERIFIED",result,err,code)
 check(sent==7 and info.sent,"settle failure must not send again")
 local passwd={_inputNativeV2=function()sent=sent+1;return true end}
 result,err,code=input.password(passwd,"dummy-secret",{
  verify={x=0,y=0,w=40,h=30}})
-invalid(result,err,code,"SECURE")
+invalid("SECURE",result,err,code)
 check(sent==7,"password OCR rejected before dispatch")
 good,meta=input.password(passwd,"dummy-secret")
 check(good and meta.sent and sent==8,"password single dispatch")
