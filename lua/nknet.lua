@@ -28,14 +28,19 @@ local function filesize(path)
 end
 local function writefile(path,data)
   local f,err=io.open(path,"wb"); if not f then return nil,err end
-  local ok,werr=f:write(data); f:close(); if not ok then return nil,werr end
+  local ok,werr=f:write(data)
+  local closed,cerr=f:close()
+  if not ok or not closed then return nil,werr or cerr end
   return true
 end
 local function readfile(path,limit)
   local f,err=io.open(path,"rb"); if not f then return nil,err end
   local n=f:seek("end") or 0; f:seek("set",0)
   if limit and n>limit then f:close(); return nil,"response exceeds Lua read limit" end
-  local data=f:read("*a"); f:close(); return data
+  local data=f:read("*a")
+  local closed,cerr=f:close()
+  if not data or not closed then return nil,cerr or "response read failed" end
+  return data
 end
 local function cleanup(paths) for _,p in ipairs(paths) do if p and p~="" then os.remove(p) end end end
 local function unique()
@@ -44,7 +49,7 @@ local function unique()
   local clock=math.floor((os.clock()%1)*1000000)
   return string.format("%d-%d-%d",t,clock,seq)
 end
-local function line_safe(s) return type(s)=="string" and not s:find("[\r\n]") end
+local function line_safe(s) return type(s)=="string" and not s:find("[\r\n%z]") end
 local METHODS={GET=true,POST=true,PUT=true,PATCH=true,DELETE=true,HEAD=true,OPTIONS=true}
 
 local function headers_file(path,headers)
@@ -77,13 +82,39 @@ end
 function M.request(opts)
   if type(opts)~="table" then return nil,"request options must be a table","INVALID" end
   local url=opts.url
-  if not line_safe(url or "") or url=="" or not url:match("^https?://") then return nil,"url must be http:// or https://","INVALID" end
+  if not line_safe(url) or url=="" or #url>4096 or
+      not url:match("^https?://[^/%s?#]+") then
+    return nil,"url must be a valid bounded http:// or https:// address","INVALID"
+  end
   local method=tostring(opts.method or "GET"):upper()
   if not METHODS[method] then return nil,"unsupported HTTP method","INVALID" end
-  local timeout=math.floor(tonumber(opts.timeout_ms) or 15000)
-  if timeout<100 or timeout>120000 then return nil,"timeout_ms must be 100..120000","INVALID" end
-  local maxbytes=math.floor(tonumber(opts.max_bytes) or (opts.save_to and MAX_RESPONSE or 8*1024*1024))
-  if maxbytes<1 or maxbytes>MAX_RESPONSE then return nil,"max_bytes must be 1..33554432","INVALID" end
+  local function bounded(v,default,min,max)
+    if v==nil then return default end
+    return type(v)=="number" and v==v and
+       v~=math.huge and v~=-math.huge and
+       v%1==0 and v>=min and v<=max and v or nil
+  end
+  local timeout=bounded(opts.timeout_ms,15000,100,120000)
+  if not timeout then return nil,"timeout_ms must be integer 100..120000","INVALID" end
+  local maxbytes=bounded(opts.max_bytes,
+     opts.save_to and MAX_RESPONSE or 8*1024*1024,1,MAX_RESPONSE)
+  if not maxbytes then return nil,"max_bytes must be integer 1..33554432","INVALID" end
+  if opts.headers~=nil and type(opts.headers)~="table" then
+    return nil,"headers must be a table","INVALID"
+  end
+  if opts.overwrite~=nil and type(opts.overwrite)~="boolean" then
+    return nil,"overwrite must be boolean","INVALID"
+  end
+  if opts.save_to~=nil and
+      (not line_safe(opts.save_to) or opts.save_to=="" or
+       #opts.save_to>1024) then
+    return nil,"invalid save_to path","INVALID"
+  end
+  if opts.body_file~=nil and
+      (not line_safe(opts.body_file) or opts.body_file=="" or
+       #opts.body_file>1024) then
+    return nil,"invalid body_file path","INVALID"
+  end
   if opts.body~=nil and opts.json~=nil then return nil,"body and json are mutually exclusive","INVALID" end
   if opts.body_file~=nil and (opts.body~=nil or opts.json~=nil) then return nil,"body_file cannot be combined with body/json","INVALID" end
   if not mkdir_tmp() then return nil,"cannot create network temp directory","IO" end
@@ -93,8 +124,13 @@ function M.request(opts)
   local hdr=TMP.."/hdr-"..id..".txt"
   local bodytmp=TMP.."/body-"..id..".bin"
   local metap=TMP.."/meta-"..id..".txt"
-  local response=opts.save_to or (TMP.."/resp-"..id..".bin")
-  local temps={spec,hdr,metap}; if not opts.save_to then temps[#temps+1]=response end
+  -- Always write downloads to a unique sibling. The helper may truncate
+  -- its response file before a failed request: NEVER point it at a real
+  -- user file, even if overwrite=true. Rename only after success.
+  local response=opts.save_to and
+    (opts.save_to..".nktmp-"..id..".part") or
+    (TMP.."/resp-"..id..".bin")
+  local temps={spec,hdr,metap,response}
   local bodyfile="-"
 
   if opts.save_to then
@@ -139,12 +175,10 @@ function M.request(opts)
   local ran,rc=status_ok(a,b,c)
   local meta,merr=parse_meta(metap)
   if not meta then
-    if opts.save_to and not ran then os.remove(response) end
     cleanup(temps)
     return nil,merr or ("network helper failed: "..tostring(rc)),"NETWORK"
   end
   if not ran or meta.error_code~=0 then
-    if opts.save_to then os.remove(response) end
     local msg=(meta.error and meta.error~="" and meta.error) or ("network request failed: "..tostring(rc))
     cleanup(temps)
     return nil,msg,"NETWORK"
@@ -164,6 +198,22 @@ function M.request(opts)
     if opts.decode_json then
       local decoded,jerr=json.decode(data); if not decoded then cleanup(temps); return nil,jerr,"JSON" end
       result.json=decoded
+    end
+  end
+  if opts.save_to then
+    local finalSize=filesize(response)
+    if not finalSize or finalSize>maxbytes then
+      cleanup(temps)
+      return nil,"download missing or over limit","IO"
+    end
+    if not opts.overwrite and exists(opts.save_to) then
+      cleanup(temps)
+      return nil,"save_to appeared during download; refusing overwrite","EXISTS"
+    end
+    local renamed,renameErr=os.rename(response,opts.save_to)
+    if not renamed then
+      cleanup(temps)
+      return nil,"cannot install downloaded file: "..tostring(renameErr),"IO"
     end
   end
   cleanup(temps)
