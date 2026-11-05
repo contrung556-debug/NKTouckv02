@@ -430,7 +430,7 @@ static int nv_ocr(lua_State *L) {
             NSString *q=nv_ocr_failure_detail(fallbackError,fallbackException);
             NSString *r=nv_ocr_failure_detail(jpegError,jpegException);
             NSString *message=[NSString stringWithFormat:
-                @"Vision OCR failed (CIImage/rev2: %@; CGImage: %@; JPEG/ROI/rev1/CPU: %@)",p,q,r];
+                @"Vision OCR failed (JPEG/ROI/rev1/CPU: %@; CIImage/rev2: %@; CGImage: %@)",r,p,q];
             return nv_error(L,[message UTF8String],"OCR");
         }
         NSMutableArray<NSString *> *texts=[NSMutableArray array];
