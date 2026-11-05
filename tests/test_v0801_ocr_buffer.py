@@ -21,8 +21,8 @@ class OCRBufferFallback(unittest.TestCase):
         self.assertIn("initWithCGImage:crop",src)
         self.assertIn("CGImageRelease(crop)",src)
         self.assertIn("req.revision=2",src)
-        self.assertLess(src.index("initWithCIImage:ciImage"),src.index("initWithCGImage:crop"))
-        self.assertLess(src.index("initWithCGImage:crop"),src.index("initWithData:originalJPEG"))
+        self.assertLess(src.index("initWithCIImage:ciImage"),src.rindex("initWithCGImage:crop"))
+        self.assertLess(src.rindex("initWithCGImage:crop"),src.index("initWithData:originalJPEG"))
 
     def test_third_backend_is_same_jpeg_no_second_capture(self):
         src=re.sub(r"//[^\n]*","",self.ocr)
