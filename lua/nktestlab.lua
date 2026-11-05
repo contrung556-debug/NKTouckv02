@@ -139,6 +139,30 @@ local function reporter(nk,selected,id,now,reportPath,mode,clockType)
     end
     local jsonOk,json=pcall(require,"nkjson")
     if jsonOk and json and json.encode and reportPath then
+      -- Read at most 256 KiB of the *previous* report before replacing it.
+      -- Corrupt/older history never prevents this run from completing.
+      local previous
+      local file=io.open(reportPath,"rb")
+      if file then
+        local length=file:seek("end") or 0
+        if length>0 and length<=262144 then
+          file:seek("set",0)
+          local data=file:read("*a")
+          local good,decoded=pcall(json.decode,data)
+          if good and type(decoded)=="table" then previous=decoded end
+        end
+        file:close()
+      end
+      local compareOk,comparator=pcall(require,"nkregression")
+      if compareOk and comparator and type(comparator.compare)=="function" then
+        local ok,comparison=pcall(comparator.compare,report,previous)
+        if ok and type(comparison)=="table" then
+          report.regression=comparison
+          print(("[NKLAB][REGRESSION] status=%s comparable=%s regressions=%d latency_warnings=%d"):format(
+            tostring(comparison.status),tostring(comparison.comparable),
+            #(comparison.regressions or {}),#(comparison.latency_warnings or {})))
+        end
+      end
       local encoded,encodingErr=json.encode(report)
       if encoded then
         -- No user-controlled path. Atomic replacement protects the UI from
