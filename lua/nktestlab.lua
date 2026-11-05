@@ -324,12 +324,13 @@ local function makeGroups(nk,opts,check)
   end
 
   handlers.vision=function()
+    -- Capture exactly ONCE for all Vision tests in this group.
+    -- No new screenshot between getColor, findColor, OCR and findImage.
+    local frameData,frameError
     test("vision","single_frame_multiple_reads",function()
       if type(nk.withFrame)~="function" then
         return "FAIL","Vision Core missing"
       end
-      -- Auto-close frame even if a query raises. No stale frame is reused
-      -- after screen changes. All reads below use ONE captured JPEG.
       local info,err,code=nk.withFrame(function(frame)
         local size=assert(frame:info())
         assert(size.width>0 and size.height>0,"invalid image metadata")
@@ -340,36 +341,52 @@ local function makeGroups(nk,opts,check)
         assert(hit.x==x and hit.y==y,"frozen findColor mismatch")
         local again=assert(frame:getColor(x,y))
         assert(again.packed==c.packed,"immutable frame changed")
-        return size
+        local data={info=size}
+        local text,e,c=frame:ocr(0,0,size.width,math.min(size.height,240),"")
+        if text==nil then data.ocrErr=safe(c or e or "Vision OCR failed")
+        else data.ocrBytes=#text end
+        local template=opts.vision and opts.vision.template
+        if template~=nil then
+          if type(template)~="string" or template=="" or
+              template:find("[\r\n]") then
+            data.templateErr="invalid template image path"
+            data.templateCode="INVALID"
+          else
+            local image,imageErr,imageCode=frame:findImage(template,2,0.8,0.8)
+            data.template=image
+            data.templateErr=safe(imageCode or imageErr)
+            data.templateCode=imageCode
+          end
+        end
+        return data
       end)
-      if not info then return "FAIL",safe(code or err) end
-      return "PASS",("one screenshot %dx%d; 3 immutable reads"):format(
-               info.width,info.height)
+      if not info then
+        frameError=safe(code or err)
+        return "FAIL",frameError
+      end
+      frameData=info
+      return "PASS",("one screenshot %dx%d; color/findColor/repeat/OCR"):format(
+               info.info.width,info.info.height)
     end)
-    test("vision","ocr_one_frame",function()
-      if type(nk.withFrame)~="function" then return "SKIP","no Vision Core" end
-      local len,err,code=nk.withFrame(function(frame)
-        local meta=assert(frame:info())
-        local h=math.min(meta.height,240)
-        local result,e,c=frame:ocr(0,0,meta.width,h,"")
-        if result==nil then error("Vision OCR "..safe(c or e),0) end
-        return #result
-      end)
-      if len==nil then return "FAIL",safe(code or err) end
-      return "PASS","OCR completed; bytes="..len
+    test("vision","ocr_from_same_frame",function()
+      if not frameData then return "SKIP",frameError or "frame prerequisite failed" end
+      if frameData.ocrErr then return "FAIL",frameData.ocrErr end
+      return "PASS","OCR bytes="..frameData.ocrBytes.." from same JPEG"
     end)
-    test("vision","template_image",function()
+    test("vision","template_from_same_frame",function()
       local path=opts.vision and opts.vision.template
       if not path then return "SKIP","no explicit template image configured" end
-      if type(path)~="string" or path=="" or path:find("[\r\n]") then
-        return "FAIL","invalid template path"
+      if not frameData then return "SKIP",frameError or "frame prerequisite failed" end
+      if frameData.templateCode=="INVALID" then
+        return "FAIL",frameData.templateErr
       end
-      local hit,err,code=nk.findImage(path,2,0.8,0.8)
-      if not hit then
-        if code=="NOT_FOUND" then return "WARN","template not in current frame" end
-        return "FAIL",safe(code or err)
+      if not frameData.template then
+        if frameData.templateCode=="NOT_FOUND" then
+          return "WARN","template not visible in frozen frame"
+        end
+        return "FAIL",frameData.templateErr or "image matcher error"
       end
-      return "PASS","template rect reported"
+      return "PASS","template found in same frozen frame"
     end)
   end
 
