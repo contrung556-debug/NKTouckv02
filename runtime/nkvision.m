@@ -4,6 +4,7 @@
 // Copyright (c) NKTouch contributors, GPL-3.0-or-later.
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <CoreImage/CoreImage.h>
 #import <ImageIO/ImageIO.h>
 #import <Vision/Vision.h>
 #import <mach/mach.h>
@@ -274,6 +275,26 @@ static int nv_find_color(lua_State *L) {
         }
     return nv_error(L,"color not found in captured frame","NOT_FOUND");
 }
+// Do not include recognized text in native diagnostics. Limit error text
+// to prevent private paths or arbitrary framework output from flooding logs.
+static NSString *nv_ocr_failure_detail(NSError *err, NSException *exception) {
+    if (exception) {
+        return [NSString stringWithFormat:@"exception=%@",exception.name ?: @"unknown"];
+    }
+    if (!err) return @"error=unavailable";
+    NSString *description=err.localizedDescription ?: @"";
+    description=[description stringByReplacingOccurrencesOfString:@"\\n" withString:@" "];
+    description=[description stringByReplacingOccurrencesOfString:@"\\r" withString:@" "];
+    if (description.length>160) description=[description substringToIndex:160];
+    NSError *inner=err.userInfo[NSUnderlyingErrorKey];
+    if (inner) {
+        return [NSString stringWithFormat:@"%@:%ld underlying=%@:%ld %@",
+            err.domain ?: @"unknown",(long)err.code,
+            inner.domain ?: @"unknown",(long)inner.code,description];
+    }
+    return [NSString stringWithFormat:@"%@:%ld %@",
+        err.domain ?: @"unknown",(long)err.code,description];
+}
 static int nv_ocr(lua_State *L) {
     NVFrame *f=NULL;
     if (!nv_live(L,&f)) return nv_error(L,"snapshot already released","CLOSED");
@@ -286,74 +307,91 @@ static int nv_ocr(lua_State *L) {
         return nv_error(L,"OCR rectangle outside frame","OUT_OF_BOUNDS");
     size_t len=0;
     const char *language=luaL_optlstring(L,6,"",&len);
-    if (len>64 || memchr(language,'\0',len))
+    if (len>64 || memchr(language,'\\0',len))
         return nv_error(L,"invalid OCR languages","INVALID");
     @autoreleasepool {
         CGImageRef crop=CGImageCreateWithImageInRect(f->image,
-                                       CGRectMake((CGFloat)x,(CGFloat)y,(CGFloat)w,(CGFloat)h));
+            CGRectMake((CGFloat)x,(CGFloat)y,(CGFloat)w,(CGFloat)h));
         if (!crop) return nv_error(L,"cannot crop frame for OCR","DECODE");
+        // The established live OCR backend uses a CIImage + Revision 2.
+        // Try that on the existing immutable frame first; never recapture.
+        CIImage *ciImage=[[CIImage alloc] initWithCGImage:crop];
         VNRecognizeTextRequest *req=[[VNRecognizeTextRequest alloc]init];
         req.recognitionLevel=VNRequestTextRecognitionLevelAccurate;
         req.usesLanguageCorrection=YES;
-        NSError *error=nil;
+        if (@available(iOS 14.0, *)) req.revision=2;
+        NSError *primaryError=nil;
+        NSException *primaryException=nil;
         BOOL success=NO;
-        @try {
-            // Device-supported languages differ by iOS version and request
-            // revision. Never hand Vision an unsupported code (e.g. vi-VN
-            // on an older device): prefer supported requested languages,
-            // otherwise use Vision's default / automatic recognition.
-            if (len) {
-                NSString *requested=[NSString stringWithUTF8String:language];
-                NSMutableArray<NSString*> *matching=[NSMutableArray array];
-                if (requested) {
-                    NSArray<NSString*> *supported=
-                        [req supportedRecognitionLanguagesAndReturnError:nil];
-                    for (NSString *part in [requested componentsSeparatedByString:@","]) {
-                        NSString *lang=[part stringByTrimmingCharactersInSet:
-                                          [NSCharacterSet whitespaceAndNewlineCharacterSet]];
-                        if (lang.length && (!supported || [supported containsObject:lang])) {
-                            [matching addObject:lang];
-                        }
-                    }
+        NSMutableArray<NSString *> *requestedLanguages=[NSMutableArray array];
+        if (len) {
+            NSString *requested=[NSString stringWithUTF8String:language];
+            if (requested) {
+                NSArray<NSString *> *supported=
+                    [req supportedRecognitionLanguagesAndReturnError:nil];
+                for (NSString *part in [requested componentsSeparatedByString:@","]) {
+                    NSString *lang=[part stringByTrimmingCharactersInSet:
+                        [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                    if (lang.length && (!supported || [supported containsObject:lang]))
+                        [requestedLanguages addObject:lang];
                 }
-                if (matching.count) {
-                    req.recognitionLanguages=matching;
-                } else {
-                    if (@available(iOS 16.0, *)) req.automaticallyDetectsLanguage=YES;
-                }
-            } else {
-                if (@available(iOS 16.0, *)) req.automaticallyDetectsLanguage=YES;
             }
-            VNImageRequestHandler *handler=[[VNImageRequestHandler alloc]
-                                           initWithCGImage:crop options:@{}];
-            success=[handler performRequests:@[req] error:&error];
-            if (!success && len) {
-                // Read-only retry against SAME captured CGImage. No further
-                // screenshot, no tap, no side effect. A failed explicit
-                // language constraint must not crash the whole Vision group.
-                VNRecognizeTextRequest *fallback=[[VNRecognizeTextRequest alloc]init];
-                fallback.recognitionLevel=VNRequestTextRecognitionLevelAccurate;
-                fallback.usesLanguageCorrection=YES;
-                if (@available(iOS 16.0, *)) fallback.automaticallyDetectsLanguage=YES;
-                NSError *fallbackError=nil;
+        }
+        if (requestedLanguages.count) {
+            req.recognitionLanguages=requestedLanguages;
+        } else if (@available(iOS 16.0, *)) {
+            req.automaticallyDetectsLanguage=YES;
+        }
+        if (ciImage) {
+            @try {
+                VNImageRequestHandler *primary=[[VNImageRequestHandler alloc]
+                    initWithCIImage:ciImage options:@{}];
+                success=[primary performRequests:@[req] error:&primaryError];
+            } @catch (NSException *ex) {
+                primaryException=ex;
+                success=NO;
+            }
+        }
+        NSError *fallbackError=nil;
+        NSException *fallbackException=nil;
+        if (!success) {
+            // Fallback is read-only, uses the SAME crop, and does not call
+            // nk.screenshot/tap/inputText. Preserve previous CGImage behavior.
+            VNRecognizeTextRequest *fallback=[[VNRecognizeTextRequest alloc]init];
+            fallback.recognitionLevel=VNRequestTextRecognitionLevelAccurate;
+            fallback.usesLanguageCorrection=YES;
+            if (requestedLanguages.count) {
+                fallback.recognitionLanguages=requestedLanguages;
+            } else if (@available(iOS 16.0, *)) {
+                fallback.automaticallyDetectsLanguage=YES;
+            }
+            @try {
                 VNImageRequestHandler *second=[[VNImageRequestHandler alloc]
-                                              initWithCGImage:crop options:@{}];
+                    initWithCGImage:crop options:@{}];
                 success=[second performRequests:@[fallback] error:&fallbackError];
                 if (success) req=fallback;
-                else error=fallbackError ?: error;
+            } @catch (NSException *ex) {
+                fallbackException=ex;
+                success=NO;
             }
-        } @catch (NSException *exception) {
-            success=NO;
         }
         CGImageRelease(crop);
-        if (!success) return nv_error(L,"Vision OCR failed after supported-language fallback","OCR");
-        NSMutableArray<NSString*> *texts=[NSMutableArray array];
+        if (!success) {
+            NSString *p=ciImage ?
+                nv_ocr_failure_detail(primaryError,primaryException) :
+                @"CIImage initialization failed";
+            NSString *q=nv_ocr_failure_detail(fallbackError,fallbackException);
+            NSString *message=[NSString stringWithFormat:
+                @"Vision OCR failed (CIImage/rev2: %@; CGImage: %@)",p,q];
+            return nv_error(L,[message UTF8String],"OCR");
+        }
+        NSMutableArray<NSString *> *texts=[NSMutableArray array];
         for (VNRecognizedTextObservation *observation in req.results) {
             VNRecognizedText *best=[[observation topCandidates:1] firstObject];
             if (best.string) [texts addObject:best.string];
         }
-        NSString *result=[texts componentsJoinedByString:@"\n"];
-        lua_pushstring(L,[result UTF8String]?: "");
+        NSString *result=[texts componentsJoinedByString:@"\\n"];
+        lua_pushstring(L,[result UTF8String] ?: "");
         return 1;
     }
 }
