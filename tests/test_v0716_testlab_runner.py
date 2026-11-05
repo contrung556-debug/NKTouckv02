@@ -208,5 +208,48 @@ print("[TESTLAB][HOST] opt-in guarded PASS")
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
             self.assertIn("opt-in guarded PASS",result.stdout)
 
+
+    @unittest.skipUnless(shutil.which("lua"),"Lua 5.4 required")
+    def test_optin_input_is_foreground_gated_and_never_retried(self):
+        harness=r'''
+package.path="lua/?.lua;"..package.path
+local lab=require("nktestlab")
+local taps,insertions=0,0
+local current="com.apple.mobilesafari"
+local nk={DIRECT=true}
+nk.screen=function()return "750.000000;;1334.000000"end
+nk.foreground=function()return current end
+nk.tap=function(x,y) taps=taps+1; return true end
+nk.sleep=function()return true end
+nk.inputText=function(text,opts)
+ if text=="" then return nil,"invalid text","INVALID" end
+ assert(text=="NKTouch public sample")
+ insertions=insertions+1
+ return true,{sent=true,verified=false,status="dispatched"}
+end
+nk.inputPassword=function(text,opts)
+ assert(opts.verify)
+ return nil,"secure OCR forbidden","SECURE"
+end
+local input={enabled=true,bundle="com.apple.mobilenotes",x=100,y=250,
+             text="NKTouch public sample"}
+local denied=lab.run({selected={"input"},input=input,run_id="input_denied_01"},
+                     {nk=nk,reportPath=false})
+assert(denied.fail==1 and taps==0 and insertions==0)
+current="com.apple.mobilenotes"
+local accepted=lab.run({selected={"input"},input=input,run_id="input_once_01"},
+                      {nk=nk,reportPath=false})
+assert(accepted.fail==0 and accepted.warn==1)
+assert(taps==1 and insertions==1,"input must send one tap and text once")
+print("[TESTLAB][HOST] input opt-in non-retrying PASS")
+'''
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/"test.lua";path.write_text(harness)
+            r=subprocess.run(["lua",str(path)],cwd=ROOT,
+                  capture_output=True,text=True,timeout=12)
+            self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+            self.assertIn("input opt-in non-retrying PASS",r.stdout)
+
+
 if __name__=="__main__":
     unittest.main()
