@@ -38,7 +38,7 @@ local function statusPriority(s)
   return ({FAIL=4,WARN=3,PASS=2,SKIP=1})[s] or 0
 end
 
-local function reporter(nk,selected,id,now,reportPath,mode,clockType)
+local function reporter(nk,selected,id,now,reportPath,mode,clockType,external)
   local startedClock=now()
   local taskID=os.getenv("NKTOUCH_TASK_ID")
   if type(taskID)~="string" or #taskID<4 or #taskID>64
@@ -48,6 +48,7 @@ local function reporter(nk,selected,id,now,reportPath,mode,clockType)
     started_at=os.date("!%Y-%m-%dT%H:%M:%SZ"),
     selected=selected, groups={}, tests={},
     mode=mode or "read_only_default", visual_confirmation=false,
+    external=external,
     coverage="PARTIAL", clock_type=clockType or "unknown",
     pass=0, fail=0, warn=0, skip=0, status="SKIP"
   }
@@ -200,7 +201,7 @@ local function reporter(nk,selected,id,now,reportPath,mode,clockType)
       id,report.status,report.pass,report.fail,report.warn,report.skip))
     return report
   end
-  return check,finish
+  return check,finish,report
 end
 
 local function makeGroups(nk,opts,check)
@@ -1000,20 +1001,92 @@ function M.run(opts,dependencies)
   local reportPath=dependencies.reportPath
   if reportPath==nil then reportPath=REPORT end
   if reportPath==false then reportPath=nil end
-  local mode=((type(opts.touch)=="table" and opts.touch.enabled==true)
+  local mutations=((type(opts.touch)=="table" and opts.touch.enabled==true)
       or (type(opts.input)=="table" and opts.input.enabled==true)
       or (type(opts.network)=="table" and opts.network.enabled==true))
-      and "opt_in_requested" or "read_only_default"
-  local check,finish=reporter(nk,groups,id,now,reportPath,mode,clockType)
+  local external
+  if opts.external~=nil then
+    if type(opts.external)~="table" or opts.external.enabled~=true then
+      error("external must be explicitly enabled",0)
+    end
+    local bundle=opts.external.expected_bundle
+    if type(bundle)~="string" or #bundle<3 or #bundle>255
+        or not bundle:match("^[%w%._%-]+$") or not bundle:find(".",1,true) then
+      error("external expected_bundle must be a valid app bundle ID",0)
+    end
+    if mutations then error("external app Test Lab is strictly read-only",0) end
+    external={expected_bundle=bundle,foreground_start="UNVERIFIED",
+              foreground_end="UNVERIFIED",verified=false,
+              observation="PRECHECK_PENDING"}
+  end
+  local mode=external and "external_read_only" or
+      (mutations and "opt_in_requested" or "read_only_default")
+  local check,finish,report=reporter(
+      nk,groups,id,now,reportPath,mode,clockType,external)
   local handlers=makeGroups(nk,opts,check)
-  print(("[NKLAB] version=%s run=%s selected=%s mode=read-only-default"):format(
-    M.VERSION,id,table.concat(groups,",")))
+  print(("[NKLAB] version=%s run=%s selected=%s mode=%s"):format(
+    M.VERSION,id,table.concat(groups,","),mode))
+
+  local function foreground()
+    if type(nk.foreground)~="function" then return nil,"UNAVAILABLE" end
+    local ok,actual=pcall(nk.foreground)
+    if not ok or type(actual)~="string" or #actual==0 then
+      return nil,"UNAVAILABLE"
+    end
+    return actual
+  end
+  if external then
+    local actual=foreground()
+    external.foreground_start=actual or "UNAVAILABLE"
+    if actual~=external.expected_bundle then
+      external.observation="FOREGROUND_MISMATCH"
+      check(groups[1],"external_foreground_guard",function()
+        return "FAIL","Expected foreground "..external.expected_bundle..
+                      "; got "..external.foreground_start
+      end)
+      external.foreground_end=external.foreground_start
+      return finish()
+    end
+    external.observation="FOREGROUND_MATCHED"
+    print(("[NKLAB][EXTERNAL] foreground=%s read_only=true"):format(
+      external.expected_bundle))
+  end
   for _,key in ipairs(groups) do
+    if external then
+      local actual=foreground()
+      if actual~=external.expected_bundle then
+        external.observation="FOREGROUND_CHANGED"
+        external.foreground_end=actual or "UNAVAILABLE"
+        check(key,"external_foreground_guard",function()
+          return "FAIL","App changed before "..key.." (expected "..
+                        external.expected_bundle..", got "..external.foreground_end..")"
+        end)
+        break
+      end
+    end
     local ok,err=pcall(handlers[key])
     if not ok then
       check(key,"group_exception",function()
         return "FAIL",safe(err)
       end)
+    end
+    if external then
+      local actual=foreground()
+      external.foreground_end=actual or "UNAVAILABLE"
+      if actual~=external.expected_bundle then
+        external.observation="FOREGROUND_CHANGED"
+        check(key,"external_foreground_guard",function()
+          return "FAIL","App changed during "..key
+        end)
+        break
+      end
+    end
+  end
+  if external and external.observation=="FOREGROUND_MATCHED" then
+    external.verified=true
+    external.observation="FOREGROUND_STABLE"
+    if external.foreground_end=="UNVERIFIED" then
+      external.foreground_end=external.foreground_start
     end
   end
   return finish()
