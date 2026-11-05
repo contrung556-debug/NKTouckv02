@@ -66,6 +66,12 @@ function M.withFrame(nk, callback)
   if not frame then return nil, err, kind end
   local values = table.pack(pcall(callback, frame))
   local closeOk, closeResult = pcall(frame.close, frame)
+  -- Native RGBA/CGImage allocations are freed by close() immediately.
+  -- Incremental Lua GC reclaims temporary OCR strings/tables gradually
+  -- without a full GC pause after every screenshot.
+  if type(collectgarbage) == "function" then
+    pcall(collectgarbage, "step", 64)
+  end
   if not closeOk or closeResult ~= true then
     return nil, "failed to release Vision frame", "CLEANUP"
   end
