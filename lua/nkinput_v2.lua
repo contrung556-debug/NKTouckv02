@@ -1,5 +1,5 @@
 -- NKTouch Input Engine v2 — explicit, Unicode-safe and non-retrying.
--- The old nk.inputText(text) API remains unchanged for legacy scripts.
+-- nk.inputText() defaults to native v2 since 0.7.12; legacy is explicit only.
 -- SPDX-License-Identifier: GPL-3.0-or-later
 local M = { VERSION="0.7.10" }
 local MAX_BYTES = 8192
