@@ -7,6 +7,9 @@ on:
     branches: [ v0.7.16-command-hardening-dev ]
     paths:
       - lua/nktestlab.lua
+      - lua/nkcoords.lua
+      - lua/nkstability.lua
+      - runtime/nkcore.c
       - patches/NKTestLabUIViewController.m.inc
       - scripts/apply-v0716-testlab-ui.py
       - scripts/stage-v0716-testlab-dev.sh
@@ -14,6 +17,8 @@ on:
       - tests/test_v0716_testlab_ui.py
       - tests/test_v0716_reliability_report.py
       - tests/test_v0716_color_accuracy.py
+      - tests/lua_v0716_coords_stability.lua
+      - tests/test_v0716_native_preflight.py
       - .github/workflows/validate-v0716-testlab.yml
 
 permissions:
@@ -28,15 +33,24 @@ jobs:
       - name: Install Lua 5.4 host runtime
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq lua5.4
+          sudo apt-get install -y -qq lua5.4 liblua5.4-dev pkg-config gcc
           lua -v
       - name: Validate Lua syntax and source patch
         run: |
           set -euxo pipefail
           luac -p lua/nktestlab.lua
+          luac -p lua/nkcoords.lua
+          luac -p lua/nkstability.lua
+          luac -p tests/lua_v0716_coords_stability.lua
           bash -n scripts/stage-v0716-testlab-dev.sh
           python3 -m py_compile scripts/apply-v0716-testlab-ui.py
           python3 -m py_compile tests/test_v0716_testlab_runner.py tests/test_v0716_testlab_ui.py
+      - name: Test coordinate/Retina geometry and monotonic read-only polling
+        run: |
+          lua tests/lua_v0716_coords_stability.lua
+      - name: Host-compile native Lua module and check touch preflight (no iOS build)
+        run: |
+          python3 -m unittest tests/test_v0716_native_preflight.py -v
       - name: Test seven groups and no-unsafe-action defaults
         run: |
           python3 -m unittest tests/test_v0716_testlab_runner.py -v
