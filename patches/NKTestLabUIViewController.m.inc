@@ -260,21 +260,21 @@
     // Each execution gets a unique filename. Never overwrite user-edited Lua.
     NSString *script=[NSString stringWithFormat:
      @"-- NKTouch Test Lab v0.7.16-dev | Generated: %@\n"
-      "-- Default: READ ONLY. Touch / Input / HTTPS will not run without opt-in.\n"
-      "-- To enable interactive tests: choose the correct target via 'Ứng dụng +',\n"
-      "-- then edit bundle ID and physical-pixel coordinates below.\n"
-      "local lab=require(\"nktestlab\")\n"
-      "local opts={\n"
-      "  run_id=\"%@\",\n"
-      "  selected={%@},\n"
-      "  touch={enabled=false,bundle=\"\",tap={x=0,y=0},hold={x=0,y=0,ms=400},\n"
-      "         swipe={x1=0,y1=0,x2=0,y2=0,ms=500}},\n"
-      "  input={enabled=false,bundle=\"\",x=0,y=0,text=\"NKTouch Lab Test\"},\n"
-      "  network={enabled=false},\n"
-      "  vision={}\n"
-      "}\n"
-      "local result=lab.run(opts)\n"
-      "if result.fail>0 then error(\"NKTouch Test Lab FAILED; see Task Center Logs\",0) end\n",
+      @"-- Default: READ ONLY. Touch / Input / HTTPS will not run without opt-in.\n"
+      @"-- To enable interactive tests: choose the correct target via 'Ứng dụng +',\n"
+      @"-- then edit bundle ID and physical-pixel coordinates below.\n"
+      @"local lab=require(\"nktestlab\")\n"
+      @"local opts={\n"
+      @"  run_id=\"%@\",\n"
+      @"  selected={%@},\n"
+      @"  touch={enabled=false,bundle=\"\",tap={x=0,y=0},hold={x=0,y=0,ms=400},\n"
+      @"         swipe={x1=0,y1=0,x2=0,y2=0,ms=500}},\n"
+      @"  input={enabled=false,bundle=\"\",x=0,y=0,text=\"NKTouch Lab Test\"},\n"
+      @"  network={enabled=false},\n"
+      @"  vision={}\n"
+      @"}\n"
+      @"local result=lab.run(opts)\n"
+      @"if result.fail>0 then error(\"NKTouch Test Lab FAILED; see Task Center Logs\",0) end\n",
       runID,runID,[quoted componentsJoinedByString:@","]];
     NSString *path=NKPath(filename);
     NSFileManager *fs=[NSFileManager defaultManager];
