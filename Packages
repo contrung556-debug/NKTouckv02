@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.7.16 Test Lab and seven-engine reliability beta (device verification pending); retains earlier v0.7.15 functionality
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.7.16
+Installed-Size: 7128
+Filename: debs/com.nk.nktouch_0.7.16_iphoneos-arm64.deb
+Size: 1354398
+MD5sum: 3eda3e01dfb8abe7091acdc60a463b82
+SHA1: c0a9f89bb3b01bfdf43738b40c1e349676845231
+SHA256: c352092df29e3158720bfefb1c0aac6b0ca90344b2feb0d900c41acc0fd77588
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.7.15 Lua Function Self-Test - built-in Core, one-frame Vision, Notes InputText and opt-in Gesture tests; retains v0.7.14 fixes
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
