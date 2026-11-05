@@ -67,6 +67,6 @@ jobs:
           git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.0'
           git show FETCH_HEAD:Packages | grep -Fxq 'Filename: debs/com.nk.nktouch_0.8.0_iphoneos-arm64.deb'
           git show FETCH_HEAD:README.md | grep -Fq 'Current package: com.nk.nktouch 0.8.0'
-          git show FETCH_HEAD:README.md | grep -Fq 'device OCR/Touch/Memory tests pending'
+          git show FETCH_HEAD:README.md | grep -Fq 'device OCR, Touch and Memory verification pending'
           git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.8.0_iphoneos-arm64.deb'
           echo 'PUBLISHED NKTouch 0.8.0 experimental beta to Sileo; iPhone validation pending'
