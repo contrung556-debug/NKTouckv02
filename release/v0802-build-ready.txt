@@ -11,3 +11,5 @@ NKTouch v0.8.2 same-frame JPEG ROI OCR IPC candidate.
 
 - 2026-11-05 second review: validated upstream socket strips CRLF; service trim is defensive, not claimed root cause. 420f plain/IOSurface/Metal diagnostic matrix, CGImage info, -6662 fallback metadata, loopback-only task 31, and verified-foreground restore. Source contracts checked; iPhone status unverified.
 - Artifact-only rebuild requested at this marker; do not publish to Sileo before device PASS and SpringBoard stability checks.
+
+- Maintainer explicitly approved Sileo publication: publish experimental v0.8.2 only when the SAME workflow has successfully compiled, inspected and uploaded the iOS rootless .deb, then retain v0.8.1 for rollback. On-device OCR remains unverified.
