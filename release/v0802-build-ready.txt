@@ -1,0 +1,7 @@
+NKTouch v0.8.2 same-frame JPEG ROI OCR IPC candidate.
+- Source CI run 42036866350: SUCCESS.
+- v0.8.1 device: 3 native Vision backends returned -6662; live SpringBoard OCR worked.
+- New task 31 accepts <=1MiB JPEG crop, decodes only in memory in existing OCR service.
+- NKTouch sends only ROI derived from one already captured frame; NEVER recaptures.
+- TestLab includes actual ocr_backend, no fake PASS.
+- Artifact-only rootless build for supervised on-device tests; do not publish to Sileo.
