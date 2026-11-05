@@ -1,5 +1,10 @@
     else if (taskType == TASK_NK_FRAME_OCR)
     {
+        // This experimental privileged OCR IPC must never accept remote peers.
+        // SocketServer already records whether the connection is loopback.
+        if (!zxSocketClientIsLoopback(writeStreamRef)) {
+            notifyClient((UInt8 *)"-1;;NK_FRAME_OCR_LOOPBACK_ONLY\\r\\n",writeStreamRef);
+        } else {
         // NKTouch v0.8.2: OCR the caller's ALREADY-CAPTURED JPEG.
         // No call to Screen/createScreenShot. This executes Vision in the
         // same SpringBoard service that already passes live OCR on-device.
@@ -91,5 +96,6 @@
                 [NSString stringWithFormat:@"0;;%@\r\n",output ?: @""] :
                 @"-1;;NK_FRAME_OCR_UNAVAILABLE\r\n";
             notifyClient((UInt8 *)[reply UTF8String],writeStreamRef);
+        }
         }
     }
