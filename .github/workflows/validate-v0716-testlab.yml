@@ -15,6 +15,9 @@ on:
       - lua/nkstability.lua
       - lua/nkregression.lua
       - scripts/check-v0716-readiness.py
+      - scripts/prepare-v0716-release.sh
+      - scripts/publish-v0716-sileo.sh
+      - .github/workflows/build-v0716-reliability-testlab.yml
       - runtime/nkcore.c
       - patches/NKTestLabUIViewController.m.inc
       - scripts/apply-v0716-testlab-ui.py
@@ -64,6 +67,11 @@ jobs:
           python3 -m py_compile scripts/check-v0716-readiness.py
           luac -p tests/lua_v0716_coords_stability.lua
           bash -n scripts/stage-v0716-testlab-dev.sh
+          bash -n scripts/prepare-v0716-release.sh
+          bash -n scripts/publish-v0716-sileo.sh
+          grep -Fq 'release/v0716-build-ready.txt' .github/workflows/build-v0716-reliability-testlab.yml
+          grep -Fq 'scripts/prepare-v0716-release.sh upstream' .github/workflows/build-v0716-reliability-testlab.yml
+          grep -Fq 'scripts/publish-v0716-sileo.sh' .github/workflows/build-v0716-reliability-testlab.yml
           python3 -m py_compile scripts/apply-v0716-testlab-ui.py
           python3 -m py_compile tests/test_v0716_testlab_runner.py tests/test_v0716_testlab_ui.py
       - name: Test coordinate/Retina geometry and monotonic read-only polling
