@@ -92,6 +92,26 @@ static int nv_decoded(CGImageRef image, uint8_t **out, size_t *outW,
 static uint8_t nv_gray(uint8_t r,uint8_t g,uint8_t b) {
     return (uint8_t)((77u*r+150u*g+29u*b+128u)>>8);
 }
+// Decode grayscale ONLY for template matching. Most scripts call
+// getColor/ocr and never findImage; their snapshot does not need a
+// permanent second full-screen bitmap (e.g. ~1 MiB at 750x1334).
+// Frame owns this allocation; close/__gc releases it even on errors.
+static int nv_ensure_gray(NVFrame *f) {
+    if (!f || f->released || !f->rgba) return 0;
+    if (f->gray) return 1;
+    if (!f->w || !f->h || f->w > SIZE_MAX/f->h) return 0;
+    size_t bytes=f->w*f->h;
+    if (bytes>NV_MAX_BITMAP) return 0;
+    uint8_t *gray=(uint8_t *)malloc(bytes);
+    if (!gray) return 0;
+    for (size_t y=0;y<f->h;y++)
+        for (size_t x=0;x<f->w;x++) {
+            const uint8_t *p=f->rgba+y*f->stride+x*4;
+            gray[y*f->w+x]=nv_gray(p[0],p[1],p[2]);
+        }
+    f->gray=gray;
+    return 1;
+}
 // Reserve a collision-resistant per-capture filename with mode 0600.
 // Lua must remove it even on failed screenshot, before returning to caller.
 static int nv_temp_path(lua_State *L) {
@@ -129,19 +149,11 @@ static int nv_open(lua_State *L) {
             CGImageRelease(img);
             return nv_error(L,"snapshot dimensions/bitmap memory invalid","MEMORY");
         }
-        uint8_t *gray=(uint8_t *)malloc(w*h);
-        if (!gray) {
-            free(pixels); CGImageRelease(img);
-            return nv_error(L,"snapshot grayscale allocation failed","MEMORY");
-        }
-        for (size_t y=0;y<h;y++)
-            for (size_t x=0;x<w;x++) {
-                const uint8_t *p=pixels+y*stride+x*4;
-                gray[y*w+x]=nv_gray(p[0],p[1],p[2]);
-            }
+        // Pixel/RGB/OCR-only frames should not allocate a grayscale buffer.
+        // It is built lazily by nv_find_image() if template search is used.
         NVFrame *f=(NVFrame *)lua_newuserdatauv(L,sizeof(NVFrame),0);
         memset(f,0,sizeof(*f));
-        f->rgba=pixels; f->gray=gray; f->w=w; f->h=h; f->stride=stride;
+        f->rgba=pixels; f->gray=NULL; f->w=w; f->h=h; f->stride=stride;
         f->jpeg=(CFDataRef)CFRetain((__bridge CFDataRef)data);
         f->image=img;
         luaL_getmetatable(L,NV_MT);
@@ -158,6 +170,12 @@ static int nv_info(lua_State *L) {
     lua_pushinteger(L,(lua_Integer)CFDataGetLength(f->jpeg)); lua_setfield(L,-2,"bytes");
     lua_pushliteral(L,"jpeg"); lua_setfield(L,-2,"format");
     lua_pushboolean(L,1); lua_setfield(L,-2,"immutable");
+    // Count only allocations directly owned by NVFrame. This is NOT
+    // total process RSS (CGImage and Vision frameworks may cache memory).
+    lua_pushinteger(L,(lua_Integer)(f->stride*f->h));
+    lua_setfield(L,-2,"rgba_bytes");
+    lua_pushinteger(L,(lua_Integer)(f->gray ? f->w*f->h : 0));
+    lua_setfield(L,-2,"gray_bytes");
     return 1;
 }
 static int nv_save(lua_State *L) {
@@ -337,6 +355,10 @@ static int nv_find_image(lua_State *L) {
                 gray[y*iw+x]=nv_gray(p[0],p[1],p[2]);
             }
         free(rgba);
+        if (!nv_ensure_gray(f)) {
+            free(gray);
+            return nv_error(L,"cannot allocate frame grayscale for template matching","MEMORY");
+        }
         int bestScore=-10001;size_t bestX=0,bestY=0,bestW=0,bestH=0;
         size_t budget=NV_MAX_MATCH_EVAL;
         int variants=1+(int)maxTry*2;
