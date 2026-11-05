@@ -8,3 +8,5 @@ Build: artifact-only rootless .deb, do not publish Sileo.
 - Two frame screen pixel heuristic; fail-closed when samples change.
 - Existing read-only Test Lab and user-editable scripts preserved.
 - Device OCR accuracy, transition sensitivity and long-run memory pending.
+
+Build revision 2: source CI 42053748133 PASSED after adding fail-closed sleep verification in two-frame stability guard. Prior candidate build 42053547076 predated this correction; retain it only as a diagnostic artifact. Request new artifact-only build of current source (no Sileo update).
