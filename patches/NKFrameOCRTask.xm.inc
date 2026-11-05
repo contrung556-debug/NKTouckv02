@@ -26,9 +26,9 @@
                                @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_,"]
                                  invertedSet]].location==NSNotFound;
                     if (nums.count==4 && languageSafe && encoded.length>0 &&
-                        encoded.length<=8*1024*1024) {
+                        encoded.length<=1400000) {
                         NSData *jpeg=[[NSData alloc] initWithBase64EncodedString:encoded options:0];
-                        if (jpeg.length>0 && jpeg.length<=6*1024*1024) {
+                        if (jpeg.length>0 && jpeg.length<=1024*1024) {
                             CGImageSourceRef source=CGImageSourceCreateWithData(
                                 (__bridge CFDataRef)jpeg,NULL);
                             CGImageRef image=source ?
