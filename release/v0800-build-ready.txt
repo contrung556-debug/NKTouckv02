@@ -3,3 +3,6 @@ Fast source QA: GitHub Actions 42016846725 (SUCCESS).
 Included: native NKTask exit summary, Vision/Color snapshot batching, read-only smart waits,
 guarded Touch/InputText, privacy-safe diagnostics and Test Lab reports.
 Artifact only; no automatic Sileo publishing. Device testing follows the build.
+Native Darwin compiler compatibility fix: portable lstat/fstat verification.
+Fast CI verification: 42017232941 (SUCCESS).
+Retry consolidated artifact build after failed C syntax gate; no separate feature builds.
