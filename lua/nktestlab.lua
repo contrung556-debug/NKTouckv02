@@ -222,6 +222,22 @@ local function makeGroups(nk,opts,check)
   end
 
   handlers.touch=function()
+    test("touch","coordinate_contract",function()
+      local coords=require("nkcoords")
+      local raw,err,code=nk.screen()
+      if not raw then return "FAIL",safe(code or err) end
+      local screen,why=coords.screen(raw)
+      if not screen then return "FAIL",why end
+      local center,cenErr=coords.point(
+        math.floor(screen.width/2),math.floor(screen.height/2),screen)
+      if not center then return "FAIL",cenErr end
+      local invalid,_,kind=coords.point(screen.width,0,screen)
+      if invalid~=nil or kind~="OUT_OF_BOUNDS" then
+        return "FAIL","pixel coordinate boundary accepted"
+      end
+      return "PASS",("screen=%dx%d center=%d,%d; no inferred Retina scale"):format(
+                screen.width,screen.height,center.x,center.y)
+    end)
     test("touch","invalid_coords_fail_closed",function()
       if invalidReturn(nk.tap(-1,0)) and invalidReturn(nk.hold(-1,0,200))
           and invalidReturn(nk.swipe(0,0,-1,5,250)) then
@@ -474,10 +490,12 @@ local function makeGroups(nk,opts,check)
       if not frameData then return "SKIP",frameError or "frame prerequisite failed" end
       local w,h,err=dimensions()
       if not w then return "FAIL",err end
-      local v=frameData.info
-      if v.width~=w or v.height~=h then
-        return "WARN",("frame=%dx%d screen=%dx%d (rotation/scale?)"):format(
-                      v.width,v.height,w,h)
+      local coords=require("nkcoords")
+      local result,reason=coords.inspectFrame({width=w,height=h},frameData.info)
+      if not result then return "FAIL",reason end
+      if not result.matches then
+        return "WARN",("screen=%dx%d frame=%dx%d kind=%s; calibration required"):format(
+                w,h,frameData.info.width,frameData.info.height,result.kind)
       end
       return "PASS",("screenshot and device agree: %dx%d pixels"):format(w,h)
     end)
@@ -558,6 +576,39 @@ local function makeGroups(nk,opts,check)
       local ok,err,code=nk.sleep(40)
       if not ok then return "FAIL",safe(code or err) end
       return "PASS","40ms delay returned"
+    end)
+    test("task","bounded_read_retry",function()
+      local stability=require("nkstability")
+      local tick=0
+      local attempts=0
+      local result,meta=stability.pollRead(function()
+        attempts=attempts+1
+        if attempts==1 then return nil,"simulated temporary read failure","CONNECT" end
+        return "healthy"
+      end,{read_only=true,max_attempts=3,timeout_ms=500,interval_ms=50,
+        now=function()return tick end,
+        sleep=function(ms) tick=tick+ms;return true end})
+      if result~="healthy" or not meta or meta.attempts~=2 then
+        return "FAIL","bounded retry did not stop after read recovery"
+      end
+      local rejected,_,code=stability.pollRead(function()
+        return true
+      end,{read_only=false,now=function()return tick end,
+        sleep=function()return true end})
+      if rejected~=nil or code~="INVALID" then
+        return "FAIL","unsafe non-read-only retry not refused"
+      end
+      return "PASS","2 bounded simulated read probes; no gesture retry"
+    end)
+    test("task","read_latency_sample",function()
+      local stability=require("nkstability")
+      if not nk.DIRECT then return "SKIP","native monotonic clock required" end
+      local stats,err,code=stability.sampleRead(function()
+        return nk.screen()
+      end,{read_only=true,count=5})
+      if not stats then return "FAIL",safe(code or err) end
+      return "PASS",("5 native screen reads avg=%.2fms p95=%dms"):format(
+           stats.avg_ms,stats.p95_ms)
     end)
     test("task","read_only_stress",function()
       if type(nk.stress)~="function" or not nk.DIRECT then
