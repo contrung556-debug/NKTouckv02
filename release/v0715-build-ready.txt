@@ -1,0 +1,9 @@
+NKTouch 0.7.15 Lua Function Self-Test — RELEASE READY
+Build gate: release/v0715-build-ready.txt
+Scope: batched Core, Vision one-frame, Notes InputText, opt-in gestures,
+       Samples picker, non-overwriting script installation.
+Fast validation: GitHub Actions run 41952750075 SUCCESS.
+Previous stable package: 0.7.14 (retained).
+Packaging: rootless iphoneos-arm64, iOS >=15.0.
+Publish: only if full build-rootless job succeeds and .deb metadata verified.
+No auto touch unless user explicitly configures the opt-in gesture sample.
