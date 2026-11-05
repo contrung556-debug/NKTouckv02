@@ -3,13 +3,14 @@
 -- Safe execution through existing nktask runner and Task Center.
 -- All coordinates are *physical screen pixels*, not UIKit points.
 local M={VERSION="0.7.16-dev"}
-local ORDER={"runtime","touch","input","color","vision","network","task","ocr","memory"}
+local ORDER={"runtime","touch","input","color","vision","network","task","ocr","memory","diagnostics"}
 local LEGACY_DEFAULT={"runtime","touch","input","color","vision","network","task"}
 local CORE_PRESET={"ocr","color","touch","input","memory"}
 local TITLES={
   runtime="Lua Runtime",touch="Touch Engine",input="Input Engine",
   color="Color Engine",vision="Vision Core",network="Network & JSON",
-  task="Task Stability",ocr="OCR Engine",memory="Memory Stability"
+  task="Task Stability",ocr="OCR Engine",memory="Memory Stability",
+  diagnostics="Diagnostics & Crash"
 }
 local REPORT="/var/mobile/Library/NKTouch/tmp/testlab-last.json"
 local MAX_DETAIL=240
@@ -754,6 +755,57 @@ local function makeGroups(nk,opts,check)
       end
       return "PASS",("GC Lua %.1f->%.1f KiB; RSS cannot be forced lower"):format(
          result.lua_kb_before,result.lua_kb_after)
+    end)
+  end
+
+
+  handlers.diagnostics=function()
+    test("diagnostics","safe_trace",function()
+      local diag=require("nkdiagnostics")
+      local tracer,err,code=diag.create({persist=false})
+      if not tracer then return "FAIL",tostring(code or err) end
+      local fake={
+        ocr=function()return "Private one-time code 913442"end,
+        inputText=function()return nil,"secret input text XYZ","INPUT"end
+      }
+      local wrapped=assert(tracer:wrap(fake))
+      local ocr=wrapped.ocr(0,0,100,50)
+      if type(ocr)~="string" then return "FAIL","mock OCR result altered" end
+      local value,_,reason=wrapped.inputText("SENSITIVE",{})
+      if value~=nil or reason~="INPUT" then
+        return "FAIL","mock error propagation broken"
+      end
+      local snapshot=tracer:snapshot()
+      if snapshot.last_api~="inputText" or snapshot.last_code~="INPUT"
+           or snapshot.in_flight then
+        return "FAIL","API entry/exit tracking inconsistent"
+      end
+      local json=require("nkjson")
+      local data=assert(json.encode(snapshot))
+      if data:find("SENSITIVE",1,true) or
+         data:find("Private",1,true) or
+         data:find("913442",1,true) or
+         data:find("secret input",1,true) then
+        return "FAIL","diagnostics captured private values"
+      end
+      return "PASS","privacy-safe ring trace; no args/return values logged"
+    end)
+    test("diagnostics","task_exit_state",function()
+      local id=os.getenv("NKTOUCH_TASK_ID")
+      if not id or id=="" then
+        return "SKIP","no managed NKTask ID in process environment"
+      end
+      local diag=require("nkdiagnostics")
+      local st,err,code=diag.readTask(id)
+      if not st then return "WARN","task state unreadable: "..safe(code or err) end
+      if st.crashed then
+        return "FAIL",("task signal=%s exit_code=%s"):format(
+          tostring(st.signal),tostring(st.exit_code))
+      end
+      -- In a running Lab, the final exit_code is not yet available.
+      return "PASS",("task=%s state=%s; exit_code=%s signal=%s"):format(
+        id,safe(st.state),tostring(st.exit_code or "pending"),
+        tostring(st.signal or "pending"))
     end)
   end
 
