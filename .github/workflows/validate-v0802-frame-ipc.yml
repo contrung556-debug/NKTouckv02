@@ -5,10 +5,14 @@ on:
     paths:
       - runtime/nkvision.m
       - lua/nktestlab.lua
+      - lua/nktouch.lua
+      - patches/NKTestLabUIViewController.m.inc
       - patches/NKFrameOCRTask.xm.inc
       - scripts/apply-v0802-ocr-ipc.py
       - scripts/prepare-v0802-release.sh
       - tests/test_v0802_ocr_ipc.py
+      - tests/test_v0802_ocr_recovery.py
+      - tests/lua_v0802_ocr_fallback.lua
       - .github/workflows/build-v0802-frame-ipc.yml
       - .github/workflows/validate-v0802-frame-ipc.yml
   workflow_dispatch:
@@ -28,9 +32,11 @@ jobs:
           set -euo pipefail
           bash -n scripts/prepare-v0802-release.sh
           python3 -m py_compile scripts/apply-v0802-ocr-ipc.py
-          luac5.4 -p lua/nktestlab.lua
+          luac5.4 -p lua/nktestlab.lua lua/nktouch.lua
+          lua5.4 tests/lua_v0802_ocr_fallback.lua
           python3 -m unittest \
             tests/test_v0802_ocr_ipc.py \
+            tests/test_v0802_ocr_recovery.py \
             tests/test_v0801_ocr_buffer.py \
             tests/test_v0800_integrated.py \
             tests/test_v0800_release.py \
