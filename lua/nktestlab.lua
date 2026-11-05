@@ -613,6 +613,24 @@ local function makeGroups(nk,opts,check)
   handlers.ocr=function()
     local frameOK,frameBytes,liveOK,liveBytes=false,0,false,0
     local frameBackend="UNKNOWN"
+    test("ocr","pixelbuffer_420f_probe",function()
+      local loaded,native=pcall(require,"nkvision_native")
+      if not loaded or type(native)~="table" or
+          type(native.probeCVPixelBuffer)~="function" then
+        return "SKIP","CoreVideo allocation probe unavailable"
+      end
+      local w,h,dimErr=dimensions()
+      if not w then return "WARN","probe needs dimensions: "..safe(dimErr) end
+      local pw=w-w%2
+      local ph=math.min(h,220)
+      ph=ph-ph%2
+      if pw<2 or ph<2 then return "SKIP","screen too small for 420f" end
+      local probe,e,code=native.probeCVPixelBuffer(pw,ph)
+      if not probe then return "WARN","420f allocation probe: "..safe(code or e) end
+      local message=("CVPixelBufferCreate %dx%d 420f status=%s; diagnostic only"):format(
+        pw,ph,tostring(probe.status))
+      return probe.ok and "PASS" or "WARN",message
+    end)
     test("ocr","frame_ocr",function()
       if type(nk.withFrame)~="function" then
         return "FAIL","nk.withFrame is unavailable"
@@ -656,7 +674,7 @@ local function makeGroups(nk,opts,check)
     end)
     test("ocr","backend_comparison",function()
       if not frameOK and liveOK then
-        return "FAIL","native FRAME_OCR_BROKEN; live OCR works; bytes="..liveBytes
+        return "FAIL","FRAME_OCR_BROKEN; OCR_FALLBACK_LIVE available (separate capture); bytes="..liveBytes
       end
       if not frameOK and not liveOK then
         return "FAIL","no working OCR backend in this run"
