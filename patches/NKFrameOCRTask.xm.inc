@@ -19,7 +19,10 @@
                         [nums addObject:@([word integerValue])];
                     }
                     NSString *lang=parts[4];
-                    NSString *encoded=parts[5];
+                    // Socket messages are terminated by CRLF; strip only line breaks
+                    // so strict Base64 decoding accepts the intended payload.
+                    NSString *encoded=[parts[5] stringByTrimmingCharactersInSet:
+                        [NSCharacterSet newlineCharacterSet]];
                     BOOL languageSafe=lang.length<=64 &&
                         [lang rangeOfCharacterFromSet:
                              [[NSCharacterSet characterSetWithCharactersInString:
