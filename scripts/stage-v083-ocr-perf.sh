@@ -52,6 +52,22 @@ s=s.replace("NKTouch 0.8.2","NKTouch 0.8.3")
 s=s.replace('nkLabel:@"0.8.2"','nkLabel:@"0.8.3"')
 s=s.replace('text:@"0.8.2"','text:@"0.8.3"')
 s=s.replace("-- NKTouch Test Lab v0.8.2-beta","-- NKTouch Test Lab v0.8.3-beta")
+# Append to the existing consolidated Samples menu, never create new cards.
+# The initial-copy installer checks !fileExists, so user-edited Lua is safe.
+installer='@{@"file":@"test_gestures_optin.lua"}'
+if s.count(installer)!=1:
+    raise SystemExit("v0.8.3 expected one Samples installer anchor")
+s=s.replace(installer,
+    '@{@"file":@"test_ocr_perf_v083.lua", @"bundle":@"com.apple.mobilesafari"},\n'
+    '        @{@"file":@"test_ocr_stability_v083.lua", @"bundle":@"com.apple.mobilesafari"},\n'
+    '        '+installer,1)
+menu='@{@"title":@"Tap / Hold / Swipe • tuỳ chọn", @"file":@"test_gestures_optin.lua"}'
+if s.count(menu)!=1:
+    raise SystemExit("v0.8.3 expected one consolidated Samples menu anchor")
+s=s.replace(menu,
+    '@{@"title":@"OCR • Benchmark 10 lần", @"file":@"test_ocr_perf_v083.lua"},\n'
+    '        @{@"title":@"OCR • Kiểm tra màn hình ổn định", @"file":@"test_ocr_stability_v083.lua"},\n'
+    '        '+menu,1)
 ui.write_text(s)
 once(lab,"-- NKTouch Test Lab v0.8.2-beta",
          "-- NKTouch Test Lab v0.8.3-beta")
