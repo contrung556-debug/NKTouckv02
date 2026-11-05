@@ -8,7 +8,6 @@ class V0800Release(unittest.TestCase):
     def test_single_stage_inherits_v0719_without_updating_legacy_core(self):
         s=(ROOT/"scripts/prepare-v0800-release.sh").read_text()
         self.assertIn('prepare-v0719-release.sh',s)
-        self.assertIn("'Version: 0.7.19'",s) if False else None
         self.assertIn('"Version: 0.7.19","Version: 0.8.0"',s)
         self.assertIn('PACKAGE_VERSION="0.8.0"',s)
         for name in ("nkdiagnostics","nksnapshot","nkactions","nksdk"):
