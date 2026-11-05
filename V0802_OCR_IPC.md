@@ -30,3 +30,28 @@
 7. If the Test Lab reports `backend=NATIVE_FRAME` or `ocr/frame_ocr FAIL`, do not declare the IPC path fixed; inspect the service integration and rootless permissions.
 
 **Note:** PASS from CI only proves source and package integrity, not iPhone OCR correctness or long-term stability.
+
+## Post-log hardening (5 November 2026)
+
+- Fixed service task 31 parsing of newline-terminated base64 IPC frames:
+  trim the socket CR/LF terminator before strict base64 decoding. No
+  arbitrary unknown-character ignoring.
+- Added read-only `nkvision_native.probeCVPixelBuffer(width,height)` to
+  separately test 420f allocation in the Lua worker. The result is diagnostic:
+  an allocation PASS does **not** establish OCR success, and failure is WARN.
+- Exposed opt-in `nk.ocrWithFallback(x,y,w,h,languages)`. First it tries
+  OCR on one immutable frame. Only if that path fails may it perform
+  separate live-screen OCR, returning metadata
+  `{backend="OCR_FALLBACK_LIVE",same_frame=false,recaptured=true}`.
+  Calling `frame:ocr()` remains strict and never recaptures.
+- Test Lab now distinguishes Frame OCR FAIL from live fallback availability.
+  The generated Test Lab script requests foreground NKTouch
+  (`com.zjx.zxtouch`) after reporting, even on group failure. It logs a
+  restore *request*, not verified visual focus.
+- Host-only checks: `tests/test_v0802_ocr_recovery.py` and
+  `tests/lua_v0802_ocr_fallback.lua`. Real-device OCR and SpringBoard
+  stability are **not** verified; artifact-only build, no Sileo publish.
+
+Expected additional diagnostic output:
+`[NKLAB][PASS/WARN] ocr/pixelbuffer_420f_probe ... 420f status=...`
+and `[NKLAB][RESTORE] request_accepted ...` or `WARN ...`.
