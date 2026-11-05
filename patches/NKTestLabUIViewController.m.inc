@@ -218,6 +218,13 @@
             [out appendFormat:@"  PASS of executed checks: %@%% (not touch accuracy)\n",
                 g[@"check_pass_rate_pct"]];
     }
+    NSDictionary *comparison=[report[@"regression"] isKindOfClass:[NSDictionary class]]?report[@"regression"]:@{};
+    [out appendFormat:@"Previous-run comparison: %@\\n",comparison[@"status"]?:@"NO_BASELINE"];
+    NSArray *changes=[comparison[@"regressions"] isKindOfClass:[NSArray class]]?comparison[@"regressions"]:@[];
+    for (NSDictionary *change in changes) {
+        if ([change isKindOfClass:[NSDictionary class]])
+            [out appendFormat:@"REGRESSION %@: %@ -> %@\\n",change[@"check"]?:@"?",change[@"from"]?:@"?",change[@"to"]?:@"?"];
+    }
     [out appendString:@"\nPer-check details:\n"];
     NSArray *tests=report[@"tests"];
     NSUInteger count=MIN(tests.count,(NSUInteger)180);
