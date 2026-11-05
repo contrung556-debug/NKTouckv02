@@ -6,6 +6,7 @@ local tmp=assert(arg[1],"temporary directory argument required")
 local network=require("nknet")
 local calls=0
 local failTransport=true
+local serverStatus=200
 local originalExecute=os.execute
 local function readAll(path)
   local f=assert(io.open(path,"rb"))
@@ -38,7 +39,7 @@ os.execute=function(cmd)
   local reply='{"value":"Xin chào Việt Nam"}'
   writeAll(spec.response_file,reply)
   writeAll(spec.meta_file,
-     "status=200\nbytes="..#reply..
+     "status="..serverStatus.."\nbytes="..#reply..
      "\ncontent_type=application/json\nfinal_url=https://example.com/data"..
      "\nerror_code=0\n")
   return true,"exit",0
@@ -67,8 +68,17 @@ local old,e,c=network.request({url="https://example.com/data",save_to=target,
   overwrite=true,max_bytes=1000,timeout_ms=1000})
 assert(old==nil and c=="NETWORK" and calls==1,"simulated network failure expected")
 assert(readAll(target)=="MY_ORIGINAL_CONTENT","failed HTTP wiped user file!")
--- Subsequent success may replace only after helper returns complete result.
+-- HTTP 404/500 may return a body but must not overwrite a good file.
 failTransport=false
+serverStatus=404
+local notFound,detail,code,metadata=network.request({
+ url="https://example.com/data",save_to=target,overwrite=true,
+ max_bytes=1000,timeout_ms=1000})
+assert(notFound==nil and code=="HTTP_STATUS" and
+       metadata.status==404 and calls==2)
+assert(readAll(target)=="MY_ORIGINAL_CONTENT","404 replaced user file")
+-- Successful 200 now may replace only after helper finishes fully.
+serverStatus=200
 local result,e,c=network.request({url="https://example.com/data",save_to=target,
   overwrite=true,max_bytes=1000,timeout_ms=1000})
 assert(result and result.status==200 and result.ok and result.path==target,
