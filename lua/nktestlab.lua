@@ -323,6 +323,22 @@ local function makeGroups(nk,opts,check)
   end
 
   handlers.input=function()
+    test("input","utf8_preflight_no_dispatch",function()
+      -- Use a disposable mock transport. Never inject trial bytes into apps.
+      local input=require("nkinput_v2")
+      local sends=0
+      local fake={_inputNativeV2=function()sends=sends+1;return true end}
+      local bad,_,code=input.input(fake,"bad\255")
+      if bad~=nil or code~="INVALID" or sends~=0 then
+        return "FAIL","invalid UTF-8 reached native transport"
+      end
+      local phrase="Tiếng Việt 👋"
+      local ok,meta=input.input(fake,phrase)
+      if not ok or sends~=1 or meta.bytes~=#phrase then
+        return "FAIL","mock UTF-8 one-time dispatch contract mismatch"
+      end
+      return "PASS","Vietnamese/emoji UTF-8, no actual text insertion"
+    end)
     test("input","reject_invalid_text",function()
       if invalidReturn(nk.inputText("")) then
         return "PASS","empty text rejected without inserting"
@@ -548,6 +564,16 @@ local function makeGroups(nk,opts,check)
   end
 
   handlers.network=function()
+    test("network","json_strict_inputs",function()
+      local json=require("nkjson")
+      local duplicate=json.decode('{"same":1,"same":2}')
+      local overflow=json.decode('{"n":1e9999}')
+      local invalid=json.decode('{"s":"bad\255"}')
+      if duplicate~=nil or overflow~=nil or invalid~=nil then
+        return "FAIL","duplicate key, nonfinite number or invalid UTF-8 accepted"
+      end
+      return "PASS","duplicate/overflow/UTF-8 rejected"
+    end)
     test("network","json_roundtrip",function()
       local json=require("nkjson")
       local encoded,err=json.encode({hello="Xin chào",enabled=true,
@@ -645,12 +671,27 @@ local function makeGroups(nk,opts,check)
       if type(nk.stress)~="function" or not nk.DIRECT then
         return "SKIP","native read-only stress requires direct nkcore"
       end
-      local result,err,code=nk.stress(5)
-      if not result then return "FAIL",safe(code or err) end
-      if result.failures~=0 then
-        return "FAIL","read-only stress failures="..tostring(result.failures)
+      local cycles=5
+      local cfg=opts.task
+      if cfg and cfg.extended==true then
+        cycles=cfg.iterations or 100
+        if not validInt(cycles,20,1000) then
+          return "FAIL","extended stress iterations must be 20..1000"
+        end
       end
-      return "PASS","5 screen reads with no failures"
+      local result,err,code=nk.stress(cycles)
+      if not result then return "FAIL",safe(code or err) end
+      if type(result)~="table" or result.failures~=0 then
+        return "FAIL","read-only stress errors="..tostring(
+             type(result)=="table" and result.failures or "invalid result")
+      end
+      local growth=tonumber(result.memory_delta_kb)
+      if growth and growth>2048 then
+        return "WARN",("%d reads: memory grew %.1f KiB; inspect long-run logs"):format(
+          cycles,growth)
+      end
+      return "PASS",("%d reads, no backend errors; memory Δ=%s KiB"):format(
+          cycles,tostring(growth or "unknown"))
     end)
     test("task","stop_is_not_called",function()
       -- Stopping the running Test Lab worker would make its own report
