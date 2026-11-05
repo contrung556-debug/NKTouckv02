@@ -1,0 +1,61 @@
+name: Validate NKTouch v0.7.17 Stability & Memory Core (fast, no build)
+on:
+  workflow_dispatch:
+  push:
+    branches: [ v0.7.17-stability-memory-dev ]
+    paths:
+      - 'runtime/nkvision.m'
+      - 'runtime/nktask.c'
+      - 'runtime/nktouch-lua'
+      - 'lua/nkvision.lua'
+      - 'lua/nkmemory.lua'
+      - 'lua/nktestlab.lua'
+      - 'examples/test_lua_exit_probe_readonly.lua'
+      - 'tests/test_v0717_stability_memory.py'
+      - 'tests/test_v0716_memory_core.py'
+      - 'scripts/prepare-v0717-release.sh'
+      - '.github/workflows/build-v0717-stability-memory.yml'
+      - '.github/workflows/validate-v0717-stability-memory.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout v0.7.17 development branch
+        uses: actions/checkout@v4
+      - name: Install host Lua 5.4 (no device/daemon calls)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.4 liblua5.4-dev pkg-config gcc
+          lua -v
+      - name: Syntax-check current and historical Lua interfaces
+        run: |
+          set -euxo pipefail
+          for file in lua/nkvision.lua lua/nkmemory.lua lua/nktestlab.lua \
+              lua/nktouch.lua lua/nkinput_v2.lua \
+              examples/test_lua_exit_probe_readonly.lua; do
+            luac -p "$file"
+          done
+      - name: Run Vision/Memory/Task/Exit diagnostic regression tests
+        run: |
+          set -euxo pipefail
+          python3 -m unittest \
+            tests.test_v0717_stability_memory \
+            tests.test_v0716_memory_core \
+            tests.test_v0716_task_supervisor_host \
+            tests.test_v0716_color_accuracy \
+            tests.test_v0716_testlab_runner \
+            tests.test_v0716_reliability_report \
+            tests.test_v0716_staged_api \
+            tests.test_v079_vision_core \
+            -v
+      - name: Check frame cleanup with mocked successful and failing OCR
+        run: |
+          set -euxo pipefail
+          lua tests/lua_v0716_vision_lifecycle.lua "$RUNNER_TEMP"
+      - name: Check no accidental mutation retries
+        run: |
+          set -euxo pipefail
+          lua tests/lua_v0716_command_contract.lua
+          lua tests/lua_v0716_input_json_hardening.lua
