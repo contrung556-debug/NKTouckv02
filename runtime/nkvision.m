@@ -192,12 +192,23 @@ static int nv_open(lua_State *L) {
 static int nv_info(lua_State *L) {
     NVFrame *f=NULL;
     if (!nv_live(L,&f)) return nv_error(L,"snapshot already released","CLOSED");
-    lua_createtable(L,0,6);
+    lua_createtable(L,0,14);
     lua_pushstring(L,f->ocr_backend==1 ? "SERVICE_JPEG_SAME_FRAME" :
                        f->ocr_backend==2 ? "NATIVE_FRAME" : "NONE");
     lua_setfield(L,-2,"ocr_backend");
     lua_pushinteger(L,(lua_Integer)f->w); lua_setfield(L,-2,"width");
     lua_pushinteger(L,(lua_Integer)f->h); lua_setfield(L,-2,"height");
+    // Original screenshot is a CGImage; these are source-image properties,
+    // not the internal CVPixelBuffer format chosen later by Vision.
+    lua_pushinteger(L,(lua_Integer)CGImageGetBitsPerPixel(f->image));
+    lua_setfield(L,-2,"bits_per_pixel");
+    lua_pushinteger(L,(lua_Integer)CGImageGetBitsPerComponent(f->image));
+    lua_setfield(L,-2,"bits_per_component");
+    lua_pushinteger(L,(lua_Integer)CGImageGetBytesPerRow(f->image));
+    lua_setfield(L,-2,"bytes_per_row");
+    lua_pushinteger(L,(lua_Integer)CGImageGetBitmapInfo(f->image));
+    lua_setfield(L,-2,"bitmap_info");
+
     lua_pushinteger(L,(lua_Integer)CFDataGetLength(f->jpeg)); lua_setfield(L,-2,"bytes");
     lua_pushliteral(L,"jpeg"); lua_setfield(L,-2,"format");
     lua_pushboolean(L,1); lua_setfield(L,-2,"immutable");
