@@ -304,14 +304,14 @@ static NSString *nv_ocr_failure_detail(NSError *err, NSException *exception) {
     return [NSString stringWithFormat:@"%@:%ld %@",
         err.domain ?: @"unknown",(long)err.code,description];
 }
-// v0.8.2: transfer the ORIGINAL JPEG bytes, never a path and never a new
+// v0.8.2: transfer JPEG crop from ORIGINAL immutable image, never a path or new
 // screenshot, to the existing SpringBoard OCR process via the local core.
 // Server task 31 only decodes provided image bytes and runs Vision there.
 // Unknown/old server or transport failures safely fall through to legacy OCR.
 static NSString *nv_ocr_service_jpeg(NVFrame *f,lua_Integer x,lua_Integer y,
                                       lua_Integer w,lua_Integer h,
                                       const char *language,size_t len) {
-    if (!f || !f->jpeg || CFDataGetLength(f->jpeg)>6*1024*1024) return nil;
+    if (!f || !f->image) return nil;
     NSString *lang=[[NSString alloc] initWithBytes:language length:len
                                           encoding:NSUTF8StringEncoding];
     if (!lang) return nil;
@@ -319,14 +319,31 @@ static NSString *nv_ocr_service_jpeg(NVFrame *f,lua_Integer x,lua_Integer y,
         @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_,"];
     if ([lang rangeOfCharacterFromSet:[allowed invertedSet]].location!=NSNotFound)
         return nil;
-    NSData *jpeg=(__bridge NSData *)f->jpeg;
+    // Encode ONLY the requested ROI from the immutable screenshot. This
+    // preserves one capture, limits IPC size, and never sends unrelated screen
+    // content outside the OCR rectangle to the privileged OCR service.
+    CGImageRef crop=CGImageCreateWithImageInRect(f->image,
+        CGRectMake((CGFloat)x,(CGFloat)y,(CGFloat)w,(CGFloat)h));
+    if (!crop) return nil;
+    NSMutableData *jpeg=[NSMutableData data];
+    CGImageDestinationRef dest=CGImageDestinationCreateWithData(
+        (__bridge CFMutableDataRef)jpeg,CFSTR("public.jpeg"),1,NULL);
+    BOOL encodedOK=NO;
+    if (dest) {
+        CGImageDestinationAddImage(dest,crop,
+            (__bridge CFDictionaryRef)@{(NSString *)kCGImageDestinationLossyCompressionQuality:@0.88});
+        encodedOK=CGImageDestinationFinalize(dest);
+        CFRelease(dest);
+    }
+    CGImageRelease(crop);
+    if (!encodedOK || jpeg.length==0 || jpeg.length>1024*1024) return nil;
     NSString *encoded=[jpeg base64EncodedStringWithOptions:0];
-    if (!encoded || encoded.length>8*1024*1024) return nil;
+    if (!encoded || encoded.length>1400000) return nil;
     NSString *packet=[NSString stringWithFormat:
         @"31%lld;;%lld;;%lld;;%lld;;%@;;%@\r\n",
-        (long long)x,(long long)y,(long long)w,(long long)h,lang,encoded];
+        0LL,0LL,(long long)w,(long long)h,lang,encoded];
     NSData *wire=[packet dataUsingEncoding:NSUTF8StringEncoding];
-    if (!wire || wire.length>8*1024*1024+256) return nil;
+    if (!wire || wire.length>1400256) return nil;
     int fd=socket(AF_INET,SOCK_STREAM,0);
     if (fd<0) return nil;
 #ifdef SO_NOSIGPIPE
@@ -386,7 +403,7 @@ static int nv_ocr(lua_State *L) {
     if (len>64 || memchr(language,'\0',len))
         return nv_error(L,"invalid OCR languages","INVALID");
     @autoreleasepool {
-        // Transport only the saved JPEG. If task 31 is absent/unavailable,
+        // Transport only a JPEG crop of this frame. If task 31 is absent,
         // use the previous on-device native Vision fallback unchanged.
         NSString *bridgeText=nv_ocr_service_jpeg(f,x,y,w,h,language,len);
         if (bridgeText != nil) {
