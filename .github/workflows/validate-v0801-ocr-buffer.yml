@@ -1,0 +1,35 @@
+name: Validate NKTouch v0.8.1 OCR buffer candidate (no iOS build)
+on:
+  push:
+    branches: [v0.8.1-ocr-cvpixelbuffer-dev]
+    paths:
+      - runtime/nkvision.m
+      - scripts/prepare-v0801-release.sh
+      - examples/test_ocr_sameframe_0801.lua
+      - tests/test_v0801_ocr_buffer.py
+      - .github/workflows/build-v0801-ocr-buffer.yml
+      - .github/workflows/validate-v0801-ocr-buffer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4
+        run: sudo apt-get update -qq && sudo apt-get install -y lua5.4
+      - name: Contract suite (no native Vision device claim)
+        run: |
+          set -euo pipefail
+          bash -n scripts/prepare-v0801-release.sh
+          luac5.4 -p examples/test_ocr_sameframe_0801.lua
+          python3 -m unittest \
+            tests/test_v0801_ocr_buffer.py \
+            tests/test_v0718_ocr_ciimage.py \
+            tests/test_v0719_testlab_5core.py \
+            tests/test_v0800_integrated.py \
+            tests/test_v0800_release.py \
+            tests/test_v0717_stability_memory.py -v
