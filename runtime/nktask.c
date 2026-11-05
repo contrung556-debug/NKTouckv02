@@ -1,5 +1,10 @@
 // NKTouch v0.7.0 native task supervisor
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Apple SDK only exports O_NOFOLLOW under Darwin extensions when
+// _POSIX_C_SOURCE is also set. Opt into the extension before sys/fcntl.h.
+#if defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
+#define _DARWIN_C_SOURCE 1
+#endif
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #endif
