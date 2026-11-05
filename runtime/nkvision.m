@@ -89,6 +89,21 @@ static int nv_decoded(CGImageRef image, uint8_t **out, size_t *outW,
     *out=pixels; *outW=w; *outH=h; *outStride=stride;
     return 1;
 }
+// Decode full RGBA pixels only when a pixel/color operation requires them.
+// OCR-only frames retain a CGImage but avoid ~4 MiB of decoded RGB at
+// 750x1334. Frame.close() still owns/frees the buffer if it was allocated.
+static int nv_ensure_rgba(NVFrame *f) {
+    if (!f || f->released || !f->image) return 0;
+    if (f->rgba) return 1;
+    uint8_t *rgba=NULL;size_t w=0,h=0,stride=0;
+    if (!nv_decoded(f->image,&rgba,&w,&h,&stride,NV_MAX_BITMAP)) return 0;
+    if (w!=f->w || h!=f->h || stride!=f->stride) {
+        free(rgba);
+        return 0;
+    }
+    f->rgba=rgba;
+    return 1;
+}
 static uint8_t nv_gray(uint8_t r,uint8_t g,uint8_t b) {
     return (uint8_t)((77u*r+150u*g+29u*b+128u)>>8);
 }
@@ -97,8 +112,9 @@ static uint8_t nv_gray(uint8_t r,uint8_t g,uint8_t b) {
 // permanent second full-screen bitmap (e.g. ~1 MiB at 750x1334).
 // Frame owns this allocation; close/__gc releases it even on errors.
 static int nv_ensure_gray(NVFrame *f) {
-    if (!f || f->released || !f->rgba) return 0;
+    if (!f || f->released) return 0;
     if (f->gray) return 1;
+    if (!nv_ensure_rgba(f)) return 0;
     if (!f->w || !f->h || f->w > SIZE_MAX/f->h) return 0;
     size_t bytes=f->w*f->h;
     if (bytes>NV_MAX_BITMAP) return 0;
@@ -143,17 +159,20 @@ static int nv_open(lua_State *L) {
         CGImageRef img=CGImageSourceCreateImageAtIndex(source,0,NULL);
         CFRelease(source);
         if (!img) return nv_error(L,"cannot decode snapshot image","DECODE");
-        size_t w=0,h=0,stride=0;
-        uint8_t *pixels=NULL;
-        if (!nv_decoded(img,&pixels,&w,&h,&stride,NV_MAX_BITMAP)) {
+        size_t w=CGImageGetWidth(img),h=CGImageGetHeight(img);
+        if (!w || !h || w>10000 || h>10000 ||
+            w>SIZE_MAX/4 || h>SIZE_MAX/(w*4) ||
+            w*4*h>NV_MAX_BITMAP) {
             CGImageRelease(img);
             return nv_error(L,"snapshot dimensions/bitmap memory invalid","MEMORY");
         }
-        // Pixel/RGB/OCR-only frames should not allocate a grayscale buffer.
-        // It is built lazily by nv_find_image() if template search is used.
+        // The CGImage is sufficient for OCR. Full RGBA + gray are
+        // allocated lazily by getColor/findColor/findImage when needed.
+        // This avoids holding both decoded buffers for OCR-only scripts.
+        size_t stride=w*4;
         NVFrame *f=(NVFrame *)lua_newuserdatauv(L,sizeof(NVFrame),0);
         memset(f,0,sizeof(*f));
-        f->rgba=pixels; f->gray=NULL; f->w=w; f->h=h; f->stride=stride;
+        f->rgba=NULL; f->gray=NULL; f->w=w; f->h=h; f->stride=stride;
         f->jpeg=(CFDataRef)CFRetain((__bridge CFDataRef)data);
         f->image=img;
         luaL_getmetatable(L,NV_MT);
@@ -172,7 +191,7 @@ static int nv_info(lua_State *L) {
     lua_pushboolean(L,1); lua_setfield(L,-2,"immutable");
     // Count only allocations directly owned by NVFrame. This is NOT
     // total process RSS (CGImage and Vision frameworks may cache memory).
-    lua_pushinteger(L,(lua_Integer)(f->stride*f->h));
+    lua_pushinteger(L,(lua_Integer)(f->rgba ? f->stride*f->h : 0));
     lua_setfield(L,-2,"rgba_bytes");
     lua_pushinteger(L,(lua_Integer)(f->gray ? f->w*f->h : 0));
     lua_setfield(L,-2,"gray_bytes");
@@ -215,6 +234,8 @@ static int nv_get_color(lua_State *L) {
         return nv_error(L,"invalid pixel coordinate","INVALID");
     if ((size_t)x>=f->w || (size_t)y>=f->h)
         return nv_error(L,"pixel outside frame","OUT_OF_BOUNDS");
+    if (!nv_ensure_rgba(f))
+        return nv_error(L,"cannot allocate frame RGBA for pixel read","MEMORY");
     const uint8_t *p=f->rgba+(size_t)y*f->stride+(size_t)x*4;
     nv_push_rgb(L,(size_t)x,(size_t)y,p,0);
     return 1;
@@ -237,6 +258,8 @@ static int nv_find_color(lua_State *L) {
         return nv_error(L,"color search outside frame","OUT_OF_BOUNDS");
     if (!w || w>f->w-x) w=f->w-x;
     if (!h || h>f->h-y) h=f->h-y;
+    if (!nv_ensure_rgba(f))
+        return nv_error(L,"cannot allocate frame RGBA for color search","MEMORY");
     size_t inc=(size_t)v[10]+1;
     for (size_t row=y;row<y+h;row+=inc)
         for (size_t col=x;col<x+w;col+=inc) {
