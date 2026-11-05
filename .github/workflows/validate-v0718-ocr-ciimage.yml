@@ -1,0 +1,30 @@
+name: Validate v0.7.18 OCR compatibility (source and regression)
+on:
+  push:
+    branches: [ v0.7.18-ocr-ciimage-dev ]
+    paths:
+      - runtime/nkvision.m
+      - scripts/prepare-v0718-release.sh
+      - tests/test_v0717_stability_memory.py
+      - tests/test_v0718_ocr_ciimage.py
+      - .github/workflows/validate-v0718-ocr-ciimage.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install host Lua 5.4
+        run: sudo apt-get update -qq && sudo apt-get install -y lua5.4
+      - name: Verify source and Lua regression tests
+        run: |
+          set -euo pipefail
+          bash -n scripts/prepare-v0718-release.sh
+          python3 -m unittest tests/test_v0717_stability_memory.py tests/test_v0718_ocr_ciimage.py -v
+          python3 -m unittest tests/test_v0716_memory_core.py -v
+          lua5.4 -e 'assert(loadfile("examples/test_v0717_memory_ocr_readonly.lua"))'
+          lua5.4 -e 'assert(loadfile("examples/test_v0717_ocr_diagnostics_readonly.lua"))'
