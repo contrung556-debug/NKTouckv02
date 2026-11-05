@@ -177,8 +177,9 @@
         return;
     }
     self.summary.text=[NSString stringWithFormat:
-      @"%@ · PASS %@  FAIL %@  WARN %@  SKIP %@",
-      report[@"status"]?:@"—",report[@"pass"]?:@0,report[@"fail"]?:@0,
+      @"Báo cáo gần nhất: %@ (%@)\nPASS %@  FAIL %@  WARN %@  SKIP %@",
+      report[@"status"]?:@"—",report[@"coverage"]?:@"PARTIAL",
+      report[@"pass"]?:@0,report[@"fail"]?:@0,
       report[@"warn"]?:@0,report[@"skip"]?:@0];
 }
 
@@ -281,6 +282,13 @@
     (void)NKScripts();
     NSString *path=NKPath(filename);
     NSFileManager *fs=[NSFileManager defaultManager];
+    NSError *dirError=nil;
+    if (![fs createDirectoryAtPath:@"/var/mobile/Library/NKTouch/tmp"
+       withIntermediateDirectories:YES attributes:nil error:&dirError]) {
+        [self labAlert:@"Không chuẩn bị được báo cáo"
+               message:dirError.localizedDescription?:@"Không tạo được thư mục Test Lab"];
+        return;
+    }
     if ([fs fileExistsAtPath:path]) {
         [self labAlert:@"Tên script đã tồn tại" message:@"Không ghi đè bản Lua hiện có."];
         return;
