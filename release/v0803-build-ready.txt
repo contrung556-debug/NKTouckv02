@@ -1,0 +1,6 @@
+NKTouch v0.8.3 External App Test + same-frame OCR IPC integrated beta.
+Source CI green run 42039962379; previous OCR IPC v0.8.2 rootless build successful 42036987187.
+External App Test: selected app auto-opens via existing managed Lua Task Engine; 5s settle;
+only reads OCR Color Touch Input Memory; report includes expected and observed foreground;
+actual OCR backend; no interactive tap, type or network; foreground drift fails closed.
+One artifact-only rootless iOS build. No Sileo publishing until iPhone tests.
