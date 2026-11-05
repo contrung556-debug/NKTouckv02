@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.7.14 Notes Screen Fix - supports decimal screen sizes and preserves user-edited Lua samples; retains v0.7.13 Notes test and v0.7.12 InputText Fix
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.7.14
+Installed-Size: 6980
+Filename: debs/com.nk.nktouch_0.7.14_iphoneos-arm64.deb
+Size: 1325714
+MD5sum: 661ff2828e1fc564feab43a29db793fd
+SHA1: 4a1dd3067e9b97470b6699acd68293fac7987e4c
+SHA256: b8724acff48a7b9cff06f3394d46e054f993fb72ba1757222deaea5e290710f7
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.7.13 Notes InputText Selftest - built-in guided Lua example in Samples; retains v0.7.12 InputText Fix and v0.7.11 Target Apps
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
