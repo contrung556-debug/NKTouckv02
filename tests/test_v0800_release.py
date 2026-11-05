@@ -41,6 +41,19 @@ class V0800Release(unittest.TestCase):
         self.assertNotIn('args=',diag)
         self.assertNotIn('result_string=',diag)
 
+    def test_task_supervisor_proves_exit_and_ui_reports_it(self):
+        src=(ROOT/"runtime/nktask.c").read_text()
+        self.assertIn("append_task_exit_summary(&s);",src)
+        self.assertIn("[NKTask][EXIT] state=%s exit_code=%d signal=%d",src)
+        self.assertIn("O_NOFOLLOW",src)
+        self.assertIn("WIFSIGNALED(st)",src)
+        lab=(ROOT/"lua/nktestlab.lua").read_text()
+        self.assertIn('task_id=taskID',lab)
+        self.assertIn('final exit_code/signal pending',lab)
+        ui=(ROOT/"patches/NKTestLabUIViewController.m.inc").read_text()
+        self.assertIn('NKTask: %@ | state=%@ | exit_code=%@ | signal=%@',ui)
+        self.assertIn('Optional native trace',ui)
+
     def test_build_workflow_single_artifact_gate(self):
         p=ROOT/".github/workflows/build-v0800-integrated.yml"
         self.assertTrue(p.exists(),"iOS integrated build workflow missing")
