@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.7.15 Lua Function Self-Test - built-in Core, one-frame Vision, Notes InputText and opt-in Gesture tests; retains v0.7.14 fixes
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.7.15
+Installed-Size: 6996
+Filename: debs/com.nk.nktouch_0.7.15_iphoneos-arm64.deb
+Size: 1330120
+MD5sum: ac02922eaa2f1ed1b31a47af25427867
+SHA1: ab777758268e198abd9ee075ae6366919282864f
+SHA256: 012716f596d49c70b0ac52b91689c5a4b060a5436aca7f4eb06edc0410b9e253
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.7.14 Notes Screen Fix - supports decimal screen sizes and preserves user-edited Lua samples; retains v0.7.13 Notes test and v0.7.12 InputText Fix
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
