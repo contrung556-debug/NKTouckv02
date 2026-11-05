@@ -261,6 +261,11 @@ static int l_tap(lua_State *L) {
     double y = luaL_checknumber(L, 2);
     lua_Integer ms = luaL_optinteger(L, 3, 45);
     luaL_argcheck(L, ms >= 0 && ms <= 300000, 3, "hold milliseconds out of range");
+    // Reject invalid coordinates before even opening a touch socket.
+    // A Lua script must never begin a partial gesture on malformed input.
+    int sx=0,sy=0;
+    if (coord(x,&sx) || coord(y,&sy))
+        return push_error(L, "invalid tap coordinates");
     char err[512] = {0};
     if (tap_point(x, y, (long)ms, err, sizeof(err))) return push_error(L, err);
     lua_pushboolean(L, 1);
@@ -341,6 +346,12 @@ static int l_swipe(lua_State *L) {
     double x2 = luaL_checknumber(L, 3), y2 = luaL_checknumber(L, 4);
     lua_Integer ms = luaL_optinteger(L, 5, 400);
     luaL_argcheck(L, ms >= 32 && ms <= 300000, 5, "milliseconds out of range");
+    // Validate BOTH endpoints before TOUCH_DOWN. In particular, an
+    // invalid destination must never strand a finger during TOUCH_UP.
+    int sx1=0,sy1=0,sx2=0,sy2=0;
+    if (coord(x1,&sx1) || coord(y1,&sy1) ||
+        coord(x2,&sx2) || coord(y2,&sy2))
+        return push_error(L, "invalid swipe endpoint coordinates");
 
     char err[512] = {0};
     int fd = connect_core(err, sizeof(err));
@@ -586,7 +597,15 @@ static int l_find_image(lua_State *L) {
     free(body);
     if (rc) return push_error(L, err);
     double x, y, w, h;
-    if (sscanf(payload(reply), "%lf;;%lf;;%lf;;%lf", &x, &y, &w, &h) != 4) return push_error(L, "invalid image-match reply");
+    if (sscanf(payload(reply), "%lf;;%lf;;%lf;;%lf", &x, &y, &w, &h) != 4)
+        return push_error(L, "invalid image-match reply");
+    if (!isfinite(x) || !isfinite(y) || !isfinite(w) || !isfinite(h))
+        return push_error(L, "invalid image-match reply (nonfinite values)");
+    if (x == -1 && y == -1)
+        return push_error(L, "image not found");
+    if (x < 0 || y < 0 || w < 0 || h < 0 ||
+        x > 10000 || y > 10000 || w > 10000 || h > 10000)
+        return push_error(L, "invalid image-match reply (rectangle out of range)");
     push_rect(L, x, y, w, h);
     return 1;
 }
