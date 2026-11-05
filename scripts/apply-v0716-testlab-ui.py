@@ -28,17 +28,25 @@ assert s.count("#pragma mark - Editor\n")==1,"ambiguous Editor insertion point"
 s=s.replace("#pragma mark - Editor\n",block+"\n#pragma mark - Editor\n",1)
 
 # Add a discoverable dashboard entry; no changes to existing tools.
-card='[stack addArrangedSubview:header];[stack addArrangedSubview:hero];[stack addArrangedSubview:r1];[stack addArrangedSubview:r2];[stack addArrangedSubview:status];'
-assert s.count(card)==1,"dashboard stack marker changed"
+# Locate only the dashboard section. Earlier versions add additional cards
+# and reorganize stack calls, so never rely on the full old 5-card sequence.
+start=s.index("#pragma mark - Dashboard\\n")
+end=s.index("#pragma mark - Library\\n",start)
+dashboard=s[start:end]
+anchor="[stack addArrangedSubview:status];"
+if dashboard.count(anchor)!=1:
+    anchor="[stack addArrangedSubview:r2];"
+assert dashboard.count(anchor)==1, (
+    "dashboard insertion anchor missing; last section: "+dashboard[-1400:])
 newcard='''NKMenuCard *testlab=[[NKMenuCard alloc]initWithIcon:@"checkmark.shield.fill"
        title:@"NKTouch Test Lab" subtitle:@"7 nhóm lệnh • kiểm tra an toàn" tint:NKBlue()];
      [testlab addTarget:self action:@selector(nkOpenTestLab)
           forControlEvents:UIControlEventTouchUpInside];
      [testlab.heightAnchor constraintEqualToConstant:88].active=YES;
-     [stack addArrangedSubview:header];[stack addArrangedSubview:hero];
-     [stack addArrangedSubview:r1];[stack addArrangedSubview:r2];
-     [stack addArrangedSubview:testlab];[stack addArrangedSubview:status];'''
-s=s.replace(card,newcard,1)
+     [stack addArrangedSubview:testlab];
+     '''
+dashboard=dashboard.replace(anchor,newcard+anchor,1)
+s=s[:start]+dashboard+s[end:]
 nav='- (void)openWorkspace { [self.navigationController pushViewController:[[NSClassFromString(@"NKLuaLibraryViewController") alloc] init] animated:YES]; }'
 assert s.count(nav)==1,"dashboard navigation marker changed"
 s=s.replace(nav,'''- (void)nkOpenTestLab {
