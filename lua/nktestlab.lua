@@ -259,7 +259,7 @@ local function makeGroups(nk,opts,check)
           (type(report.process_rss_bytes)~="number" or report.process_rss_bytes<=0) then
         return "FAIL","invalid process RSS measurement"
       end
-      return report.process_rss_available and "PASS" or "WARN",
+      return report.process_rss_available and "PASS" or "SKIP",
          ("Lua heap=%.1f KiB; RSS=%s (no OS-wide free claim)"):format(
            report.lua_kb,tostring(report.process_rss_bytes or "unavailable"))
     end)
