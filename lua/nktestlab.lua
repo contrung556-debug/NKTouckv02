@@ -3,11 +3,13 @@
 -- Safe execution through existing nktask runner and Task Center.
 -- All coordinates are *physical screen pixels*, not UIKit points.
 local M={VERSION="0.7.16-dev"}
-local ORDER={"runtime","touch","input","color","vision","network","task"}
+local ORDER={"runtime","touch","input","color","vision","network","task","ocr","memory"}
+local LEGACY_DEFAULT={"runtime","touch","input","color","vision","network","task"}
+local CORE_PRESET={"ocr","color","touch","input","memory"}
 local TITLES={
   runtime="Lua Runtime",touch="Touch Engine",input="Input Engine",
   color="Color Engine",vision="Vision Core",network="Network & JSON",
-  task="Task Stability"
+  task="Task Stability",ocr="OCR Engine",memory="Memory Stability"
 }
 local REPORT="/var/mobile/Library/NKTouch/tmp/testlab-last.json"
 local MAX_DETAIL=240
@@ -599,6 +601,162 @@ local function makeGroups(nk,opts,check)
     end)
   end
 
+
+  -- Dedicated core diagnostics. Unlike older smoke scripts, a frame OCR
+  -- error is always a FAIL even when screenshot/color operations succeed.
+  -- Never print recognized text (may contain personal data).
+  handlers.ocr=function()
+    local frameOK,frameBytes,liveOK,liveBytes=false,0,false,0
+    test("ocr","frame_ocr",function()
+      if type(nk.withFrame)~="function" then
+        return "FAIL","nk.withFrame is unavailable"
+      end
+      local data,err,code=nk.withFrame(function(frame)
+        local info,e,c=frame:info()
+        if not info then return {error=safe(c or e),kind="FRAME_INFO"} end
+        if not validInt(info.width,1,10000) or not validInt(info.height,1,10000) then
+          return {error="invalid frame dimensions",kind="FRAME_INFO"}
+        end
+        local text,ocrErr,ocrCode=frame:ocr(0,0,info.width,
+                                               math.min(info.height,220),"")
+        if text==nil then return {error=safe(ocrErr),kind=safe(ocrCode)} end
+        return {bytes=#tostring(text),width=info.width,height=info.height}
+      end)
+      if not data then return "FAIL","frame capture: "..safe(code or err) end
+      if data.error then
+        return "FAIL","Vision frame OCR "..safe(data.kind).." "..safe(data.error)
+      end
+      frameOK=true
+      frameBytes=data.bytes
+      if frameBytes==0 then
+        return "WARN","frame OCR completed, no text in top 220px; show visible text"
+      end
+      return "PASS",("frame OCR bytes=%d size=%dx%d; snapshot closed"):format(
+        frameBytes,data.width,data.height)
+    end)
+    test("ocr","live_ocr",function()
+      if type(nk.ocr)~="function" then return "SKIP","live OCR unavailable" end
+      local w,h,err=dimensions()
+      if not w then return "FAIL",err end
+      local text,e,c=nk.ocr(0,0,w,math.min(h,220),"")
+      if text==nil then return "FAIL","live OCR "..safe(c or e) end
+      liveOK=true
+      liveBytes=#tostring(text)
+      if liveBytes==0 then return "WARN","live OCR empty; show visible text" end
+      return "PASS","live OCR bytes="..liveBytes.." (separate capture)"
+    end)
+    test("ocr","backend_comparison",function()
+      if not frameOK and liveOK then
+        return "FAIL","native FRAME_OCR_BROKEN; live OCR works; bytes="..liveBytes
+      end
+      if not frameOK and not liveOK then
+        return "FAIL","no working OCR backend in this run"
+      end
+      if not liveOK then
+        return "WARN","frame OCR works; live OCR not confirmed"
+      end
+      if frameBytes==0 or liveBytes==0 then
+        return "WARN","OCR calls succeeded but text presence unconfirmed"
+      end
+      return "PASS","frame and live OCR both returned text; different captures"
+    end)
+  end
+
+  handlers.memory=function()
+    local loaded,mem=pcall(require,"nkmemory")
+    local canUse=loaded and type(mem)=="table" and type(mem.stats)=="function"
+    test("memory","telemetry",function()
+      if not canUse then return "FAIL","nkmemory.stats unavailable" end
+      local sample,e,c=mem.stats()
+      if not sample then return "FAIL","memory stats "..safe(c or e) end
+      if type(sample.lua_kb)~="number" or sample.lua_kb<=0 then
+        return "FAIL","invalid Lua heap size"
+      end
+      if not sample.process_rss_available then
+        return "WARN",("Lua heap=%.1f KiB; process RSS unavailable"):format(sample.lua_kb)
+      end
+      if type(sample.process_rss_bytes)~="number" or sample.process_rss_bytes<=0 then
+        return "FAIL","RSS flag says available but size is invalid"
+      end
+      return "PASS",("Lua=%.1f KiB RSS=%d bytes (process only)"):format(
+          sample.lua_kb,sample.process_rss_bytes)
+    end)
+    test("memory","vision_frame_stress",function()
+      if not canUse or type(nk.withFrame)~="function" then
+        return "SKIP","Memory/Vision API unavailable"
+      end
+      local config=opts.memory or {}
+      if type(config)~="table" then return "FAIL","memory options must be a table" end
+      local loops=config.loops or 10
+      if not validInt(loops,3,30) then
+        return "FAIL","memory.loops must be 3..30"
+      end
+      local warm,finish,before
+      before=mem.stats()
+      if not before then return "FAIL","initial memory stats unavailable" end
+      for i=1,loops do
+        local info,err,code=nk.withFrame(function(frame)
+          local meta=assert(frame:info())
+          assert(validInt(meta.width,1,10000) and
+                  validInt(meta.height,1,10000),"bad frame size")
+          local rgba=meta.rgba_bytes
+          local gray=meta.gray_bytes
+          local pixel=assert(frame:getColor(math.floor(meta.width/2),
+                                             math.floor(meta.height/2)))
+          local after=assert(frame:info())
+          assert(type(pixel)=="table" and validInt(pixel.red,0,255),
+                  "invalid frame pixel")
+          if rgba~=nil and (rgba~=0 or gray~=0) then
+            error("frame bitmap allocated eagerly",0)
+          end
+          if after.rgba_bytes~=nil and after.rgba_bytes<=0 then
+            error("lazy RGBA allocation missing",0)
+          end
+          return {width=meta.width,height=meta.height}
+        end)
+        if not info then
+          return "FAIL",("frame %d/%d: %s %s"):format(
+            i,loops,safe(code),safe(err))
+        end
+        if i==2 then warm=mem.stats() end
+        if i%5==0 then
+          print(("[NKLAB][MEM_PROGRESS] %d/%d frames closed"):format(i,loops))
+        end
+      end
+      finish=mem.stats()
+      if not finish or not warm then return "FAIL","memory samples unavailable" end
+      local detail=("frames=%d/%d Lua=%.1f->%.1f KiB"):format(
+        loops,loops,before.lua_kb,finish.lua_kb)
+      if warm.process_rss_available and finish.process_rss_available then
+        local delta=finish.process_rss_bytes-warm.process_rss_bytes
+        detail=detail..(" RSS_warm=%d RSS_after=%d delta=%d bytes"):format(
+          warm.process_rss_bytes,finish.process_rss_bytes,delta)
+        -- RSS is a process-wide high watermark sensitive to caches. A
+        -- short-run rise is a warning, not proof of a memory leak.
+        if delta>8*1024*1024 then
+          return "WARN",detail.."; RSS growth needs device investigation"
+        end
+      else
+        return "WARN",detail.."; process RSS unavailable"
+      end
+      return "PASS",detail
+    end)
+    test("memory","lua_gc",function()
+      if not canUse or type(mem.release)~="function" then
+        return "SKIP","Lua memory release API unavailable"
+      end
+      -- All frames are closed before requesting a full Lua collection.
+      local result,err,code=mem.release({mode="full"})
+      if not result then return "FAIL","Lua GC "..safe(code or err) end
+      if type(result.lua_kb_before)~="number" or
+         type(result.lua_kb_after)~="number" then
+        return "FAIL","GC did not return heap numbers"
+      end
+      return "PASS",("GC Lua %.1f->%.1f KiB; RSS cannot be forced lower"):format(
+         result.lua_kb_before,result.lua_kb_after)
+    end)
+  end
+
   handlers.network=function()
     test("network","json_strict_inputs",function()
       local json=require("nkjson")
@@ -759,7 +917,7 @@ function M.run(opts,dependencies)
   local id=opts.run_id or ("manual_"..os.date("!%Y%m%d_%H%M%S"))
   if not runId(id) then error("invalid Test Lab run ID",0) end
   local requested=opts.selected
-  if requested==nil then requested=ORDER end
+  if requested==nil then requested=LEGACY_DEFAULT end
   if type(requested)~="table" then error("selected must be an array",0) end
   local wanted={}
   for index,name in ipairs(requested) do
@@ -796,6 +954,7 @@ function M.run(opts,dependencies)
 end
 
 M.GROUPS=ORDER
+M.CORE_PRESET=CORE_PRESET
 M.TITLES=TITLES
 M.REPORT_PATH=REPORT
 return M
