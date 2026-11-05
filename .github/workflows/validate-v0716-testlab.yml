@@ -11,6 +11,9 @@ on:
       - lua/nknet.lua
       - lua/nkjson.lua
       - lua/nkvision.lua
+      - lua/nkmemory.lua
+      - runtime/nkvision.m
+      - scripts/stage-v0716-testlab-dev.sh
       - lua/nkcoords.lua
       - lua/nkstability.lua
       - lua/nkregression.lua
@@ -34,6 +37,7 @@ on:
       - tests/lua_v0716_vision_lifecycle.lua
       - tests/test_v0716_task_supervisor_host.py
       - tests/test_v0716_native_preflight.py
+      - tests/test_v0716_memory_core.py
       - .github/workflows/validate-v0716-testlab.yml
 
 permissions:
@@ -64,6 +68,7 @@ jobs:
           luac -p lua/nknet.lua
           luac -p lua/nkjson.lua
           luac -p lua/nkvision.lua
+          luac -p lua/nkmemory.lua
           luac -p tests/lua_v0716_input_json_hardening.lua
           luac -p tests/lua_v0716_http_atomic.lua
           luac -p tests/lua_v0716_vision_lifecycle.lua
@@ -98,6 +103,9 @@ jobs:
       - name: Run native process supervisor success/stop/timeout isolation tests
         run: |
           python3 -m unittest tests/test_v0716_task_supervisor_host.py -v
+      - name: Validate Vision RAM cleanup and Lua GC memory diagnostics
+        run: |
+          python3 -m unittest tests/test_v0716_memory_core.py -v
       - name: Verify two consecutive Test Lab runs and flag regressions
         run: |
           lua tests/lua_v0716_regression.lua "$RUNNER_TEMP/nktestlab-last.json"
