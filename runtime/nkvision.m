@@ -13,6 +13,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 #include "lua.h"
 #include "lauxlib.h"
 
@@ -29,6 +34,7 @@ typedef struct {
     CFDataRef jpeg;
     CGImageRef image;
     int released;
+    int ocr_backend; // 0=none, 1=same-JPEG SpringBoard IPC, 2=native
 } NVFrame;
 
 static int nv_error(lua_State *L, const char *message, const char *code) {
@@ -185,7 +191,10 @@ static int nv_open(lua_State *L) {
 static int nv_info(lua_State *L) {
     NVFrame *f=NULL;
     if (!nv_live(L,&f)) return nv_error(L,"snapshot already released","CLOSED");
-    lua_createtable(L,0,5);
+    lua_createtable(L,0,6);
+    lua_pushstring(L,f->ocr_backend==1 ? "SERVICE_JPEG_SAME_FRAME" :
+                       f->ocr_backend==2 ? "NATIVE_FRAME" : "NONE");
+    lua_setfield(L,-2,"ocr_backend");
     lua_pushinteger(L,(lua_Integer)f->w); lua_setfield(L,-2,"width");
     lua_pushinteger(L,(lua_Integer)f->h); lua_setfield(L,-2,"height");
     lua_pushinteger(L,(lua_Integer)CFDataGetLength(f->jpeg)); lua_setfield(L,-2,"bytes");
@@ -295,6 +304,73 @@ static NSString *nv_ocr_failure_detail(NSError *err, NSException *exception) {
     return [NSString stringWithFormat:@"%@:%ld %@",
         err.domain ?: @"unknown",(long)err.code,description];
 }
+// v0.8.2: transfer the ORIGINAL JPEG bytes, never a path and never a new
+// screenshot, to the existing SpringBoard OCR process via the local core.
+// Server task 31 only decodes provided image bytes and runs Vision there.
+// Unknown/old server or transport failures safely fall through to legacy OCR.
+static NSString *nv_ocr_service_jpeg(NVFrame *f,lua_Integer x,lua_Integer y,
+                                      lua_Integer w,lua_Integer h,
+                                      const char *language,size_t len) {
+    if (!f || !f->jpeg || CFDataGetLength(f->jpeg)>6*1024*1024) return nil;
+    NSString *lang=[[NSString alloc] initWithBytes:language length:len
+                                          encoding:NSUTF8StringEncoding];
+    if (!lang) return nil;
+    NSCharacterSet *allowed=[NSCharacterSet characterSetWithCharactersInString:
+        @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_,"];
+    if ([lang rangeOfCharacterFromSet:[allowed invertedSet]].location!=NSNotFound)
+        return nil;
+    NSData *jpeg=(__bridge NSData *)f->jpeg;
+    NSString *encoded=[jpeg base64EncodedStringWithOptions:0];
+    if (!encoded || encoded.length>8*1024*1024) return nil;
+    NSString *packet=[NSString stringWithFormat:
+        @"31%lld;;%lld;;%lld;;%lld;;%@;;%@\r\n",
+        (long long)x,(long long)y,(long long)w,(long long)h,lang,encoded];
+    NSData *wire=[packet dataUsingEncoding:NSUTF8StringEncoding];
+    if (!wire || wire.length>8*1024*1024+256) return nil;
+    int fd=socket(AF_INET,SOCK_STREAM,0);
+    if (fd<0) return nil;
+#ifdef SO_NOSIGPIPE
+    int one=1; (void)setsockopt(fd,SOL_SOCKET,SO_NOSIGPIPE,&one,sizeof(one));
+#endif
+    struct timeval tv={3,0};
+    (void)setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));
+    (void)setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
+    struct sockaddr_in address;
+    memset(&address,0,sizeof(address));
+    address.sin_family=AF_INET;
+    address.sin_port=htons(6000);
+    if (inet_pton(AF_INET,"127.0.0.1",&address.sin_addr)!=1 ||
+        connect(fd,(struct sockaddr *)&address,sizeof(address))!=0) {
+        close(fd); return nil;
+    }
+    const uint8_t *bytes=(const uint8_t *)wire.bytes;
+    size_t cursor=0;
+    BOOL failed=NO;
+    while (cursor<wire.length) {
+        ssize_t n=send(fd,bytes+cursor,wire.length-cursor,0);
+        if (n<0 && errno==EINTR) continue;
+        if (n<=0) {failed=YES; break;}
+        cursor+=(size_t)n;
+    }
+    char reply[24000];
+    size_t count=0;
+    BOOL complete=NO;
+    while (!failed && !complete && count<sizeof(reply)-1) {
+        ssize_t n=recv(fd,reply+count,1,0);
+        if (n<0 && errno==EINTR) continue;
+        if (n<=0) break;
+        count+=(size_t)n;
+        if (reply[count-1]=='\n') complete=YES;
+    }
+    close(fd);
+    if (failed || !complete || count<4) return nil;
+    reply[count]=0;
+    if (strncmp(reply,"0;;",3)!=0) return nil;
+    while (count>3 && (reply[count-1]=='\n' || reply[count-1]=='\r'))
+        reply[--count]=0;
+    return [[NSString alloc] initWithBytes:reply+3 length:count-3
+                                 encoding:NSUTF8StringEncoding];
+}
 static int nv_ocr(lua_State *L) {
     NVFrame *f=NULL;
     if (!nv_live(L,&f)) return nv_error(L,"snapshot already released","CLOSED");
@@ -310,6 +386,14 @@ static int nv_ocr(lua_State *L) {
     if (len>64 || memchr(language,'\0',len))
         return nv_error(L,"invalid OCR languages","INVALID");
     @autoreleasepool {
+        // Transport only the saved JPEG. If task 31 is absent/unavailable,
+        // use the previous on-device native Vision fallback unchanged.
+        NSString *bridgeText=nv_ocr_service_jpeg(f,x,y,w,h,language,len);
+        if (bridgeText != nil) {
+            f->ocr_backend=1;
+            lua_pushstring(L,[bridgeText UTF8String] ?: "");
+            return 1;
+        }
         CGImageRef crop=CGImageCreateWithImageInRect(f->image,
             CGRectMake((CGFloat)x,(CGFloat)y,(CGFloat)w,(CGFloat)h));
         if (!crop) return nv_error(L,"cannot crop frame for OCR","DECODE");
@@ -439,6 +523,7 @@ static int nv_ocr(lua_State *L) {
             if (best.string) [texts addObject:best.string];
         }
         NSString *result=[texts componentsJoinedByString:@"\n"];
+        f->ocr_backend=2;
         lua_pushstring(L,[result UTF8String] ?: "");
         return 1;
     }
