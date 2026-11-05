@@ -171,8 +171,10 @@ local function reporter(nk,selected,id,now,reportPath,mode,clockType)
         local f,openErr=io.open(temp,"wb")
         if f then
           local wrote,writeErr=f:write(encoded)
-          f:close()
-          if wrote then
+          local closed,closeErr=f:close()
+          -- A write can succeed but fclose can fail (e.g. full disk).
+          -- Never publish a possibly truncated report on close error.
+          if wrote and closed then
             local moved,moveErr=os.rename(temp,reportPath)
             if not moved then
               os.remove(temp)
@@ -180,7 +182,7 @@ local function reporter(nk,selected,id,now,reportPath,mode,clockType)
             end
           else
             os.remove(temp)
-            print("[NKLAB][WARN] report/write "..safe(writeErr))
+            print("[NKLAB][WARN] report/write "..safe(writeErr or closeErr))
           end
         else print("[NKLAB][WARN] report/open "..safe(openErr)) end
       else print("[NKLAB][WARN] report/json "..safe(encodingErr)) end
