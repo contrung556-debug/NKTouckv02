@@ -65,7 +65,7 @@ assert(captures==1,"Vision must use exactly one screenshot")
 assert(r.warn==1 and r.fail==0 and r.coverage=="PARTIAL")
 assert(r.groups.vision.status=="WARN")
 assert(r.tests[2].name=="frame_screen_dimensions")
-assert(r.tests[2].detail:find("rotation/scale",1,true))
+assert(r.tests[2].detail:find("calibration required",1,true))
 print("[NKLAB][VISION] ONE_FRAME_MISMATCH_WARN")
 '''
         with tempfile.TemporaryDirectory() as temp:
