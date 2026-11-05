@@ -83,7 +83,7 @@ class AllExistingCommandsAudit(unittest.TestCase):
                      "waitText","screenshot","status","toast"):
             self.assertIn('guard("'+name+'"',GUARD,
                           "missing argument validator for "+name)
-        self.assertIn("side-effect",GUARD)
+        self.assertIn("side effect",GUARD)
         self.assertIn('return nil,"invalid "',GUARD)
 
     def test_development_branch_cannot_publish_or_build(self):
