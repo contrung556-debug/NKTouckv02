@@ -2,7 +2,7 @@ name: Publish NKTouch v0.8.3 OCR Performance Beta to existing Sileo
 
 on:
   push:
-    branches: [v0.8.3-ocr-ipc-frame-dev]
+    branches: [v0.8.3-ocr-perf-stability-dev]
     paths:
       - .github/workflows/publish-v083-sileo.yml
   workflow_dispatch:
@@ -33,7 +33,7 @@ jobs:
           curl -fsSL --retry 3 --retry-all-errors \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/contrung556-debug/NKTouckv02/actions/workflows/build-v083-frame-ipc.yml/runs?branch=v0.8.3-ocr-ipc-frame-dev&per_page=100" \
+            "https://api.github.com/repos/contrung556-debug/NKTouckv02/actions/workflows/build-v083-ocr-perf.yml/runs?branch=v0.8.3-ocr-perf-stability-dev&per_page=100" \
             -o /tmp/nktouch-v083-runs.json
           python3 - <<'PY'
           import json,os
@@ -41,7 +41,7 @@ jobs:
           pinned_sha="aa824f5aa569defa96bbf76f629a2be386cbe9c5"
           candidates=[
               run for run in obj.get("workflow_runs",[])
-              if run.get("head_branch")=="v0.8.3-ocr-ipc-frame-dev"
+              if run.get("head_branch")=="v0.8.3-ocr-perf-stability-dev"
               and run.get("head_sha")==pinned_sha
               and run.get("status")=="completed"
               and run.get("conclusion")=="success"
