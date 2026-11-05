@@ -24,13 +24,22 @@ text,meta=nk.ocrWithFallback(0,0,750,220)
 assert(text=="LIVE TEXT" and meta.backend=="OCR_FALLBACK_LIVE")
 assert(meta.same_frame==false and meta.recaptured==true)
 assert(meta.frame_error_code=="OCR" and liveCalls==1)
+nk.withFrame=function(callback)
+  frameCalls=frameCalls+1
+  return callback({ocr=function()
+    return nil,"Vision OCR failed NSOSStatusErrorDomain:-6662 failed buffer","OCR"
+  end})
+end
+text,meta=nk.ocrWithFallback(0,0,750,220)
+assert(text=="LIVE TEXT" and meta.frame_error_osstatus==-6662)
+assert(meta.frame_error_code=="OCR" and liveCalls==2)
 
 nk.withFrame=function(callback)
   frameCalls=frameCalls+1
   return callback({ocr=function()return nil,"outside frame","OUT_OF_BOUNDS" end})
 end
 local bad,msg,kind=nk.ocrWithFallback(0,0,750,220)
-assert(bad==nil and kind=="OUT_OF_BOUNDS" and liveCalls==1)
+assert(bad==nil and kind=="OUT_OF_BOUNDS" and liveCalls==2)
 
 local before=frameCalls
 bad,msg,kind=nk.ocrWithFallback(0,nil,750,220)
@@ -39,5 +48,5 @@ assert(bad==nil and kind=="INVALID" and frameCalls==before)
 nk.withFrame=function()frameCalls=frameCalls+1;return nil,"no camera","FRAME_IO" end
 text,meta=nk.ocrWithFallback(0,0,750,220)
 assert(text=="LIVE TEXT" and meta.backend=="OCR_FALLBACK_LIVE")
-assert(meta.frame_error_code=="FRAME_IO" and liveCalls==2)
+assert(meta.frame_error_code=="FRAME_IO" and liveCalls==3)
 print("v0.8.2 OCR fallback provenance: PASS (host mock only)")
