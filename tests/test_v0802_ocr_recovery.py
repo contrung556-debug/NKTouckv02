@@ -23,7 +23,13 @@ class OCRRecovery(unittest.TestCase):
         self.assertIn("CVPixelBufferCreate(", probe)
         self.assertIn("kCVPixelFormatType_420YpCbCr8BiPlanarFullRange", probe)
         self.assertIn("CVPixelBufferRelease(pb)", probe)
+        self.assertIn("kCVPixelBufferIOSurfacePropertiesKey", probe)
+        self.assertIn("kCVPixelBufferMetalCompatibilityKey", probe)
+        self.assertIn("status_plain", probe)
+        self.assertIn("status_metal", probe)
         self.assertIn('"probeCVPixelBuffer",nv_probe_cv_pixel_buffer', source)
+        self.assertIn('"bits_per_pixel"', source)
+        self.assertIn('"bitmap_info"', source)
         for forbidden in ("Screen createScreenShot", "screenshot(", "writeToFile:"):
             self.assertNotIn(forbidden, probe)
         build = (ROOT / ".github/workflows/build-v0802-frame-ipc.yml").read_text()
@@ -33,6 +39,7 @@ class OCRRecovery(unittest.TestCase):
         lua = (ROOT / "lua/nktouch.lua").read_text()
         self.assertIn("function M.ocrWithFallback(", lua)
         self.assertIn('backend="OCR_FALLBACK_LIVE"', lua)
+        self.assertIn("frame_error_osstatus=status", lua)
         self.assertIn("same_frame=false", lua)
         self.assertIn("recaptured=true", lua)
         lab = (ROOT / "lua/nktestlab.lua").read_text()
@@ -46,6 +53,8 @@ class OCRRecovery(unittest.TestCase):
         section = ui.split("- (void)labCreateRunner {",1)[1]
         self.assertIn('@"local ran,result=pcall(lab.run,opts)', section)
         self.assertIn("pcall(nk.openApp,", section)
+        self.assertIn("pcall(nk.waitApp,", section)
+        self.assertIn("foreground_verified", section)
         self.assertIn("com.zjx.zxtouch", section)
         self.assertIn("[NKLAB][RESTORE]", section)
         self.assertLess(section.index('pcall(nk.openApp,'),
