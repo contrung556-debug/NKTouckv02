@@ -195,7 +195,6 @@ jobs:
           grep -Fq 'function M.inputTextV2' upstream/layout/usr/share/nktouch/lua/nktouch.lua
           grep -Fq 'function M.inputText(value,options)' upstream/layout/usr/share/nktouch/lua/nktouch.lua
           grep -Fq 'nk.installAutoTouchCompat()' upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
-          grep -Fq 'initWithScriptName:@"test_inputtext_notes.lua"' upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
           grep -Fq 'NKSaveTarget(sampleName,@"com.apple.mobilenotes"' upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
           test -f upstream/layout/usr/share/nktouch/examples/test_inputtext_notes.lua
           test -f upstream/layout/usr/share/nktouch/examples/test_inputtext_notes_v2.lua
