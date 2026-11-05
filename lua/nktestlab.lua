@@ -242,6 +242,11 @@ local function makeGroups(nk,opts,check)
       if type(cfg)~="table" or cfg.enabled~=true then
         return "SKIP","disabled; explicit opt-in required"
       end
+      -- A second explicit confirmation is required. Simply flipping
+      -- enabled=true must NOT make default (0,0) coordinates actionable.
+      if cfg.confirmed~=true then
+        return "FAIL","set confirmed=true only after configuring the test screen"
+      end
       local fg,fe=assertForeground(cfg.bundle)
       if not fg then return "FAIL",fe end
       local w,h,dimErr=dimensions()
@@ -297,6 +302,11 @@ local function makeGroups(nk,opts,check)
       local cfg=opts.input
       if type(cfg)~="table" or cfg.enabled~=true then
         return "SKIP","disabled; no text inserted"
+      end
+      -- A second explicit confirmation is required. Simply flipping
+      -- enabled=true must NOT make default (0,0) coordinates actionable.
+      if cfg.confirmed~=true then
+        return "FAIL","set confirmed=true only after configuring the test screen"
       end
       local fg,fe=assertForeground(cfg.bundle)
       if not fg then return "FAIL",fe end
