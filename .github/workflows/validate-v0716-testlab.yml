@@ -17,6 +17,7 @@ on:
       - scripts/check-v0716-readiness.py
       - scripts/prepare-v0716-release.sh
       - scripts/publish-v0716-sileo.sh
+      - tests/test_v0716_release_workflow_shell.py
       - .github/workflows/build-v0716-reliability-testlab.yml
       - runtime/nkcore.c
       - patches/NKTestLabUIViewController.m.inc
@@ -49,6 +50,9 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua5.4 liblua5.4-dev pkg-config gcc
           lua -v
+      - name: Preflight bash syntax for all release workflow run blocks
+        run: |
+          python3 -m unittest tests/test_v0716_release_workflow_shell.py -v
       - name: Validate Lua syntax and source patch
         run: |
           set -euxo pipefail
