@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build-rootless:
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       UPSTREAM_REPO: https://github.com/epic0001/zxtouchrootless.git
       UPSTREAM_SHA: a602da112ef1a688fb2601424443abb1ccc28c63
