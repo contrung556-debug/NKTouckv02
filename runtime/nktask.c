@@ -264,6 +264,20 @@ static int spawn_lua(task_state *s, int ac, char **av, pid_t *pid_out) {
     if (rc) { errno = rc; return -1; }
     *pid_out = pid; return 0;
 }
+// Post-exit summary is appended by the supervisor after waitpid.
+// It distinguishes a Lua '[DONE]' from an actual clean process exit.
+// O_NOFOLLOW prevents a script-controlled symlink from redirecting the report.
+static void append_task_exit_summary(const task_state *s) {
+    if (!s || !s->log_path[0]) return;
+    int fd=open(s->log_path,O_WRONLY|O_APPEND|O_NOFOLLOW);
+    if (fd<0) return;
+    long elapsed=s->ended_at>=s->started_at ?
+        s->ended_at-s->started_at : 0;
+    (void)dprintf(fd,
+        "[NKTask][EXIT] state=%s exit_code=%d signal=%d runtime_seconds=%ld\n",
+        s->state,s->exit_code,s->signal_no,elapsed);
+    (void)close(fd);
+}
 static int cmd_worker(int ac, char **av) {
     if (ac < 3) return 2;
     const char *id = av[0]; long timeout = 0;
@@ -298,6 +312,7 @@ static int cmd_worker(int ac, char **av) {
     else if (WIFSIGNALED(st)) { s.signal_no = WTERMSIG(st); s.exit_code = 128 + s.signal_no; set_string(s.state, sizeof(s.state), "failed"); }
     else { s.exit_code = 1; set_string(s.state, sizeof(s.state), "failed"); }
     save_state(&s); clear_active_if(id);
+    append_task_exit_summary(&s);
     if (!strcmp(s.state, "success")) overlay("success", 100, "NKTouch task completed");
     else if (!strcmp(s.state, "stopped")) overlay("warning", 0, "NKTouch task stopped");
     else if (!strcmp(s.state, "timeout")) overlay("warning", 0, "NKTouch task timed out");
