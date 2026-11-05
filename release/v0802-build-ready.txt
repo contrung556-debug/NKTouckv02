@@ -5,3 +5,6 @@ NKTouch v0.8.2 same-frame JPEG ROI OCR IPC candidate.
 - NKTouch sends only ROI derived from one already captured frame; NEVER recaptures.
 - TestLab includes actual ocr_backend, no fake PASS.
 - Artifact-only rootless build for supervised on-device tests; do not publish to Sileo.
+
+- 2026-11-05 post-device-log hardening candidate: strict IPC CRLF stripping, isolated 420f allocation diagnostic, opt-in OCR_FALLBACK_LIVE, Test Lab return to NKTouch.
+- Host tests added for transport, provenance, and UI restore; build should remain artifact-only. No device success claim, no Sileo publish.
