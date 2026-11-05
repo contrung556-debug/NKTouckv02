@@ -15,6 +15,7 @@ on:
       - tests/lua_v0716_json_network_input.lua
       - tests/test_v0716_all_commands_audit.py
       - tests/test_v0716_cli_parser.py
+      - tests/test_v0716_staged_api.py
       - .github/workflows/validate-v0716-lua-commands.yml
 
 permissions:
@@ -51,6 +52,9 @@ jobs:
       - name: Test malformed image/color results with host Lua
         run: |
           python3 -m unittest tests/test_v0716_cli_parser.py -v
+      - name: Test effective staged nk.inputText with all release fixes
+        run: |
+          python3 -m unittest tests/test_v0716_staged_api.py -v
       - name: Retain previously passed fast tests
         run: |
           python3 -m unittest tests/test_v0714_notes_screenfix.py -v
