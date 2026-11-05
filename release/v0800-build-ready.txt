@@ -1,0 +1,5 @@
+NKTouch v0.8.0 integrated beta one-shot iOS build marker.
+Fast source QA: GitHub Actions 42016846725 (SUCCESS).
+Included: native NKTask exit summary, Vision/Color snapshot batching, read-only smart waits,
+guarded Touch/InputText, privacy-safe diagnostics and Test Lab reports.
+Artifact only; no automatic Sileo publishing. Device testing follows the build.
