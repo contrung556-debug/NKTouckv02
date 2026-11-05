@@ -7,7 +7,7 @@
 @property(nonatomic,strong) NSMutableSet<NSString*> *chosen;
 @property(nonatomic,strong) UILabel *summary;
 @property(nonatomic,strong) UILabel *hint;
-@property(nonatomic,copy) NSString *copyText;
+@property(nonatomic,copy) NSString *reportCopyPayload;
 @end
 
 @implementation NKLuaTestLabViewController
@@ -242,7 +242,7 @@
 }
 
 - (void)labCopyReport {
-    if (self.copyText.length) [UIPasteboard generalPasteboard].string=self.copyText;
+    if (self.reportCopyPayload.length) [UIPasteboard generalPasteboard].string=self.reportCopyPayload;
 }
 
 - (void)labShowReport {
@@ -253,7 +253,7 @@
         return;
     }
     NSString *details=[self labReportText:report];
-    self.copyText=details;
+    self.reportCopyPayload=details;
     UIViewController *viewer=[[UIViewController alloc]init];
     viewer.title=@"Kết quả Test Lab";
     viewer.view.backgroundColor=NKBG();
