@@ -232,7 +232,10 @@ function M.ocrIfStable(opts,deps)
   if not first then return nil,e or "first snapshot failed",c or "FRAME" end
   local sleep=(deps and deps.sleep) or nk.sleep
   if type(sleep)~="function" then return nil,"sleep unavailable","SLEEP" end
-  sleep(interval)
+  local waited,completed=pcall(sleep,interval)
+  if not waited or completed==false or completed==nil then
+    return nil,"screen sampling interval failed","SLEEP"
+  end
   local second,e2,c2=nk.withFrame(function(frame)
     local sig=signature(frame)
     if not sig then return {ok=false,code="SIGNATURE"} end
