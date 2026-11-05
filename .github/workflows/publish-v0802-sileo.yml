@@ -1,0 +1,83 @@
+name: Publish NKTouch v0.8.2 Frame OCR IPC Beta to existing Sileo
+
+on:
+  push:
+    branches: [v0.8.2-ocr-ipc-frame-dev]
+    paths:
+      - .github/workflows/publish-v0802-sileo.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: nktouch-sileo-v0802-publisher
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out pinned release publisher
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify successful exact v0.8.2 build (fail closed)
+        id: verified
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --retry-all-errors \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/contrung556-debug/NKTouckv02/actions/workflows/build-v0802-frame-ipc.yml/runs?branch=v0.8.2-ocr-ipc-frame-dev&per_page=100" \
+            -o /tmp/nktouch-v0802-runs.json
+          python3 - <<'PY'
+          import json,os
+          obj=json.load(open("/tmp/nktouch-v0802-runs.json"))
+          pinned_sha="4cee337ac9b2404f34ef88ba34cc611f393d0b87"
+          candidates=[
+              run for run in obj.get("workflow_runs",[])
+              if run.get("head_branch")=="v0.8.2-ocr-ipc-frame-dev"
+              and run.get("head_sha")==pinned_sha
+              and run.get("status")=="completed"
+              and run.get("conclusion")=="success"
+              and run.get("event")=="push"
+          ]
+          if not candidates:
+              raise SystemExit("No successful artifact for pinned 4cee337 build; refuse Sileo publication")
+          run=max(candidates,key=lambda r:r["id"])
+          with open(os.environ["GITHUB_OUTPUT"],"a") as fp:
+              fp.write(f"run_id={run['id']}\n")
+          print(f"Verified successful v0.8.2 iOS build {run['id']} at {pinned_sha}")
+          PY
+
+      - name: Download the exact verified iOS .deb
+        uses: actions/download-artifact@v4
+        with:
+          name: NKTouch-v0.8.2-frame-ipc-rootless
+          run-id: ${{ steps.verified.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: sileo-artifact
+
+      - name: Inspect binary and publish beta while retaining rollback packages
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y dpkg-dev
+          bash -n scripts/publish-v0802-sileo.sh
+          bash scripts/publish-v0802-sileo.sh
+
+      - name: Verify Sileo branch publication and retained prior versions
+        run: |
+          set -euo pipefail
+          git fetch origin sileo-repo
+          git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.2'
+          git show FETCH_HEAD:Packages | grep -Fxq 'Filename: debs/com.nk.nktouch_0.8.2_iphoneos-arm64.deb'
+          git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.1'
+          git show FETCH_HEAD:README.md | grep -Fq 'Current package: com.nk.nktouch 0.8.2'
+          git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.8.2_iphoneos-arm64.deb'
+          echo 'PUBLISHED experimental NKTouch v0.8.2 to existing Sileo source; on-device validation still pending.'
