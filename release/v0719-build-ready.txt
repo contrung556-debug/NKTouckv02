@@ -1,3 +1,4 @@
 NKTouch v0.7.19 Five-Core Test Lab iOS rootless build.
 Checks: v0.7.19 source/mock/testlab suite passed (Actions 42011481551).
 Mode: build artifact only, no Sileo publishing.
+Retry after correcting inherited OCR test filename and including Five-Core tests.
