@@ -7,6 +7,7 @@
 #import <CoreImage/CoreImage.h>
 #import <ImageIO/ImageIO.h>
 #import <Vision/Vision.h>
+#import <CoreVideo/CoreVideo.h>
 #import <mach/mach.h>
 #include <math.h>
 #include <stdint.h>
@@ -720,8 +721,37 @@ static int nv_memory_stats(lua_State *L) {
     lua_setfield(L, -2, "scope");
     return 1;
 }
+// Diagnostic only: allocate the same 420f format reported in Vision -6662.
+// This is not a text-recognition test and never opens or captures a screen.
+static int nv_probe_cv_pixel_buffer(lua_State *L) {
+    lua_Integer w=0,h=0;
+    if (!nv_number(L,1,2,4096,&w) || !nv_number(L,2,2,4096,&h) ||
+        (w%2)!=0 || (h%2)!=0 || (uint64_t)w*(uint64_t)h>4096u*4096u)
+        return nv_error(L,"420f probe requires bounded even dimensions","INVALID");
+    @autoreleasepool {
+        NSDictionary *attrs=@{
+            (__bridge NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{}
+        };
+        CVPixelBufferRef pb=NULL;
+        CVReturn status=CVPixelBufferCreate(kCFAllocatorDefault,
+            (size_t)w,(size_t)h,
+            kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+            (__bridge CFDictionaryRef)attrs,&pb);
+        if (pb) CVPixelBufferRelease(pb);
+        lua_createtable(L,0,5);
+        lua_pushboolean(L,status==kCVReturnSuccess && pb!=NULL);
+        lua_setfield(L,-2,"ok");
+        lua_pushinteger(L,(lua_Integer)status);
+        lua_setfield(L,-2,"status");
+        lua_pushinteger(L,w);lua_setfield(L,-2,"width");
+        lua_pushinteger(L,h);lua_setfield(L,-2,"height");
+        lua_pushliteral(L,"420f");lua_setfield(L,-2,"format");
+        return 1;
+    }
+}
 static const luaL_Reg nv_module[]={{"open",nv_open},{"tempPath",nv_temp_path},
-                                 {"memoryStats",nv_memory_stats},{NULL,NULL}};
+                                 {"memoryStats",nv_memory_stats},
+                                 {"probeCVPixelBuffer",nv_probe_cv_pixel_buffer},{NULL,NULL}};
 int luaopen_nkvision_native(lua_State *L) {
     luaL_newmetatable(L,NV_MT);
     lua_pushcfunction(L,nv_gc);
