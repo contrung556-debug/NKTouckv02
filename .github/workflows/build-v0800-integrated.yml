@@ -166,7 +166,7 @@ jobs:
           test -s upstream/layout/usr/share/nktouch/lua/nktestlab.lua
           test -s upstream/layout/usr/share/nktouch/lua/nkmemory.lua
           test -s upstream/layout/usr/share/nktouch/examples/test_lua_exit_probe_readonly.lua
-          grep -Fq 'NKTouch Test Lab v0.8.0-dev' upstream/layout/usr/share/nktouch/lua/nktestlab.lua
+          grep -Fq 'NKTouch Test Lab v0.8.0-beta' upstream/layout/usr/share/nktouch/lua/nktestlab.lua
 
 
       - name: Validate v0.8.0 package sources
