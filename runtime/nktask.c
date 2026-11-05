@@ -266,7 +266,8 @@ static int spawn_lua(task_state *s, int ac, char **av, pid_t *pid_out) {
 }
 // Post-exit summary is appended by the supervisor after waitpid.
 // It distinguishes a Lua '[DONE]' from an actual clean process exit.
-// O_NOFOLLOW prevents a script-controlled symlink from redirecting the report.
+// lstat/fstat same-inode checks protect against symlink redirection even
+// on SDKs that do not expose O_NOFOLLOW; use O_NOFOLLOW when available.
 static void append_task_exit_summary(const task_state *s) {
     if (!s || !s->log_path[0]) return;
     struct stat expected,opened;
