@@ -28,6 +28,7 @@ on:
       - tests/lua_v0716_input_json_hardening.lua
       - tests/lua_v0716_http_atomic.lua
       - tests/lua_v0716_vision_lifecycle.lua
+      - tests/test_v0716_task_supervisor_host.py
       - tests/test_v0716_native_preflight.py
       - .github/workflows/validate-v0716-testlab.yml
 
@@ -82,6 +83,9 @@ jobs:
           mkdir -p "$work/network"
           NKTOUCH_HTTP_TMP="$work/network" lua tests/lua_v0716_http_atomic.lua "$work"
           lua tests/lua_v0716_vision_lifecycle.lua "$work"
+      - name: Run native process supervisor success/stop/timeout isolation tests
+        run: |
+          python3 -m unittest tests/test_v0716_task_supervisor_host.py -v
       - name: Verify two consecutive Test Lab runs and flag regressions
         run: |
           lua tests/lua_v0716_regression.lua "$RUNNER_TEMP/nktestlab-last.json"
