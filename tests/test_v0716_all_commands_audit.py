@@ -69,8 +69,8 @@ class AllExistingCommandsAudit(unittest.TestCase):
 
     def test_all_public_lua_exports_are_catalogued(self):
         names={entry["name"] for entry in catalog()}
-        funcs=set(re.findall(r"\\bfunction\\s+M\\.(\\w+)\\s*\\(",LIB))
-        aliases=set(re.findall(r"(?m)^M\\.(\\w+)\\s*=\\s*M\\.\\w+",LIB))
+        funcs=set(re.findall(r"\bfunction\s+M\.(\w+)\s*\(",LIB))
+        aliases=set(re.findall(r"(?m)^M\.(\w+)\s*=\s*M\.\w+",LIB))
         exported={x for x in funcs|aliases if not x.startswith("_")}
         missing=sorted(x for x in exported if "nk."+x not in names)
         self.assertEqual(missing,[],
