@@ -245,6 +245,24 @@ local function makeGroups(nk,opts,check)
       if not fn then return "FAIL",err end
       return fn()==55 and "PASS" or "FAIL","compile and execute Lua"
     end)
+    test("runtime","memory_telemetry",function()
+      local loaded,mem=pcall(require,"nkmemory")
+      if not loaded or type(mem)~="table" or type(mem.stats)~="function" then
+        return "SKIP","Memory Core not installed in this runtime"
+      end
+      local report,err,code=mem.stats()
+      if not report then return "FAIL",safe(code or err) end
+      if type(report.lua_kb)~="number" or report.lua_kb<=0 then
+        return "FAIL","invalid Lua heap measurement"
+      end
+      if report.process_rss_available and
+          (type(report.process_rss_bytes)~="number" or report.process_rss_bytes<=0) then
+        return "FAIL","invalid process RSS measurement"
+      end
+      return report.process_rss_available and "PASS" or "WARN",
+         ("Lua heap=%.1f KiB; RSS=%s (no OS-wide free claim)"):format(
+           report.lua_kb,tostring(report.process_rss_bytes or "unavailable"))
+    end)
   end
 
   handlers.touch=function()
@@ -496,12 +514,13 @@ local function makeGroups(nk,opts,check)
         assert(size.width>0 and size.height>0,"invalid image metadata")
         local x,y=math.floor(size.width/2),math.floor(size.height/2)
         local c=assert(frame:getColor(x,y))
+        local memoryAfterColor=assert(frame:info())
         local hit=assert(frame:findColor(x,y,1,1,c.red,c.red,
                              c.green,c.green,c.blue,c.blue,0))
         assert(hit.x==x and hit.y==y,"frozen findColor mismatch")
         local again=assert(frame:getColor(x,y))
         assert(again.packed==c.packed,"immutable frame changed")
-        local data={info=size}
+        local data={info=size,bitmap_after_color=memoryAfterColor}
         local text,e,c=frame:ocr(0,0,size.width,math.min(size.height,240),"")
         if text==nil then data.ocrErr=safe(c or e or "Vision OCR failed")
         else data.ocrBytes=#text end
@@ -540,6 +559,23 @@ local function makeGroups(nk,opts,check)
                 w,h,frameData.info.width,frameData.info.height,result.kind)
       end
       return "PASS",("screenshot and device agree: %dx%d pixels"):format(w,h)
+    end)
+    test("vision","lazy_bitmap_memory",function()
+      if not frameData then return "SKIP",frameError or "frame prerequisite failed" end
+      local initial,after=frameData.info,frameData.bitmap_after_color
+      if type(initial.rgba_bytes)~="number" or
+         type(initial.gray_bytes)~="number" or
+         type(after)~="table" or type(after.rgba_bytes)~="number" then
+        return "SKIP","native bitmap ownership metrics unavailable in this build"
+      end
+      if initial.rgba_bytes~=0 or initial.gray_bytes~=0 then
+        return "FAIL","frame eagerly allocated decoded bitmap memory"
+      end
+      if after.rgba_bytes<=0 or after.gray_bytes~=0 then
+        return "FAIL","pixel read failed to allocate RGBA lazily"
+      end
+      return "PASS",("lazy RGBA=%d bytes, gray=%d (template absent)"):format(
+        after.rgba_bytes,after.gray_bytes)
     end)
     test("vision","ocr_from_same_frame",function()
       if not frameData then return "SKIP",frameError or "frame prerequisite failed" end
