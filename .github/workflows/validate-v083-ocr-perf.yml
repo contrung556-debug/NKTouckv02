@@ -1,0 +1,38 @@
+name: Validate NKTouch v0.8.3 OCR Performance Lab (no iOS build)
+
+on:
+  push:
+    branches: [v0.8.3-ocr-perf-stability-dev]
+    paths:
+      - lua/nkocr_perf.lua
+      - examples/test_ocr_perf_v083.lua
+      - examples/test_ocr_stability_v083.lua
+      - tests/lua_v083_perf.lua
+      - tests/test_v083_perf.py
+      - scripts/stage-v083-ocr-perf.sh
+      - .github/workflows/build-v083-ocr-perf.yml
+      - .github/workflows/validate-v083-ocr-perf.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4
+        run: sudo apt-get update -qq && sudo apt-get install -y lua5.4
+      - name: Lua parser and synthetic performance tests
+        run: |
+          set -euo pipefail
+          bash -n scripts/stage-v083-ocr-perf.sh
+          luac5.4 -p lua/nkocr_perf.lua
+          luac5.4 -p examples/test_ocr_perf_v083.lua
+          luac5.4 -p examples/test_ocr_stability_v083.lua
+          lua5.4 tests/lua_v083_perf.lua
+      - name: Regression and staging contracts
+        run: |
+          set -euo pipefail
+          python3 -m unittest             tests/test_v083_perf.py             tests/test_v0802_ocr_ipc.py             tests/test_v0802_ocr_recovery.py             tests/test_v0716_testlab_ui.py             tests/test_v0719_testlab_5core.py -v
