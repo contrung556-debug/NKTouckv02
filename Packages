@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.8.1 same-frame OCR CVPixelBuffer compatibility beta (JPEG/ROI/rev1/CPU fallback), retains Integrated Lua SDK; device OCR fix unverified
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.8.1
+Installed-Size: 7192
+Filename: debs/com.nk.nktouch_0.8.1_iphoneos-arm64.deb
+Size: 1369850
+MD5sum: 338609f03bdd950efb264383e236564b
+SHA1: d7b014f99abd98fd6c2ab7e62148477f48716b3d
+SHA256: 6a10c9988c14f68b5c87850def70a364eadec7bc0d2c5696727eaa1e3c790b73
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.8.0 Integrated Lua SDK beta: Test Lab OCR Color Touch InputText Memory, diagnostics, snapshot batching, safe actions and reports; device validation pending
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
