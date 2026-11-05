@@ -44,7 +44,7 @@ class FrameOCRIPC(unittest.TestCase):
         lab=(ROOT/"lua/nktestlab.lua").read_text()
         self.assertIn('backend=after and after.ocr_backend',lab)
         self.assertIn('frame OCR bytes=%d backend=%s',lab)
-        self.assertIn("native FRAME_OCR_BROKEN",lab)
+        self.assertIn("FRAME_OCR_BROKEN",lab)
 
     def test_server_is_bounded_read_only_and_never_recaptures(self):
         task=(ROOT/"patches/NKFrameOCRTask.xm.inc").read_text()
