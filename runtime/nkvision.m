@@ -283,8 +283,8 @@ static NSString *nv_ocr_failure_detail(NSError *err, NSException *exception) {
     }
     if (!err) return @"error=unavailable";
     NSString *description=err.localizedDescription ?: @"";
-    description=[description stringByReplacingOccurrencesOfString:@"\\n" withString:@" "];
-    description=[description stringByReplacingOccurrencesOfString:@"\\r" withString:@" "];
+    description=[description stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
+    description=[description stringByReplacingOccurrencesOfString:@"\r" withString:@" "];
     if (description.length>160) description=[description substringToIndex:160];
     NSError *inner=err.userInfo[NSUnderlyingErrorKey];
     if (inner) {
@@ -307,7 +307,7 @@ static int nv_ocr(lua_State *L) {
         return nv_error(L,"OCR rectangle outside frame","OUT_OF_BOUNDS");
     size_t len=0;
     const char *language=luaL_optlstring(L,6,"",&len);
-    if (len>64 || memchr(language,'\\0',len))
+    if (len>64 || memchr(language,'\0',len))
         return nv_error(L,"invalid OCR languages","INVALID");
     @autoreleasepool {
         CGImageRef crop=CGImageCreateWithImageInRect(f->image,
@@ -390,7 +390,7 @@ static int nv_ocr(lua_State *L) {
             VNRecognizedText *best=[[observation topCandidates:1] firstObject];
             if (best.string) [texts addObject:best.string];
         }
-        NSString *result=[texts componentsJoinedByString:@"\\n"];
+        NSString *result=[texts componentsJoinedByString:@"\n"];
         lua_pushstring(L,[result UTF8String] ?: "");
         return 1;
     }
