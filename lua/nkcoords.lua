@@ -45,10 +45,14 @@ function M.point(x,y,geometry,opts)
      px<0 or py<0 or px>=geometry.width or py>=geometry.height then
     return nil,"coordinates outside physical screen bounds","OUT_OF_BOUNDS"
   end
-  -- Explicit rounding to integer physical-pixel centers. No hidden
-  -- change to native touch semantics; caller decides when to use this.
-  return {x=math.floor(px+0.5),y=math.floor(py+0.5),
-          units="physical_pixels",input_units=units}
+  -- Round only after verifying that the rounded pixel is still in
+  -- bounds. A coordinate 749.8 on a 750-wide screen rounds to 750,
+  -- which is NOT a valid pixel index.
+  local ix,iy=math.floor(px+0.5),math.floor(py+0.5)
+  if ix>=geometry.width or iy>=geometry.height then
+    return nil,"rounded pixel outside physical screen","OUT_OF_BOUNDS"
+  end
+  return {x=ix,y=iy,units="physical_pixels",input_units=units}
 end
 
 function M.inspectFrame(geometry,frame)
