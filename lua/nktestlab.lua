@@ -612,6 +612,7 @@ local function makeGroups(nk,opts,check)
   -- Never print recognized text (may contain personal data).
   handlers.ocr=function()
     local frameOK,frameBytes,liveOK,liveBytes=false,0,false,0
+    local frameBackend="UNKNOWN"
     test("ocr","frame_ocr",function()
       if type(nk.withFrame)~="function" then
         return "FAIL","nk.withFrame is unavailable"
@@ -625,7 +626,9 @@ local function makeGroups(nk,opts,check)
         local text,ocrErr,ocrCode=frame:ocr(0,0,info.width,
                                                math.min(info.height,220),"")
         if text==nil then return {error=safe(ocrErr),kind=safe(ocrCode)} end
-        return {bytes=#tostring(text),width=info.width,height=info.height}
+        local after=frame:info()
+        return {bytes=#tostring(text),width=info.width,height=info.height,
+                backend=after and after.ocr_backend or "UNKNOWN"}
       end)
       if not data then return "FAIL","frame capture: "..safe(code or err) end
       if data.error then
@@ -633,11 +636,12 @@ local function makeGroups(nk,opts,check)
       end
       frameOK=true
       frameBytes=data.bytes
+      frameBackend=data.backend or "UNKNOWN"
       if frameBytes==0 then
-        return "WARN","frame OCR completed, no text in top 220px; show visible text"
+        return "WARN","frame OCR completed via "..frameBackend..", no visible top text"
       end
-      return "PASS",("frame OCR bytes=%d size=%dx%d; snapshot closed"):format(
-        frameBytes,data.width,data.height)
+      return "PASS",("frame OCR bytes=%d backend=%s size=%dx%d; snapshot closed"):format(
+        frameBytes,frameBackend,data.width,data.height)
     end)
     test("ocr","live_ocr",function()
       if type(nk.ocr)~="function" then return "SKIP","live OCR unavailable" end
@@ -663,7 +667,7 @@ local function makeGroups(nk,opts,check)
       if frameBytes==0 or liveBytes==0 then
         return "WARN","OCR calls succeeded but text presence unconfirmed"
       end
-      return "PASS","frame and live OCR both returned text; different captures"
+      return "PASS","frame OCR="..frameBackend.." and separate live OCR returned text"
     end)
   end
 
