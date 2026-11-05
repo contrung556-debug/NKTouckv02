@@ -3,3 +3,4 @@ Source regression PASS: 42023067414.
 Physical iPhone v0.8.0 Test Lab: native frame:ocr failed -6662 while live OCR succeeded.
 Added third same-capture JPEG bytes + normalized ROI + revision1 CPU-only fast Vision attempt.
 Build one rootless artifact for physical-device verification ONLY. No Sileo publishing.
+Retry after correcting CI beta description assertion. Green source CI: 42023314553.
