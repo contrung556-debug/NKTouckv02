@@ -1,0 +1,39 @@
+name: Validate NKTouch v0.8.2 OCR IPC source (no iOS build)
+on:
+  push:
+    branches: [v0.8.2-ocr-ipc-frame-dev]
+    paths:
+      - runtime/nkvision.m
+      - lua/nktestlab.lua
+      - patches/NKFrameOCRTask.xm.inc
+      - scripts/apply-v0802-ocr-ipc.py
+      - scripts/prepare-v0802-release.sh
+      - tests/test_v0802_ocr_ipc.py
+      - .github/workflows/build-v0802-frame-ipc.yml
+      - .github/workflows/validate-v0802-frame-ipc.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4
+        run: sudo apt-get update -qq && sudo apt-get install -y lua5.4
+      - name: Verify candidate with host regression suite
+        run: |
+          set -euo pipefail
+          bash -n scripts/prepare-v0802-release.sh
+          python3 -m py_compile scripts/apply-v0802-ocr-ipc.py
+          luac5.4 -p lua/nktestlab.lua
+          python3 -m unittest \
+            tests/test_v0802_ocr_ipc.py \
+            tests/test_v0801_ocr_buffer.py \
+            tests/test_v0800_integrated.py \
+            tests/test_v0800_release.py \
+            tests/test_v0719_testlab_5core.py \
+            tests/test_v0718_ocr_ciimage.py \
+            tests/test_v0717_stability_memory.py -v
