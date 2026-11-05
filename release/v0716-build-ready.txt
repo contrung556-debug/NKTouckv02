@@ -8,3 +8,4 @@ Publish ONLY if Xcode/Theos compilation, .deb inspection and GitHub Actions buil
 Preserve all existing packages including NKTouch 0.7.15 for rollback.
 Visibility: EXPERIMENTAL BETA — device tests/actual iPhone accuracy remain pending.
 Never represent host CI success as completed real iPhone verification.
+Retry 2: validated resilient Test Lab dashboard insertion on 2026-11-05; previous attempt stopped before package build, no Sileo change.
