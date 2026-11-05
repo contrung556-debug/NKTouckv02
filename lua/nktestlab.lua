@@ -366,6 +366,10 @@ local function makeGroups(nk,opts,check)
          or not validInt(c.green,0,255) or not validInt(c.blue,0,255) then
         return "FAIL","invalid RGB 0..255 from native"
       end
+      local packed=c.red*65536+c.green*256+c.blue
+      if c.packed~=packed then
+        return "FAIL","getColor packed RGB mismatch"
+      end
       sampled=c
       return "PASS",("x=%d y=%d rgb=%d,%d,%d"):format(
            x,y,c.red,c.green,c.blue)
@@ -375,8 +379,21 @@ local function makeGroups(nk,opts,check)
       local matched,actual,code=nk.matchColor(x,y,sampled.red,
                      sampled.green,sampled.blue,8)
       if matched==nil then return "FAIL",safe(code or actual) end
-      if matched==false then return "WARN","pixel changed between frames" end
-      return "PASS","matches within RGB tolerance=8"
+      if type(actual)~="table" or not validInt(actual.red,0,255)
+          or not validInt(actual.green,0,255)
+          or not validInt(actual.blue,0,255) then
+        return "FAIL","matchColor missing valid observed RGB"
+      end
+      local delta=math.max(math.abs(actual.red-sampled.red),
+                           math.abs(actual.green-sampled.green),
+                           math.abs(actual.blue-sampled.blue))
+      if matched==false then
+        return "WARN","pixel changed between captures; max_channel_delta="..delta
+      end
+      if delta>8 then
+        return "FAIL","matchColor claimed true outside RGB tolerance"
+      end
+      return "PASS","matches within RGB tolerance=8; max_channel_delta="..delta
     end)
     test("color","find_color_1x1",function()
       if not sampled then return "SKIP","getColor prerequisite failed" end
@@ -394,7 +411,17 @@ local function makeGroups(nk,opts,check)
       if hit.x~=x or hit.y~=y then
         return "FAIL","findColor returned unexpected pixel coordinate"
       end
-      return "PASS","single-pixel color lookup"
+      if not validInt(hit.red,0,255) or not validInt(hit.green,0,255)
+         or not validInt(hit.blue,0,255) then
+        return "FAIL","findColor returned invalid or missing RGB"
+      end
+      local delta=math.max(math.abs(hit.red-sampled.red),
+                           math.abs(hit.green-sampled.green),
+                           math.abs(hit.blue-sampled.blue))
+      if delta>t then
+        return "FAIL","findColor returned RGB outside requested tolerance"
+      end
+      return "PASS","single-pixel lookup; max_channel_delta="..delta
     end)
   end
 
@@ -442,6 +469,17 @@ local function makeGroups(nk,opts,check)
       frameData=info
       return "PASS",("one screenshot %dx%d; color/findColor/repeat/OCR"):format(
                info.info.width,info.info.height)
+    end)
+    test("vision","frame_screen_dimensions",function()
+      if not frameData then return "SKIP",frameError or "frame prerequisite failed" end
+      local w,h,err=dimensions()
+      if not w then return "FAIL",err end
+      local v=frameData.info
+      if v.width~=w or v.height~=h then
+        return "WARN",("frame=%dx%d screen=%dx%d (rotation/scale?)"):format(
+                      v.width,v.height,w,h)
+      end
+      return "PASS",("screenshot and device agree: %dx%d pixels"):format(w,h)
     end)
     test("vision","ocr_from_same_frame",function()
       if not frameData then return "SKIP",frameError or "frame prerequisite failed" end
