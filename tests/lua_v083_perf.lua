@@ -80,6 +80,11 @@ local result,msg,code,info=perf.ocrIfStable({interval_ms=200,tolerance=8},
 assert(result==nil and code=="SCREEN_UNSTABLE")
 assert(info.max_channel_delta==80)
 assert(frameOCR==baseline,"must not OCR a changing screen")
+local countBeforeSleep=frameCount
+local skipped,whySleep,sleepCode=perf.ocrIfStable({interval_ms=200},
+  {nk=nk,sleep=function() return false end})
+assert(skipped==nil and sleepCode=="SLEEP")
+assert(frameCount==countBeforeSleep+1,"sleep failure must not cause a second frame")
 
 local bad,why,err=perf.benchmark({runs=500},{nk=nk,now=now})
 assert(bad==nil and err=="INVALID")
