@@ -189,6 +189,36 @@
         report[@"run_id"]?:@"-",report[@"version"]?:@"-",
         report[@"status"]?:@"-",report[@"pass"]?:@0,report[@"fail"]?:@0,
         report[@"warn"]?:@0,report[@"skip"]?:@0];
+    NSDictionary *timing=[report[@"timing"] isKindOfClass:[NSDictionary class]]?
+         report[@"timing"]:@{};
+    [out appendFormat:@"Coverage: %@ | Mode: %@ | Visual confirmation: %@\n",
+         report[@"coverage"]?:@"UNKNOWN",report[@"mode"]?:@"UNKNOWN",
+         [report[@"visual_confirmation"] boolValue]?@"YES":@"NO"];
+    [out appendFormat:@"Timing source: %@ (CPU time is not wall time)\n",
+         report[@"clock_type"]?:@"unknown"];
+    [out appendFormat:@"Elapsed %@ms | Avg/check %@ms | P95/check %@ms | Max/check %@ms\n",
+         timing[@"elapsed_ms"]?:@0,timing[@"avg_check_ms"]?:@0,
+         timing[@"p95_check_ms"]?:@0,timing[@"max_check_ms"]?:@0];
+    [out appendString:@"NOTE: PASS means completed checks passed, NOT that touches, OCR or text were visually confirmed.\n"];
+    [out appendString:@"P95 is over different checks in one run, not per-API long-term latency.\n\n"];
+    NSDictionary *groups=[report[@"groups"] isKindOfClass:[NSDictionary class]]?
+        report[@"groups"]:@{};
+    NSArray *order=@[@"runtime",@"touch",@"input",@"color",@"vision",@"network",@"task"];
+    for (NSString *groupName in order) {
+        NSDictionary *g=[groups[groupName] isKindOfClass:[NSDictionary class]]?
+             groups[groupName]:nil;
+        if (!g) continue;
+        NSDictionary *measure=[g[@"timing"] isKindOfClass:[NSDictionary class]]?
+             g[@"timing"]:@{};
+        [out appendFormat:@"%@: %@ • checks %@ • avg %@ms • p95 %@ms • max %@ms\n",
+            g[@"title"]?:groupName,g[@"status"]?:@"?",
+            measure[@"checks"]?:@0,measure[@"avg_check_ms"]?:@0,
+            measure[@"p95_check_ms"]?:@0,measure[@"max_check_ms"]?:@0];
+        if (g[@"check_pass_rate_pct"])
+            [out appendFormat:@"  PASS of executed checks: %@%% (not touch accuracy)\n",
+                g[@"check_pass_rate_pct"]];
+    }
+    [out appendString:@"\nPer-check details:\n"];
     NSArray *tests=report[@"tests"];
     NSUInteger count=MIN(tests.count,(NSUInteger)180);
     for (NSUInteger i=0;i<count;i++) {
