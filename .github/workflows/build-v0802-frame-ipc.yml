@@ -80,7 +80,7 @@ jobs:
           COMMON=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' ! -name 'linit.c' -print | sort | tr '\n' ' ')
           FLAGS="-Os -arch arm64 -miphoneos-version-min=15.0 -isysroot $SDKROOT -Ilua-src/src -DLUA_USE_POSIX -Dl_system=nktouch_lua_system -Dl_popen=nktouch_lua_popen -Dl_pclose=nktouch_lua_pclose -include $GITHUB_WORKSPACE/runtime/lua-ios-shim.h"
           xcrun --sdk iphoneos clang $FLAGS -fobjc-arc -c runtime/nkvision.m -o runtime/nkvision.o
-          xcrun --sdk iphoneos clang $FLAGS $COMMON runtime/linit-nktouch.c runtime/nkcore.c runtime/nkvision.o runtime/lua-ios-shim.c lua-src/src/lua.c -lm -framework Foundation -framework CoreGraphics -framework CoreImage -framework ImageIO -framework Vision -Wl,-dead_strip -o runtime/lua54
+          xcrun --sdk iphoneos clang $FLAGS $COMMON runtime/linit-nktouch.c runtime/nkcore.c runtime/nkvision.o runtime/lua-ios-shim.c lua-src/src/lua.c -lm -framework Foundation -framework CoreGraphics -framework CoreImage -framework CoreVideo -framework ImageIO -framework Vision -Wl,-dead_strip -o runtime/lua54
           xcrun --sdk iphoneos clang $FLAGS $COMMON runtime/lua-ios-shim.c lua-src/src/luac.c -lm -Wl,-dead_strip -o runtime/luac54
           chmod 755 runtime/lua54 runtime/luac54
           ldid -S runtime/lua54
