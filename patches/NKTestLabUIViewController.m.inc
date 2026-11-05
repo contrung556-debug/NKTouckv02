@@ -276,6 +276,9 @@
       @"local result=lab.run(opts)\n"
       @"if result.fail>0 then error(\"NKTouch Test Lab FAILED; see Task Center Logs\",0) end\n",
       runID,runID,[quoted componentsJoinedByString:@","]];
+    // Dashboard can open Test Lab before Lua Library is visited.
+    // NKScripts() creates the scripts directory without touching user files.
+    (void)NKScripts();
     NSString *path=NKPath(filename);
     NSFileManager *fs=[NSFileManager defaultManager];
     if ([fs fileExistsAtPath:path]) {
