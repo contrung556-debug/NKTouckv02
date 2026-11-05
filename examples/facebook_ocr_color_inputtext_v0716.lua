@@ -201,6 +201,15 @@ local function typeField(side,label,text,refX)
   foreground()
   local page=detect("name")
   if page~="name" then stop("not on name screen") end
+  -- Prevent accidental text APPENDING if a field was already filled.
+  -- This is read-only OCR; it never clears or overwrites the user's value.
+  local before,be,bc=fieldText(side)
+  if not before then stop(label.." cannot inspect current field: "..tostring(bc or be)) end
+  local current=normalize(before)
+  local placeholder=(side=="ho") and "ho" or "ten"
+  if current~="" and current~=placeholder then
+    stop(label.." is not empty (OCR="..before:sub(1,65).."); no duplicate input")
+  end
   local px,py=xRef(refX),topY(351)
   log("FOCUS",("%s tap(%d,%d)"):format(label,px,py))
   local ok,e,c=nk.tap(px,py)
