@@ -77,7 +77,9 @@ rejectedJson('{"a":1e9999}',"non-finite")
 rejectedJson('{"bad\255":"x"}',"UTF-8")
 rejectedJson('{"a":1}\255',"UTF-8")
 local bad,why=json.encode({x="bad\255"})
-check(bad==nil and why:find("UTF-8"),"invalid UTF8 encoder input")
+check(bad==nil and type(why)=="string" and
+  why:find("UTF-8",1,true)~=nil,
+  "invalid UTF8 encoder input: result="..tostring(bad).." err="..tostring(why))
 local large,lim=json.decode(string.rep(" ",16*1024*1024+1))
 check(large==nil and lim:find("limit"),"JSON bounded read")
 print(("[NKQA][INPUT_JSON] PASS checks=%d dispatches=%d no automatic replay"):format(n,sent))
