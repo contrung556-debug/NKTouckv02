@@ -35,7 +35,7 @@ class OCRPerfReleaseTests(unittest.TestCase):
         stable = (ROOT / "examples/test_ocr_stability_v083.lua").read_text()
         self.assertIn("runs=10", perf)
         self.assertIn("memory_frames=50", perf)
-        self.assertIn("captures=2", stable)
+        self.assertIn("meta.captures", stable)
         self.assertNotIn("print(text)", stable)
         self.assertNotIn("print(text)", perf)
 
