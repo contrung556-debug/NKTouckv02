@@ -289,12 +289,24 @@ jobs:
           rm -rf layout/Applications/zxtouch.app
           cp -r "$APP" layout/Applications/zxtouch.app
 
-      - name: Setup rootless Theos
+      - name: Setup rootless Theos with local Xcode iPhoneOS SDK
         working-directory: upstream
-        run: bash -c "$(curl -fsSL https://raw.githubusercontent.com/roothide/theos/master/bin/install-theos)"
+        run: |
+          set -euo pipefail
+          # Avoid the upstream install-theos 'latest SDK' download. It returned
+          # an invalid iPhoneOS16.5.sdk archive and exited 8 in run 42054043935.
+          git clone --depth 1 --recurse-submodules https://github.com/roothide/theos.git theos
+          test -s theos/makefiles/common.mk
+          SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"
+          test -d "$SDK_PATH"
+          test -s "$SDK_PATH/SDKSettings.plist"
+          mkdir -p theos/sdks
+          ln -s "$SDK_PATH" "theos/sdks/$(basename "$SDK_PATH")"
+          test -L "theos/sdks/$(basename "$SDK_PATH")"
+          echo "Using existing Xcode iPhoneOS SDK: $SDK_PATH"
+          command -v ldid
         env:
           THEOS: ${{ github.workspace }}/upstream/theos
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build rootless package including Input Engine v2
         working-directory: upstream
@@ -376,7 +388,7 @@ jobs:
           PY
           CTL_BIN=/tmp/nk790/var/jb/usr/bin/nktouchctl
           test -x "$CTL_BIN"
-          grep -Fq 'PACKAGE_VERSION="0.8.2"' "$CTL_BIN"
+          grep -Fq "PACKAGE_VERSION=\"$NK_VERSION\"" "$CTL_BIN"
           grep -Fq 'TARGET_NOT_FOREGROUND' zxtouch/zxtouch/Settings/SettingsPageViewController.m
           grep -Fq 'NKTargetAppPickerViewController' zxtouch/zxtouch/Settings/SettingsPageViewController.m
           for name in nkcoords nkstability nkregression nktestlab nkmemory nkinput_v2 nknet nkjson nkvision nkcommand_contract nkdiagnostics nksnapshot nkactions nksdk; do
