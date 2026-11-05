@@ -14,7 +14,10 @@ class VisionMemory(unittest.TestCase):
             "static int nv_info(lua_State *L)",1)[0]
         image_body=s.split("static int nv_find_image(lua_State *L)",1)[1].split(
             "static const luaL_Reg nv_methods",1)[0]
-        self.assertIn("f->rgba=pixels; f->gray=NULL;",open_body)
+        self.assertIn("f->rgba=NULL; f->gray=NULL;",open_body)
+        self.assertNotIn("nv_decoded(img",open_body)
+        self.assertIn("static int nv_ensure_rgba(NVFrame *f)",s)
+        self.assertIn("if (!nv_ensure_rgba(f))",s)
         self.assertNotIn("malloc(w*h)",open_body)
         self.assertIn("static int nv_ensure_gray(NVFrame *f)",s)
         self.assertIn("if (f->gray) return 1;",s)
