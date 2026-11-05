@@ -159,7 +159,7 @@ jobs:
         run: |
           set -euxo pipefail
           grep -Fxq 'Version: 0.8.1' upstream/control
-          grep -Fq 'device validation pending' upstream/control
+          grep -Fq 'device OCR fix unverified' upstream/control
           grep -Fq 'NKLuaTestLabViewController' upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
           grep -Fq 'NKTouch 0.8.1 OCR CVPixelBuffer Compatibility Beta' upstream/layout/usr/share/doc/nktouch/VERSION
           test -s upstream/layout/usr/share/nktouch/lua/nkregression.lua
