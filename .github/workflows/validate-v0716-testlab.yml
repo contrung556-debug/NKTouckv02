@@ -1,0 +1,47 @@
+name: Validate NKTouch Test Lab (fast, no build)
+
+# Development-only validation. No macOS, Theos, dpkg or Sileo publication.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ v0.7.16-command-hardening-dev ]
+    paths:
+      - lua/nktestlab.lua
+      - patches/NKTestLabUIViewController.m.inc
+      - scripts/apply-v0716-testlab-ui.py
+      - scripts/stage-v0716-testlab-dev.sh
+      - tests/test_v0716_testlab_runner.py
+      - tests/test_v0716_testlab_ui.py
+      - .github/workflows/validate-v0716-testlab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  testlab-fast:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Install Lua 5.4 host runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.4
+          lua -v
+      - name: Validate Lua syntax and source patch
+        run: |
+          set -euxo pipefail
+          luac -p lua/nktestlab.lua
+          bash -n scripts/stage-v0716-testlab-dev.sh
+          python3 -m py_compile scripts/apply-v0716-testlab-ui.py
+          python3 -m py_compile tests/test_v0716_testlab_runner.py tests/test_v0716_testlab_ui.py
+      - name: Test seven groups and no-unsafe-action defaults
+        run: |
+          python3 -m unittest tests/test_v0716_testlab_runner.py -v
+      - name: Test Test Lab UIKit staging and results viewer
+        run: |
+          python3 -m unittest tests/test_v0716_testlab_ui.py -v
+      - name: Recheck earlier Lua argument contracts
+        run: |
+          lua tests/lua_v0716_command_contract.lua
+          python3 -m unittest tests/test_v0716_all_commands_audit.py -v
