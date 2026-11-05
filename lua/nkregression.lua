@@ -34,12 +34,14 @@ function M.compare(current,prior)
     end
   end
   local matches=0
+  local observed={}
   for _,record in ipairs(current.tests) do
     if type(record)=="table" then
       local key=tostring(record.group).."/"..tostring(record.name)
       local before=previous[key]
       if before and severity[record.status] then
         matches=matches+1
+        observed[key]=true
         local old,new=severity[before.status],severity[record.status]
         if new>old then
           summary.regressions[#summary.regressions+1]={
@@ -64,8 +66,17 @@ function M.compare(current,prior)
       end
     end
   end
+  -- Missing checks cannot be treated as a clean release comparison.
+  -- A previously passing test disappearing is itself a regression.
+  for key,before in pairs(previous) do
+    if not observed[key] then
+      summary.regressions[#summary.regressions+1]={
+        check=key,from=before.status,to="MISSING"
+      }
+    end
+  end
   summary.matched_checks=matches
-  if matches==0 then
+  if matches==0 and #summary.regressions==0 then
     summary.comparable=false
     summary.status="NOT_COMPARABLE"
   elseif #summary.regressions>0 then
