@@ -1,6 +1,6 @@
-name: Build NKTouch v0.8.2 Frame OCR IPC candidate (artifact only)
+name: Build and publish NKTouch v0.8.2 Frame OCR IPC experimental beta
 
-# Heavy iOS job: ONLY when release marker is committed or manually dispatched.
+# Heavy iOS build and opt-in Sileo publication: ONLY on release marker or explicit dispatch.
 # Source/test commits alone do not trigger slow builds.
 on:
   workflow_dispatch:
@@ -411,3 +411,39 @@ jobs:
           path: upstream/xcode_build.log
           if-no-files-found: ignore
 
+  publish-beta-to-sileo:
+    name: Validate exact v0.8.2 .deb and publish Sileo beta
+    needs: build-rootless
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout identical source commit for publishing
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download exact artifact from this successful build
+        uses: actions/download-artifact@v4
+        with:
+          name: NKTouch-v0.8.2-frame-ipc-rootless
+          path: sileo-artifact
+
+      - name: Verify package contents and update existing Sileo source
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y dpkg-dev
+          bash -n scripts/publish-v0802-sileo.sh
+          bash scripts/publish-v0802-sileo.sh
+
+      - name: Verify Sileo Packages includes v0.8.2 and preserves v0.8.1
+        run: |
+          set -euo pipefail
+          git fetch origin sileo-repo
+          git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.2'
+          git show FETCH_HEAD:Packages | grep -Fxq 'Filename: debs/com.nk.nktouch_0.8.2_iphoneos-arm64.deb'
+          git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.1'
+          git show FETCH_HEAD:README.md | grep -Fq 'Current package: com.nk.nktouch 0.8.2'
+          git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.8.2_iphoneos-arm64.deb'
+          echo 'PUBLISHED NKTouch v0.8.2 experimental beta to existing Sileo source'
