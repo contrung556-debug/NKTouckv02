@@ -225,6 +225,65 @@
          timing[@"p95_check_ms"]?:@0,timing[@"max_check_ms"]?:@0];
     [out appendString:@"NOTE: PASS means completed checks passed, NOT that touches, OCR or text were visually confirmed.\n"];
     [out appendString:@"P95 is over different checks in one run, not per-API long-term latency.\n\n"];
+    // Only read the report's own managed task. Never inspect arbitrary paths.
+    NSString *taskID=[report[@"task_id"] isKindOfClass:[NSString class]]?
+        report[@"task_id"]:nil;
+    NSCharacterSet *invalidTaskID=[[NSCharacterSet
+        characterSetWithCharactersInString:
+        @"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"]
+        invertedSet];
+    BOOL taskIDValid=taskID.length>=4 && taskID.length<=64 &&
+        [taskID rangeOfCharacterFromSet:invalidTaskID].location==NSNotFound;
+    if (taskIDValid) {
+        NSString *taskPath=[NSString stringWithFormat:
+            @"/var/mobile/Library/NKTouch/tasks/%@.state",taskID];
+        NSData *taskData=[NSData dataWithContentsOfFile:taskPath];
+        if (taskData.length>0 && taskData.length<8192) {
+            NSString *taskText=[[NSString alloc]initWithData:taskData
+                                           encoding:NSUTF8StringEncoding];
+            NSMutableDictionary *fields=[NSMutableDictionary dictionary];
+            for (NSString *line in [taskText componentsSeparatedByCharactersInSet:
+                                   [NSCharacterSet newlineCharacterSet]]) {
+                NSRange sep=[line rangeOfString:@"="];
+                if (sep.location==NSNotFound) continue;
+                NSString *key=[line substringToIndex:sep.location];
+                if ([key isEqualToString:@"state"] ||
+                    [key isEqualToString:@"exit_code"] ||
+                    [key isEqualToString:@"signal"]) {
+                    fields[key]=[line substringFromIndex:sep.location+1];
+                }
+            }
+            [out appendFormat:@"NKTask: %@ | state=%@ | exit_code=%@ | signal=%@\n",
+                 taskID,fields[@"state"]?:@"unknown",fields[@"exit_code"]?:@"pending",
+                 fields[@"signal"]?:@"pending"];
+            if ([fields[@"state"] isEqualToString:@"running"] ||
+                [fields[@"state"] isEqualToString:@"paused"]) {
+                [out appendString:@"Execution still active; final exit_code not proven.\n"];
+            }
+        }
+    }
+
+    // Optional, privacy-safe API trace: only API names, result codes and
+    // task ID. This file is produced only if the script opted into tracing.
+    NSData *traceBytes=[NSData dataWithContentsOfFile:
+        @"/var/mobile/Library/NKTouch/tmp/diagnostics-last.json"];
+    if (traceBytes.length>0 && traceBytes.length<=48*1024) {
+        NSDictionary *trace=[NSJSONSerialization JSONObjectWithData:traceBytes
+                                          options:0 error:nil];
+        if ([trace isKindOfClass:[NSDictionary class]] &&
+            [trace[@"version"] isKindOfClass:[NSString class]]) {
+            BOOL matchingTask=taskIDValid && [trace[@"task_id"] isKindOfClass:
+                                  [NSString class]] &&
+                                  [trace[@"task_id"] isEqualToString:taskID];
+            [out appendFormat:
+                @"Optional native trace (%@): task=%@ api=%@ result=%@ code=%@ in_flight=%@\n",
+                 matchingTask?@"same task":@"may be older task",
+                 trace[@"task_id"]?:@"unknown",trace[@"last_api"]?:@"-",
+                 trace[@"last_status"]?:@"-",trace[@"last_code"]?:@"-",
+                 [trace[@"in_flight"] boolValue]?@"YES":@"NO"];
+        }
+    }
+
     NSDictionary *groups=[report[@"groups"] isKindOfClass:[NSDictionary class]]?
         report[@"groups"]:@{};
     NSArray *order=@[@"ocr",@"color",@"touch",@"input",@"memory",@"diagnostics",@"runtime",@"vision",@"network",@"task"];
