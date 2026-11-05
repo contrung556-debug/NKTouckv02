@@ -91,3 +91,52 @@ command-hardening work and the Test Lab have been checked together.
 3. Real pixel precision/orientation, OCR and native frame performance.
 4. Interactive touch/input in a disposable target application with user
    visual confirmation. No offline test can prove actual touch accuracy.
+
+## Command Reliability + Color Precision development batch (November 5, 2026)
+
+Added a **Reliability Report** calculated from the checks that actually ran:
+
+- Overall timings: \`elapsed_ms\`, \`checks\`, \`total_ms\`, \`avg_check_ms\`,
+  \`p95_check_ms\`, \`max_check_ms\` and \`slowest_check\`.
+- Per-group: \`timing\` and \`check_pass_rate_pct\`. The denominator only includes
+  executed PASS/WARN/FAIL checks; SKIPs remain visible in \`coverage=PARTIAL\`.
+- \`clock_type=monotonic_native_ms\` when the direct core clock is available;
+  \`cpu_time_only\` when only the Lua \`os.clock\` fallback exists; injected
+  test clocks are labeled \`mock_clock\`. CPU time is never presented as
+  wall-clock latency.
+- These timings are of **heterogeneous checks** in one run. Their p95 is
+  **not** per-API latency across multiple runs and is **not** evidence of
+  accuracy on the touchscreen.
+- Report keeps \`visual_confirmation=false\`. An opt-in dispatch results in
+  WARN until visual/appropriate OCR evidence exists.
+- Reports are written atomically to the latest-run JSON path; viewer displays
+  metrics, evidence limitations, group timings, and detailed errors.
+
+**Safety improvement:** opt-in Touch/Input now also requires
+\`confirmed=true\` after configuring a safe screen and nonsecret input fields.
+The generated scripts default to \`enabled=false,confirmed=false\`. Merely
+changing \`enabled\` without confirmation does **not** send touches.
+
+**Color reliability improvements:**
+
+- \`getColor\` must return RGB 0–255 and consistent \`packed\` RGB.
+- \`matchColor\` cannot report PASS if its observed color exceeds the requested
+  tolerance, even if its Boolean response says true.
+- A 1-pixel \`findColor\` must return both the requested coordinate and RGB
+  inside the specified tolerance; wrong values cause FAIL instead of a false
+  positive.
+- Vision compares its frozen frame's pixel dimensions against \`nk.screen()\`
+  **without recapturing**. Screen/rotation/scale disagreement is WARN, not a
+  false PASS. OCR and optional template recognition still share one frame.
+
+Fast CI:
+- \`tests/test_v0716_reliability_report.py\`: timing aggregates,
+  deterministic mock clock and double opt-in confirmation.
+- \`tests/test_v0716_color_accuracy.py\`: wrong-color false positives and
+  one-frame/screen dimension disagreement.
+- Previous Lua Test Lab and command-contract regressions remain in the same
+  Ubuntu-only workflow.
+
+**Still not performed:** Xcode/Theos compile, on-device pixel precision
+measurement, gesture visual verification, or Sileo publication. User requested
+that all current commands be hardened before a consolidated build.
