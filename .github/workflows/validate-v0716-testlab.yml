@@ -13,6 +13,7 @@ on:
       - tests/test_v0716_testlab_runner.py
       - tests/test_v0716_testlab_ui.py
       - tests/test_v0716_reliability_report.py
+      - tests/test_v0716_color_accuracy.py
       - .github/workflows/validate-v0716-testlab.yml
 
 permissions:
@@ -45,6 +46,9 @@ jobs:
       - name: Validate Reliability Report metrics and opt-in confirmation
         run: |
           python3 -m unittest tests/test_v0716_reliability_report.py -v
+      - name: Reject false RGB matches and inconsistent screen/frame sizes
+        run: |
+          python3 -m unittest tests/test_v0716_color_accuracy.py -v
       - name: Recheck earlier Lua argument contracts
         run: |
           lua tests/lua_v0716_command_contract.lua
