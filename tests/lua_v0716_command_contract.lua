@@ -2,7 +2,8 @@
 -- Self-contained mocks: no SpringBoard, no touch, no real network.
 package.path="lua/?.lua;"..package.path
 local contract=require("nkcommand_contract")
-local names={"tap","hold","swipe","sleep","openApp","waitApp","moveCursor","delete",
+local names={"tap","hold","swipe","path","sleep","openApp","waitApp","moveCursor","delete",
+  "text","paste","setClipboard","legacyInputText","runScript",
   "getColor","findColor","waitColor","tapColor","findImage","waitImage",
   "tapImage","ocr","waitText","screenshot","status","toast"}
 local calls={}
@@ -43,6 +44,23 @@ invalid("hold",120,350,300001)
 valid("swipe",100,400,100,200,400)
 invalid("swipe",100,400,100,200,1)
 invalid("swipe",100,400,-1,200,400)
+valid("path",{{x=100,y=200,t=0},{x=200,y=300,t=50}})
+invalid("path",{{x=100,y=200,t=0}})
+invalid("path",{{x=100,y=200,t=10},{x=200,y=300,t=50}})
+invalid("path",{{x=100,y=200,t=0},{x=200,y=300,t=0}})
+invalid("path",{{x=100,y=200,t=0},{x=10000,y=300,t=50}})
+valid("text","ascii text")
+invalid("text","bad;;packet")
+invalid("text","hello\nworld")
+valid("paste","plain text")
+invalid("paste","bad\nclipboard")
+valid("setClipboard","clipboard content")
+invalid("setClipboard","bad;;separator")
+valid("legacyInputText","ASCII")
+invalid("legacyInputText","line\nnext")
+valid("runScript","/var/mobile/Library/NKTouch/scripts/test.lua","arg1")
+invalid("runScript","")
+invalid("runScript","/tmp/test.lua",{})
 valid("sleep",60000)
 valid("sleep",0)
 invalid("sleep",-1)
