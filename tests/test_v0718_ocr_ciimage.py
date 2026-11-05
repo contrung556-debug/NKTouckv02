@@ -24,7 +24,7 @@ class OCRCIImageV0718(unittest.TestCase):
         self.assertIn("CGImageRelease(crop)",self.fn)
 
     def test_no_side_effects_or_recapture_in_ocr(self):
-        implementation=re.sub(r"//[^\\n]*","",self.fn)
+        implementation=re.sub(r"//[^\n]*","",self.fn)
         for forbidden in ("TASK_SCREENSHOT","nk.screenshot","nk.ocr(","tap(","swipe(","inputText(","system(","posix_spawn","send("):
             self.assertNotIn(forbidden,implementation)
         self.assertIn('return nv_error(L,[message UTF8String],"OCR")',self.fn)
