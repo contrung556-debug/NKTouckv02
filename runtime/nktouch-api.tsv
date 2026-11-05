@@ -10,7 +10,7 @@ nk.foreground|nk.foreground()|app|Read foreground bundle identifier|local app = 
 nk.text|nk.text(text)|keyboard|Insert text through the native text API|must(nk.text("hello"))
 nk.inputTextV2|nk.inputTextV2(text,opts)|keyboard|Dispatch UTF-8 in one safe packet; optional OCR verify region; never auto retry|local ok,meta=nk.inputTextV2("Xin chào 😀")
 nk.inputPassword|nk.inputPassword(text,opts)|keyboard|Dispatch secret text without clipboard or OCR; secure mode by default|local ok,meta=nk.inputPassword("Secret123!")
-nk.inputText|nk.inputText(text)|keyboard|Alias of nk.text|must(nk.inputText("hello"))
+nk.inputText|nk.inputText(text, opts)|keyboard|Default UTF-8 Input Engine v2 after v0.7.12; dispatched does not confirm focused field acceptance; never auto-retry|local ok,meta=nk.inputText("Xin chào")
 nk.showKeyboard|nk.showKeyboard()|keyboard|Show software keyboard|must(nk.showKeyboard())
 nk.hideKeyboard|nk.hideKeyboard()|keyboard|Hide software keyboard|must(nk.hideKeyboard())
 nk.moveCursor|nk.moveCursor(offset)|keyboard|Move text cursor by relative offset|must(nk.moveCursor(-1))
