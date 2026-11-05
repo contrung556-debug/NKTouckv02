@@ -376,13 +376,61 @@ static int nv_ocr(lua_State *L) {
             }
         }
         CGImageRelease(crop);
+        // v0.8.1: Both crop paths returned CoreVideo -6662 on iPhone
+        // (750x220 420f CVPixelBuffer allocation failed), while IPC live OCR
+        // in the host service succeeded. Try a different Vision pipeline
+        // from the ALREADY-CAPTURED immutable JPEG bytes, not a new screenshot.
+        // ROI must use Vision's bottom-left normalized coordinates, whereas
+        // NKTouch pixel coordinates use top-left origin.
+        NSError *jpegError=nil;
+        NSException *jpegException=nil;
+        if (!success) {
+            VNRecognizeTextRequest *jpegRequest=[[VNRecognizeTextRequest alloc]init];
+            if (@available(iOS 13.0, *)) jpegRequest.revision=1;
+            jpegRequest.recognitionLevel=VNRequestTextRecognitionLevelFast;
+            jpegRequest.usesLanguageCorrection=YES;
+            // CPU-only/fast is a compatibility attempt, not proof that iOS
+            // CoreVideo/Sandbox allows OCR in the Lua task process.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+            jpegRequest.usesCPUOnly=YES;
+#pragma clang diagnostic pop
+            if (requestedLanguages.count) {
+                NSArray<NSString *> *supported=
+                    [jpegRequest supportedRecognitionLanguagesAndReturnError:nil];
+                NSMutableArray<NSString *> *compatible=[NSMutableArray array];
+                for (NSString *candidate in requestedLanguages) {
+                    if (supported && [supported containsObject:candidate])
+                        [compatible addObject:candidate];
+                }
+                if (compatible.count) jpegRequest.recognitionLanguages=compatible;
+            }
+            // Reject out-of-frame region before entering Vision (above).
+            // The normalized y origin is at the BOTTOM of the source image.
+            CGFloat rx=(CGFloat)x/(CGFloat)f->w;
+            CGFloat ry=(CGFloat)(f->h-(size_t)y-(size_t)h)/(CGFloat)f->h;
+            CGFloat rw=(CGFloat)w/(CGFloat)f->w;
+            CGFloat rh=(CGFloat)h/(CGFloat)f->h;
+            jpegRequest.regionOfInterest=CGRectMake(rx,ry,rw,rh);
+            @try {
+                NSData *originalJPEG=(__bridge NSData *)f->jpeg;
+                VNImageRequestHandler *third=[[VNImageRequestHandler alloc]
+                    initWithData:originalJPEG options:@{}];
+                success=[third performRequests:@[jpegRequest] error:&jpegError];
+                if (success) req=jpegRequest;
+            } @catch (NSException *ex) {
+                jpegException=ex;
+                success=NO;
+            }
+        }
         if (!success) {
             NSString *p=ciImage ?
                 nv_ocr_failure_detail(primaryError,primaryException) :
                 @"CIImage initialization failed";
             NSString *q=nv_ocr_failure_detail(fallbackError,fallbackException);
+            NSString *r=nv_ocr_failure_detail(jpegError,jpegException);
             NSString *message=[NSString stringWithFormat:
-                @"Vision OCR failed (CIImage/rev2: %@; CGImage: %@)",p,q];
+                @"Vision OCR failed (CIImage/rev2: %@; CGImage: %@; JPEG/ROI/rev1/CPU: %@)",p,q,r];
             return nv_error(L,[message UTF8String],"OCR");
         }
         NSMutableArray<NSString *> *texts=[NSMutableArray array];
