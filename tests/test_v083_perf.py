@@ -44,6 +44,13 @@ class OCRPerfReleaseTests(unittest.TestCase):
         self.assertIn("v0.8.3-ocr-perf-stability-dev", source)
         self.assertIn("NK_VERSION: 0.8.3", source)
         self.assertIn("NKTouch-v0.8.3-ocr-perf-rootless", source)
+        # Inspect the *packaged* 0.8.3 binary, not stale version 0.8.2.
+        self.assertIn('grep -Fq "PACKAGE_VERSION=\\\"$NK_VERSION\\\"" "$CTL_BIN"', source)
+        self.assertNotIn('grep -Fq \'PACKAGE_VERSION="0.8.2"\' "$CTL_BIN"', source)
+        # Theos installer failed on a malformed remote 16.5 SDK tarball.
+        self.assertIn('SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"', source)
+        self.assertIn('ln -s "$SDK_PATH"', source)
+        self.assertNotIn("bin/install-theos", source)
         self.assertIn("bash scripts/stage-v083-ocr-perf.sh upstream", source)
         self.assertIn("lua tests/lua_v083_perf.lua", source)
         self.assertIn("scripts/prepare-v0802-release.sh", source)
