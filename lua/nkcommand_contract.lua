@@ -79,6 +79,28 @@ function M.install(nk)
     return coord(x,y) and coord(x2,y2) and duration(ms,400,32,300000),
       "coordinates or swipe duration invalid (32..300000ms)"
   end)
+
+  -- Continuous path must be fully valid BEFORE touching the screen.
+  -- The native player expects 2..256 points and strictly increasing times.
+  guard("path",function(points)
+    if type(points)~="table" then return false,"path requires array of points" end
+    local n=#points
+    if n<2 or n>256 then return false,"path requires 2..256 points" end
+    local last=-1
+    for i=1,n do
+      local p=points[i]
+      if type(p)~="table" or not coord(p.x,p.y)
+         or not number(p.t,0,300000,true) then
+        return false,"invalid path coordinate/time at point "..i
+      end
+      local ms=tonumber(p.t)
+      if (i==1 and ms~=0) or (i>1 and ms<=last) then
+        return false,"path timestamps must begin at zero and increase"
+      end
+      last=ms
+    end
+    return true
+  end)
   guard("sleep",function(ms)
     return duration(ms,0,0,300000),"sleep must be 0..300000ms"
   end)
@@ -97,6 +119,15 @@ function M.install(nk)
     return count==nil or number(count,0,100000,true),
       "count must be an integer 0..100000"
   end)
+
+  -- Old text actions use a CRLF / ";;"-separated protocol. Reject
+  -- payloads the legacy receiver would truncate, without silent retry.
+  for _,name in ipairs({"text","paste","setClipboard","legacyInputText"}) do
+    guard(name,function(value)
+      return text(value,16384,true),
+         "legacy text must be nonempty <=16384 bytes with no CR/LF, NUL or ';;'"
+    end)
+  end
   guard("getColor",function(x,y)
     return pixel(x,y),"physical pixel x,y must be integer 0..10000"
   end)
@@ -133,6 +164,19 @@ function M.install(nk)
   guard("screenshot",function(path)
     return path==nil or text(path,1024,true),
        "screenshot path must be nonempty without line breaks"
+  end)
+
+  guard("runScript",function(path,...)
+    if not text(path,1024,true) then
+      return false,"script path must be nonempty without CR/LF"
+    end
+    for i=1,select("#",...) do
+      local v=select(i,...)
+      if type(v)~="string" and type(v)~="number" then
+        return false,"script argument "..i.." must be string or number"
+      end
+    end
+    return true
   end)
   guard("status",function(percent,message)
     return (percent==nil or number(percent,0,100,false))
