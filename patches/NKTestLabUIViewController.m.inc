@@ -20,7 +20,7 @@
             @{@"id":@"ocr",     @"title":@"OCR Engine", @"desc":@"Ảnh dùng lại • OCR native • OCR trực tiếp"},
             @{@"id":@"color",   @"title":@"Color Engine", @"desc":@"RGB • sai số • tìm màu 1 pixel"},
             @{@"id":@"touch",   @"title":@"Touch Engine", @"desc":@"Tọa độ • tap/hold/swipe an toàn"},
-            @{@"id":@"input",   @"title":@"InputText", @"desc":@"Unicode • kiểm tra nhập một lần"},
+            @{@"id":@"input",   @"title":@"InputText", @"desc":@"Input Engine • Unicode • gửi một lần"},
             @{@"id":@"memory",  @"title":@"Memory Stability", @"desc":@"10 frame • RSS • giải phóng Lua"},
             @{@"id":@"runtime", @"title":@"Lua Runtime", @"desc":@"Lua 5.4 • module • cú pháp"},
             @{@"id":@"vision",  @"title":@"Vision Core", @"desc":@"Frame • pixel • ảnh mẫu"},
