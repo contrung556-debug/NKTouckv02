@@ -97,15 +97,18 @@ class AllExistingCommandsAudit(unittest.TestCase):
         self.assertIn("side effect",GUARD)
         self.assertIn('return nil,"invalid "',GUARD)
 
-    def test_development_branch_cannot_publish_or_build(self):
-        # No release workflow or Sileo publisher should reference this DEV branch.
-        branch="v0.7.16-command-hardening-dev"
-        for p in (ROOT/".github/workflows").glob("*.yml"):
-            data=p.read_text()
-            if branch in data:
-                self.assertNotIn("dpkg-deb --build",data)
-                self.assertNotIn("publish-v0716",data)
-                self.assertNotIn("runs-on: macos",data)
+    def test_release_pipeline_requires_explicit_user_marker(self):
+        # Ordinary dev commits run fast host tests, never a costly iOS build.
+        fast=(ROOT/".github/workflows/validate-v0716-testlab.yml").read_text()
+        heavy=(ROOT/".github/workflows/build-v0716-reliability-testlab.yml").read_text()
+        self.assertIn("runs-on: ubuntu-latest",fast)
+        self.assertNotIn("runs-on: macos",fast)
+        self.assertNotIn("publish-sileo:",fast)
+        self.assertIn("branches: [ v0.7.16-command-hardening-dev ]",heavy)
+        self.assertIn("release/v0716-build-ready.txt",heavy)
+        self.assertIn("runs-on: macos-14",heavy)
+        self.assertIn("needs: build-rootless",heavy)
+        self.assertIn("if: needs.build-rootless.result == 'success'",heavy)
         self.assertNotIn("dpkg-deb",(ROOT/"scripts/stage-v0716-command-contract-dev.sh").read_text())
         self.assertNotIn("sileo-repo",(ROOT/"scripts/stage-v0716-command-contract-dev.sh").read_text())
 
