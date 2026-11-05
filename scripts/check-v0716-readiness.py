@@ -35,8 +35,8 @@ device_pending=list(GROUPS)
 if evidence.is_file():
     try:
         record=json.loads(evidence.read_text())
-        if record.get("device")=="iphone_rootless" and
-           record.get("verified_by_user") is True:
+        if (record.get("device")=="iphone_rootless" and
+            record.get("verified_by_user") is True):
             checks=record.get("groups",{})
             device_pending=[
                 name for name in GROUPS
