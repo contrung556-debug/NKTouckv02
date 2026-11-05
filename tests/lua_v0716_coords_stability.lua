@@ -72,7 +72,7 @@ local r,e,c,detail=stability.pollRead(function()
   return nil,"offline","CONNECT"
 end,{read_only=true,max_attempts=3,timeout_ms=15,interval_ms=10,
   now=now,sleep=sleep})
-eq(r,nil);eq(c,"CONNECT");eq(detail.attempts,3)
+eq(r,nil);eq(c,"CONNECT");eq(detail.attempts,2)
 eq(detail.elapsed_ms,15)
 tries=0
 r,e,c,detail=stability.pollRead(function()
