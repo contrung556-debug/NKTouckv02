@@ -723,26 +723,41 @@ static int nv_memory_stats(lua_State *L) {
 }
 // Diagnostic only: allocate the same 420f format reported in Vision -6662.
 // This is not a text-recognition test and never opens or captures a screen.
+// Read-only same-size 420f probes. Each buffer is immediately released.
+// Compare three allocation modes rather than presuming an IOSurface attribute
+// alone explains Vision's internal CoreVideo failure.
 static int nv_probe_cv_pixel_buffer(lua_State *L) {
     lua_Integer w=0,h=0;
     if (!nv_number(L,1,2,4096,&w) || !nv_number(L,2,2,4096,&h) ||
         (w%2)!=0 || (h%2)!=0 || (uint64_t)w*(uint64_t)h>4096u*4096u)
         return nv_error(L,"420f probe requires bounded even dimensions","INVALID");
     @autoreleasepool {
-        NSDictionary *attrs=@{
+        NSDictionary *iosurface=@{
             (__bridge NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{}
         };
-        CVPixelBufferRef pb=NULL;
-        CVReturn status=CVPixelBufferCreate(kCFAllocatorDefault,
-            (size_t)w,(size_t)h,
-            kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
-            (__bridge CFDictionaryRef)attrs,&pb);
-        if (pb) CVPixelBufferRelease(pb);
-        lua_createtable(L,0,5);
-        lua_pushboolean(L,status==kCVReturnSuccess && pb!=NULL);
+        NSDictionary *metal=@{
+            (__bridge NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{},
+            (__bridge NSString *)kCVPixelBufferMetalCompatibilityKey: @(YES)
+        };
+        CVReturn values[3]={kCVReturnError,kCVReturnError,kCVReturnError};
+        for (int mode=0;mode<3;mode++) {
+            CFDictionaryRef attrs=mode==0 ? NULL :
+                (__bridge CFDictionaryRef)(mode==1 ? iosurface : metal);
+            CVPixelBufferRef pb=NULL;
+            values[mode]=CVPixelBufferCreate(kCFAllocatorDefault,
+                (size_t)w,(size_t)h,
+                kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,attrs,&pb);
+            if (pb) CVPixelBufferRelease(pb);
+        }
+        lua_createtable(L,0,7);
+        lua_pushboolean(L,values[1]==kCVReturnSuccess);
         lua_setfield(L,-2,"ok");
-        lua_pushinteger(L,(lua_Integer)status);
+        lua_pushinteger(L,(lua_Integer)values[1]);
         lua_setfield(L,-2,"status");
+        lua_pushinteger(L,(lua_Integer)values[0]);
+        lua_setfield(L,-2,"status_plain");
+        lua_pushinteger(L,(lua_Integer)values[2]);
+        lua_setfield(L,-2,"status_metal");
         lua_pushinteger(L,w);lua_setfield(L,-2,"width");
         lua_pushinteger(L,h);lua_setfield(L,-2,"height");
         lua_pushliteral(L,"420f");lua_setfield(L,-2,"format");
