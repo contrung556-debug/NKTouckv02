@@ -59,11 +59,22 @@ class AllExistingCommandsAudit(unittest.TestCase):
             elif len(parts)==3 and parts[0]=="nk" and parts[1]=="json":
                 ok=lua_has(JSON,parts[2])
             elif len(parts)==2 and parts[0]=="nk":
-                ok=lua_has(LIB,parts[1])
+                ok=(lua_has(LIB,parts[1]) or
+                    (parts[1]=="legacyInputText" and
+                     "M.legacyInputText=M.text" in FIX))
             else:
                 ok=False
             if not ok: missing.append(name)
         self.assertEqual(missing,[],f"catalog lists APIs not implemented: {missing}")
+
+    def test_all_public_lua_exports_are_catalogued(self):
+        names={entry["name"] for entry in catalog()}
+        funcs=set(re.findall(r"\\bfunction\\s+M\\.(\\w+)\\s*\\(",LIB))
+        aliases=set(re.findall(r"(?m)^M\\.(\\w+)\\s*=\\s*M\\.\\w+",LIB))
+        exported={x for x in funcs|aliases if not x.startswith("_")}
+        missing=sorted(x for x in exported if "nk."+x not in names)
+        self.assertEqual(missing,[],
+                         "all public nktouch.lua functions must be in runtime/nktouch-api.tsv")
 
     def test_native_bridge_supports_critical_mutations(self):
         for name in ("tap","hold","swipe","path","openApp","sleep","inputTextV2",
