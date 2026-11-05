@@ -7,6 +7,10 @@ on:
     branches: [ v0.7.16-command-hardening-dev ]
     paths:
       - lua/nktestlab.lua
+      - lua/nkinput_v2.lua
+      - lua/nknet.lua
+      - lua/nkjson.lua
+      - lua/nkvision.lua
       - lua/nkcoords.lua
       - lua/nkstability.lua
       - lua/nkregression.lua
@@ -21,6 +25,9 @@ on:
       - tests/test_v0716_color_accuracy.py
       - tests/lua_v0716_coords_stability.lua
       - tests/lua_v0716_regression.lua
+      - tests/lua_v0716_input_json_hardening.lua
+      - tests/lua_v0716_http_atomic.lua
+      - tests/lua_v0716_vision_lifecycle.lua
       - tests/test_v0716_native_preflight.py
       - .github/workflows/validate-v0716-testlab.yml
 
@@ -45,6 +52,13 @@ jobs:
           luac -p lua/nkcoords.lua
           luac -p lua/nkstability.lua
           luac -p lua/nkregression.lua
+          luac -p lua/nkinput_v2.lua
+          luac -p lua/nknet.lua
+          luac -p lua/nkjson.lua
+          luac -p lua/nkvision.lua
+          luac -p tests/lua_v0716_input_json_hardening.lua
+          luac -p tests/lua_v0716_http_atomic.lua
+          luac -p tests/lua_v0716_vision_lifecycle.lua
           luac -p tests/lua_v0716_regression.lua
           python3 -m py_compile scripts/check-v0716-readiness.py
           luac -p tests/lua_v0716_coords_stability.lua
@@ -57,6 +71,17 @@ jobs:
       - name: Host-compile native Lua module and check touch preflight (no iOS build)
         run: |
           python3 -m unittest tests/test_v0716_native_preflight.py -v
+      - name: Validate UTF-8 InputText/password dispatch and JSON strictness
+        run: |
+          lua tests/lua_v0716_input_json_hardening.lua
+      - name: Validate HTTP atomic downloads and Vision frame lifetime
+        run: |
+          set -euxo pipefail
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          mkdir -p "$work/network"
+          NKTOUCH_HTTP_TMP="$work/network" lua tests/lua_v0716_http_atomic.lua "$work"
+          lua tests/lua_v0716_vision_lifecycle.lua "$work"
       - name: Verify two consecutive Test Lab runs and flag regressions
         run: |
           lua tests/lua_v0716_regression.lua "$RUNNER_TEMP/nktestlab-last.json"
