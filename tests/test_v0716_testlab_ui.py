@@ -93,9 +93,10 @@ if(ip.row==self.scripts.count+1){[self nkShowSamples];return;}
 package.preload.nktestlab=function()
  return {run=function(opts)
   assert(opts.run_id=="lab_test_1234")
-  assert(#opts.selected==7)
+  assert(#opts.selected==5)
   assert(opts.touch.enabled==false and opts.input.enabled==false)
   assert(opts.network.enabled==false)
+  assert(opts.memory.loops==10)
   print("GENERATED_LUA_SAFE")
   return {fail=0}
  end}
