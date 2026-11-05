@@ -52,6 +52,11 @@ class OCRPerfReleaseTests(unittest.TestCase):
         # Theos installer failed on a malformed remote 16.5 SDK tarball.
         self.assertIn('SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"', source)
         self.assertIn('ln -s "$SDK_PATH"', source)
+        self.assertIn('SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"', source)
+        self.assertIn('"TARGET=iphone:clang:${NK_THEOS_SDK_VERSION}:15.0"', source)
+        self.assertIn('NK_THEOS_SDK_VERSION=$SDK_VERSION', source)
+        self.assertIn("make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1 \\", source)
+        self.assertNotIn("make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1 \\\\", source)
         self.assertNotIn("bin/install-theos", source)
         self.assertIn("bash scripts/stage-v083-ocr-perf.sh upstream", source)
         self.assertIn("lua tests/lua_v083_perf.lua", source)
