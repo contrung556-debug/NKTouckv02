@@ -301,7 +301,8 @@
     if (!NKTargetForScript(filename)) {
         if (!NKSaveTarget(filename,@"com.apple.mobilesafari",@"Safari")) {
             [self labAlert:@"Chưa thiết lập ứng dụng đích"
-                   message:@"Script đã được tạo. Hãy chọn Safari hoặc ứng dụng phù hợp bằng 'Ứng dụng +' trong Lua Editor trước khi chạy."];
+                   message:@"Script đã được tạo nhưng chưa chọn được Safari. Hãy mở script trong Lua Workspace và chọn ứng dụng bằng 'Ứng dụng +' trước khi chạy."];
+            return;
         }
     }
     [self.navigationController pushViewController:
