@@ -397,7 +397,16 @@
       @"  vision={},\n"
       @"  memory={loops=10}\n"
       @"}\n"
-      @"local result=lab.run(opts)\n"
+      @"local ran,result=pcall(lab.run,opts)\n"
+      @"-- Always request returning to NKTouch, even when a group failed.\n"
+      @"local loaded,nk=pcall(require,\"nktouch_v7\")\n"
+      @"local called,accepted=false,false\n"
+      @"if loaded and type(nk.openApp)==\"function\" then\n"
+      @"  called,accepted=pcall(nk.openApp,\"com.zjx.zxtouch\")\n"
+      @"end\n"
+      @"print((called and accepted) and \"[NKLAB][RESTORE] request_accepted bundle=com.zjx.zxtouch\"\n"
+      @"      or \"[NKLAB][RESTORE] WARN restore_request_failed\")\n"
+      @"if not ran then error(result,0) end\n"
       @"if result.fail>0 then error(\"NKTouch Test Lab FAILED; see Task Center Logs\",0) end\n",
       runID,runID,[quoted componentsJoinedByString:@","]];
     // Dashboard can open Test Lab before Lua Library is visited.
