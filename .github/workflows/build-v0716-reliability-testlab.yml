@@ -172,7 +172,7 @@ jobs:
           TRIGGER=upstream/nktouch-trigger/Tweak.xm
           CTL=upstream/layout/usr/bin/nktouchctl
           grep -q '^Version: 0.7.16$' upstream/control
-          grep -q '^NKTouch 0.7.16 Seven-Group Test Lab Beta
+          grep -Fxq 'NKTouch 0.7.16 Seven-Group Test Lab Beta' upstream/layout/usr/share/doc/nktouch/VERSION
           grep -q '^  finish)' "$REC"
           grep -q 'NKHotkeyActionRecorderFinish' "$TRIGGER"
           grep -q 'REC STOPPING' "$TRIGGER"
