@@ -24,6 +24,12 @@ assert(r.status=="NOT_COMPARABLE")
 r=compare(report("PASS","mock_clock",10),report("FAIL","mock_clock",10))
 assert(r.status=="NO_REGRESSION_OBSERVED" and #r.improvements==1)
 
+local missing=compare(
+ {selected={"runtime"},tests={{group="runtime",name="kept",status="PASS",ms=5}}},
+ {selected={"runtime"},tests={{group="runtime",name="kept",status="PASS",ms=5},
+                              {group="runtime",name="vanished",status="PASS",ms=5}}})
+assert(missing.status=="REGRESSION" and #missing.regressions==1)
+assert(missing.regressions[1].to=="MISSING")
 local path=assert(arg[1],"temporary report path required")
 local now=0
 local nk={
