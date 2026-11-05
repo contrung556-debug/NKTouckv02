@@ -201,6 +201,14 @@ function M.request(opts)
     end
   end
   if opts.save_to then
+    -- HTTP errors (e.g. 404 login HTML, 500 gateway error) must NEVER
+    -- replace a valid existing user download. Keep response metadata as
+    -- a fourth return value for diagnostics without preserving the body.
+    if result.status<200 or result.status>=300 then
+      cleanup(temps)
+      return nil,"download HTTP status "..tostring(result.status),
+             "HTTP_STATUS",result
+    end
     local finalSize=filesize(response)
     if not finalSize or finalSize>maxbytes then
       cleanup(temps)
