@@ -40,8 +40,12 @@ end
 
 local function reporter(nk,selected,id,now,reportPath,mode,clockType)
   local startedClock=now()
+  local taskID=os.getenv("NKTOUCH_TASK_ID")
+  if type(taskID)~="string" or #taskID<4 or #taskID>64
+     or not taskID:match("^[A-Za-z0-9_-]+$") then taskID=nil end
   local report={
-    version=M.VERSION, run_id=id, started_at=os.date("!%Y-%m-%dT%H:%M:%SZ"),
+    version=M.VERSION, run_id=id, task_id=taskID,
+    started_at=os.date("!%Y-%m-%dT%H:%M:%SZ"),
     selected=selected, groups={}, tests={},
     mode=mode or "read_only_default", visual_confirmation=false,
     coverage="PARTIAL", clock_type=clockType or "unknown",
@@ -803,9 +807,15 @@ local function makeGroups(nk,opts,check)
           tostring(st.signal),tostring(st.exit_code))
       end
       -- In a running Lab, the final exit_code is not yet available.
-      return "PASS",("task=%s state=%s; exit_code=%s signal=%s"):format(
-        id,safe(st.state),tostring(st.exit_code or "pending"),
-        tostring(st.signal or "pending"))
+      if not st.finished then
+        return "WARN",("task=%s state=%s; final exit_code/signal pending"):format(
+          id,safe(st.state))
+      end
+      if st.exit_code~=0 then
+        return "FAIL",("task=%s state=%s exit_code=%s signal=%s"):format(
+          id,safe(st.state),tostring(st.exit_code),tostring(st.signal))
+      end
+      return "PASS",("task=%s exit_code=0 signal=0"):format(id)
     end)
   end
 
