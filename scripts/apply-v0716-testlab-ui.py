@@ -47,13 +47,22 @@ newcard='''NKMenuCard *testlab=[[NKMenuCard alloc]initWithIcon:@"checkmark.shiel
      '''
 dashboard=dashboard.replace(anchor,newcard+anchor,1)
 s=s[:start]+dashboard+s[end:]
-nav='- (void)openWorkspace { [self.navigationController pushViewController:[[NSClassFromString(@"NKLuaLibraryViewController") alloc] init] animated:YES]; }'
-assert s.count(nav)==1,"dashboard navigation marker changed"
-s=s.replace(nav,'''- (void)nkOpenTestLab {
+# Add method inside the existing dashboard implementation without assuming the
+# implementation of openWorkspace is unchanged by older Editor/UI fixes.
+dashStart=s.index("#pragma mark - Dashboard\n")
+dashEnd=s.index("#pragma mark - Library\n",dashStart)
+dash=s[dashStart:dashEnd]
+assert dash.count("@implementation NKLuaWorkspaceViewController")==1, \
+       "dashboard implementation is missing"
+endMethod=dash.rfind("@end")
+assert endMethod>=0,"dashboard implementation end missing"
+method='''- (void)nkOpenTestLab {
     [self.navigationController pushViewController:
       [[NSClassFromString(@"NKLuaTestLabViewController") alloc]init] animated:YES];
 }
-'''+nav,1)
+'''
+dash=dash[:endMethod]+method+dash[endMethod:]
+s=s[:dashStart]+dash+s[dashEnd:]
 
 # Attach the Lab to the existing four-item Samples picker.
 cancel='    [menu addAction:[UIAlertAction actionWithTitle:@"Huỷ" style:UIAlertActionStyleCancel handler:nil]];'
