@@ -627,8 +627,8 @@ local function makeGroups(nk,opts,check)
       if pw<2 or ph<2 then return "SKIP","screen too small for 420f" end
       local probe,e,code=native.probeCVPixelBuffer(pw,ph)
       if not probe then return "WARN","420f allocation probe: "..safe(code or e) end
-      local message=("CVPixelBufferCreate %dx%d 420f status=%s; diagnostic only"):format(
-        pw,ph,tostring(probe.status))
+      local message=("CVPixelBufferCreate %dx%d 420f plain=%s IOSurface=%s Metal=%s; diagnostic only"):format(
+        pw,ph,tostring(probe.status_plain),tostring(probe.status),tostring(probe.status_metal))
       return probe.ok and "PASS" or "WARN",message
     end)
     test("ocr","frame_ocr",function()
