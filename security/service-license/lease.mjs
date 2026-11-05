@@ -43,8 +43,8 @@ export function issueLease({ licenseId, devicePublicKeyPem, scopes, nowSeconds, 
     device: deviceFingerprint(devicePublicKeyPem), scopes,
     iat: nowSeconds, nbf: nowSeconds, exp: nowSeconds + ttlSeconds, jti: randomUUID(),
   };
-  const body = \`\${encode(header)}.\${encode(payload)}\`;
-  return \`\${body}.\${sign(null, Buffer.from(body, 'ascii'), key).toString('base64url')}\`;
+  const body = `${encode(header)}.${encode(payload)}`;
+  return `${body}.${sign(null, Buffer.from(body, 'ascii'), key).toString('base64url')}`;
 }
 
 // Validates a signed lease for access to optional server-hosted services.
@@ -61,7 +61,7 @@ export function verifyLease(token, { publicKeys, devicePublicKeyPem, nowSeconds,
   try { key = createPublicKey(publicKeys[header.kid]); } catch { return fail('UNKNOWN_KEY'); }
   if (key.asymmetricKeyType !== 'ed25519') fail('UNKNOWN_KEY');
   if (!/^[A-Za-z0-9_-]+$/.test(s) || Buffer.from(s, 'base64url').toString('base64url') !== s) fail('MALFORMED_TOKEN');
-  if (!verify(null, Buffer.from(\`\${h}.\${p}\`, 'ascii'), key, Buffer.from(s, 'base64url'))) fail('BAD_SIGNATURE');
+  if (!verify(null, Buffer.from(`${h}.${p}`, 'ascii'), key, Buffer.from(s, 'base64url'))) fail('BAD_SIGNATURE');
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload) ||
       payload.iss !== 'nktouch-service' || payload.aud !== 'nktouch-paid-api' ||
       !requireId(payload.sub) || !requireScopes(payload.scopes) || !requireId(payload.jti) ||
