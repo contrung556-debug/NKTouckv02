@@ -8,6 +8,7 @@ on:
       - lua/nkactions.lua
       - lua/nksdk.lua
       - lua/nktestlab.lua
+      - runtime/nktask.c
       - patches/NKTestLabUIViewController.m.inc
       - scripts/prepare-v0800-release.sh
       - examples/nk_v0800_readonly_demo.lua
@@ -30,6 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           bash -n scripts/prepare-v0800-release.sh
+          cc -std=c11 -Wall -Wextra -fsyntax-only runtime/nktask.c
           for f in lua/nkdiagnostics.lua lua/nksnapshot.lua lua/nkactions.lua lua/nksdk.lua lua/nktestlab.lua examples/nk_v0800_readonly_demo.lua; do
             luac5.4 -p "$f"
           done
