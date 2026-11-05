@@ -6,6 +6,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <ImageIO/ImageIO.h>
 #import <Vision/Vision.h>
+#import <mach/mach.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -474,7 +475,29 @@ static const luaL_Reg nv_methods[]={
     {"findImage",nv_find_image},{"ocr",nv_ocr},
     {"save",nv_save},{"info",nv_info},{"close",nv_close},{NULL,NULL}
 };
-static const luaL_Reg nv_module[]={{"open",nv_open},{"tempPath",nv_temp_path},{NULL,NULL}};
+// Read-only process resident memory (RSS). No cache eviction or other-app
+// controls. Memory-pressure tests must not equate this with freed iOS RAM.
+static int nv_memory_stats(lua_State *L) {
+    mach_task_basic_info_data_t info = {0};
+    mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+    kern_return_t result = task_info(mach_task_self(), MACH_TASK_BASIC_INFO,
+                                     (task_info_t)&info, &count);
+    if (result != KERN_SUCCESS) {
+        return nv_error(L, "mach task_info unavailable", "RSS_UNAVAILABLE");
+    }
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, (lua_Integer)info.resident_size);
+    lua_setfield(L, -2, "rss_bytes");
+    lua_pushinteger(L, (lua_Integer)info.virtual_size);
+    lua_setfield(L, -2, "virtual_bytes");
+    lua_pushliteral(L, "MACH_TASK_BASIC_INFO");
+    lua_setfield(L, -2, "source");
+    lua_pushliteral(L, "PROCESS");
+    lua_setfield(L, -2, "scope");
+    return 1;
+}
+static const luaL_Reg nv_module[]={{"open",nv_open},{"tempPath",nv_temp_path},
+                                 {"memoryStats",nv_memory_stats},{NULL,NULL}};
 int luaopen_nkvision_native(lua_State *L) {
     luaL_newmetatable(L,NV_MT);
     lua_pushcfunction(L,nv_gc);
