@@ -9,6 +9,7 @@ on:
       - lua/nktestlab.lua
       - lua/nkcoords.lua
       - lua/nkstability.lua
+      - lua/nkregression.lua
       - runtime/nkcore.c
       - patches/NKTestLabUIViewController.m.inc
       - scripts/apply-v0716-testlab-ui.py
@@ -18,6 +19,7 @@ on:
       - tests/test_v0716_reliability_report.py
       - tests/test_v0716_color_accuracy.py
       - tests/lua_v0716_coords_stability.lua
+      - tests/lua_v0716_regression.lua
       - tests/test_v0716_native_preflight.py
       - .github/workflows/validate-v0716-testlab.yml
 
@@ -41,6 +43,8 @@ jobs:
           luac -p lua/nktestlab.lua
           luac -p lua/nkcoords.lua
           luac -p lua/nkstability.lua
+          luac -p lua/nkregression.lua
+          luac -p tests/lua_v0716_regression.lua
           luac -p tests/lua_v0716_coords_stability.lua
           bash -n scripts/stage-v0716-testlab-dev.sh
           python3 -m py_compile scripts/apply-v0716-testlab-ui.py
@@ -51,6 +55,9 @@ jobs:
       - name: Host-compile native Lua module and check touch preflight (no iOS build)
         run: |
           python3 -m unittest tests/test_v0716_native_preflight.py -v
+      - name: Verify two consecutive Test Lab runs and flag regressions
+        run: |
+          lua tests/lua_v0716_regression.lua "$RUNNER_TEMP/nktestlab-last.json"
       - name: Test seven groups and no-unsafe-action defaults
         run: |
           python3 -m unittest tests/test_v0716_testlab_runner.py -v
