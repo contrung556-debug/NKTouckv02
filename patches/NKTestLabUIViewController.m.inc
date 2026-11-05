@@ -22,6 +22,7 @@
             @{@"id":@"touch",   @"title":@"Touch Engine", @"desc":@"Tọa độ • tap/hold/swipe an toàn"},
             @{@"id":@"input",   @"title":@"InputText", @"desc":@"Input Engine • Unicode • gửi một lần"},
             @{@"id":@"memory",  @"title":@"Memory Stability", @"desc":@"10 frame • RSS • giải phóng Lua"},
+            @{@"id":@"diagnostics", @"title":@"Diagnostics & Crash", @"desc":@"Lệnh cuối • exit_code • signal • bảo vệ log"},
             @{@"id":@"runtime", @"title":@"Lua Runtime", @"desc":@"Lua 5.4 • module • cú pháp"},
             @{@"id":@"vision",  @"title":@"Vision Core", @"desc":@"Frame • pixel • ảnh mẫu"},
             @{@"id":@"network", @"title":@"Network & JSON", @"desc":@"JSON • URL • HTTPS có xác nhận"},
@@ -226,7 +227,7 @@
     [out appendString:@"P95 is over different checks in one run, not per-API long-term latency.\n\n"];
     NSDictionary *groups=[report[@"groups"] isKindOfClass:[NSDictionary class]]?
         report[@"groups"]:@{};
-    NSArray *order=@[@"ocr",@"color",@"touch",@"input",@"memory",@"runtime",@"vision",@"network",@"task"];
+    NSArray *order=@[@"ocr",@"color",@"touch",@"input",@"memory",@"diagnostics",@"runtime",@"vision",@"network",@"task"];
     for (NSString *groupName in order) {
         NSDictionary *g=[groups[groupName] isKindOfClass:[NSDictionary class]]?
              groups[groupName]:nil;
