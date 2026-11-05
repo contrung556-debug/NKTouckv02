@@ -10,3 +10,5 @@ Build: artifact-only rootless .deb, do not publish Sileo.
 - Device OCR accuracy, transition sensitivity and long-run memory pending.
 
 Build revision 2: source CI 42053748133 PASSED after adding fail-closed sleep verification in two-frame stability guard. Prior candidate build 42053547076 predated this correction; retain it only as a diagnostic artifact. Request new artifact-only build of current source (no Sileo update).
+
+2026-11-06 build repair: previous run 42053547076 compiled/packaged 0.8.3 but failed a stale PACKAGE_VERSION=0.8.2 assertion. Run 42054043935 failed setup on the roothide installer fetching an invalid 16.5 SDK archive (exit 8). Fix uses the Xcode-installed iPhoneOS SDK via local Theos symlink, and version guard now matches NK_VERSION. Fast source CI 42123324615: SUCCESS. Trigger an artifact-only rebuild for v0.8.3. Do not publish to Sileo before device verification.
