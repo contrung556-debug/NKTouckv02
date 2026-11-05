@@ -52,7 +52,7 @@ class OCRBufferFallback(unittest.TestCase):
 
     def test_failure_includes_all_backend_errors_but_not_recognized_text(self):
         src=self.ocr
-        self.assertIn("Vision OCR failed (CIImage/rev2: %@; CGImage: %@; JPEG/ROI/rev1/CPU: %@)",src)
+        self.assertIn("Vision OCR failed (JPEG/ROI/rev1/CPU: %@; CIImage/rev2: %@; CGImage: %@)",src)
         self.assertIn('return nv_error(L,[message UTF8String],"OCR")',src)
         self.assertIn("nv_ocr_failure_detail(jpegError,jpegException)",src)
         self.assertNotIn("NSLog(",src)
