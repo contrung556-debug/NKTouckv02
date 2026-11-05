@@ -643,14 +643,20 @@ local function makeGroups(nk,opts,check)
         end
         local text,ocrErr,ocrCode=frame:ocr(0,0,info.width,
                                                math.min(info.height,220),"")
-        if text==nil then return {error=safe(ocrErr),kind=safe(ocrCode)} end
+        if text==nil then return {error=safe(ocrErr),kind=safe(ocrCode),
+          width=info.width,height=info.height,bpp=info.bits_per_pixel,
+          bitmap=info.bitmap_info} end
         local after=frame:info()
         return {bytes=#tostring(text),width=info.width,height=info.height,
+                bpp=info.bits_per_pixel,bitmap=info.bitmap_info,
                 backend=after and after.ocr_backend or "UNKNOWN"}
       end)
       if not data then return "FAIL","frame capture: "..safe(code or err) end
       if data.error then
-        return "FAIL","Vision frame OCR "..safe(data.kind).." "..safe(data.error)
+        return "FAIL",("Vision frame OCR %s %s size=%sx%s cg_bpp=%s cg_bitmap=%s"):format(
+          safe(data.kind),safe(data.error),tostring(data.width or "?"),
+          tostring(data.height or "?"),tostring(data.bpp or "?"),
+          tostring(data.bitmap or "?"))
       end
       frameOK=true
       frameBytes=data.bytes
@@ -658,8 +664,9 @@ local function makeGroups(nk,opts,check)
       if frameBytes==0 then
         return "WARN","frame OCR completed via "..frameBackend..", no visible top text"
       end
-      return "PASS",("frame OCR bytes=%d backend=%s size=%dx%d; snapshot closed"):format(
-        frameBytes,frameBackend,data.width,data.height)
+      return "PASS",("frame OCR bytes=%d backend=%s size=%dx%d CGImage_bpp=%s bitmap=%s; snapshot closed"):format(
+        frameBytes,frameBackend,data.width,data.height,
+        tostring(data.bpp or "?"),tostring(data.bitmap or "?"))
     end)
     test("ocr","live_ocr",function()
       if type(nk.ocr)~="function" then return "SKIP","live OCR unavailable" end
