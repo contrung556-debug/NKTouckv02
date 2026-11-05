@@ -14,6 +14,8 @@ GROUPS=("runtime","touch","input","color","vision","network","task")
 REQUIRED=(
  "lua/nktestlab.lua", "lua/nkcoords.lua", "lua/nkstability.lua",
  "lua/nkregression.lua", "lua/nkcommand_contract.lua",
+ "lua/nkinput_v2.lua", "lua/nknet.lua", "lua/nkjson.lua",
+ "lua/nkvision.lua",
  "runtime/nkcore.c", "runtime/nkvision.m",
  "scripts/stage-v0716-testlab-dev.sh",
  "scripts/apply-v0716-cli-parser.py",
@@ -24,6 +26,10 @@ REQUIRED=(
  "tests/test_v0716_color_accuracy.py",
  "tests/lua_v0716_coords_stability.lua",
  "tests/lua_v0716_regression.lua",
+ "tests/lua_v0716_input_json_hardening.lua",
+ "tests/lua_v0716_http_atomic.lua",
+ "tests/lua_v0716_vision_lifecycle.lua",
+ "tests/test_v0716_task_supervisor_host.py",
  "COMMAND_MATRIX_V0716.md",
 )
 missing=[name for name in REQUIRED if not (ROOT/name).is_file()]
