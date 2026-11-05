@@ -31,7 +31,8 @@ python3 - "$PC_DYLIB" "$TESTROOT" <<'PY'
 from pathlib import Path
 import sys
 core=Path(sys.argv[1]).read_bytes()
-assert any(b"NK_FRAME_OCR_LOOPBACK_ONLY" in core_codec for core_codec in (core,)), "missing loopback guard"
+assert any("NK_FRAME_OCR_LOOPBACK_ONLY".encode(codec) in core
+           for codec in ("utf-8","utf-16le","utf-16be")), "missing loopback guard"
 assert any("NK_FRAME_OCR_UNAVAILABLE".encode(codec) in core
            for codec in ("utf-8","utf-16le","utf-16be")), "missing same-frame IPC marker"
 root=Path(sys.argv[2])
