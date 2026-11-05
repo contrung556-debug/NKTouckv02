@@ -10,6 +10,7 @@ on:
       - lua/nkcoords.lua
       - lua/nkstability.lua
       - lua/nkregression.lua
+      - scripts/check-v0716-readiness.py
       - runtime/nkcore.c
       - patches/NKTestLabUIViewController.m.inc
       - scripts/apply-v0716-testlab-ui.py
@@ -45,6 +46,7 @@ jobs:
           luac -p lua/nkstability.lua
           luac -p lua/nkregression.lua
           luac -p tests/lua_v0716_regression.lua
+          python3 -m py_compile scripts/check-v0716-readiness.py
           luac -p tests/lua_v0716_coords_stability.lua
           bash -n scripts/stage-v0716-testlab-dev.sh
           python3 -m py_compile scripts/apply-v0716-testlab-ui.py
@@ -70,6 +72,13 @@ jobs:
       - name: Reject false RGB matches and inconsistent screen/frame sizes
         run: |
           python3 -m unittest tests/test_v0716_color_accuracy.py -v
+      - name: Run full dev API/CLI/Input and historical regression suite
+        run: |
+          lua tests/lua_v0716_json_network_input.lua
+          python3 -m unittest tests/test_v0716_cli_parser.py tests/test_v0716_staged_api.py tests/test_v0715_lua_selftest.py tests/test_v0714_notes_screenfix.py -v
+      - name: Review release gate (must remain blocked for unverified device groups)
+        run: |
+          python3 scripts/check-v0716-readiness.py
       - name: Recheck earlier Lua argument contracts
         run: |
           lua tests/lua_v0716_command_contract.lua
