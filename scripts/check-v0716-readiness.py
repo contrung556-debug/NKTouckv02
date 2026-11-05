@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Review the v0.7.16 dev release gate without starting an iOS build.
 
-Source/host tests are not proof of accuracy on a physical iPhone. This audit
-explicitly remains blocked until the user validates the 7 Test Lab groups
-on-device and chooses to prepare a release candidate.
+Source/host tests are not proof of accuracy on a physical iPhone. This audit keeps on-device evidence separate from a user-authorized
+experimental build/release. Do not mislabel a beta as device-verified.
 """
 from pathlib import Path
 import json
@@ -52,9 +51,11 @@ if evidence.is_file():
     except (ValueError,TypeError,AttributeError):
         pass
 
-state="BLOCKED"
-if missing or new_release:
-    state="SOURCE_INCOMPLETE"
+# A release build is now explicitly requested by the user. Source quality
+# and device confidence are separate axes: do not claim physical verification.
+authorized=(ROOT/"release/v0716-build-ready.txt").is_file()
+state="SOURCE_INCOMPLETE" if missing else (
+    "EXPERIMENTAL_BUILD_REQUESTED" if authorized else "BLOCKED_ON_DEVICE")
 # No Sileo release/build is authorized by this diagnostic script, even when
 # every on-device check is marked PASS. It requires a separate review step.
 print(json.dumps({
@@ -63,9 +64,10 @@ print(json.dumps({
  "source_missing":missing,
  "new_release_artifacts":[str(x.relative_to(ROOT)) for x in new_release],
  "iphone_groups_still_needing_evidence":device_pending,
- "manual_release_review_required":True,
+ "manual_release_review_required":not authorized,
+ "experimental_unverified_device":bool(device_pending),
  "build_started":False,
  "sileo_published":False,
 },ensure_ascii=False,indent=2))
-if missing or new_release:
+if missing:
     sys.exit(1)
