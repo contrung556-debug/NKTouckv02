@@ -49,7 +49,10 @@ local function encode_value(v, seen, depth)
     if v~=v or v==math.huge or v==-math.huge then error("JSON cannot encode non-finite number",0) end
     return string.format("%.17g",v)
   end
-  if tv=="string" then return esc(v) end
+  if tv=="string" then
+    if not utf8.len(v) then error("JSON string is not valid UTF-8",0) end
+    return esc(v)
+  end
   if tv~="table" then error("JSON unsupported type: "..tv,0) end
   if seen[v] then error("JSON circular table",0) end
   seen[v]=true
@@ -65,6 +68,7 @@ local function encode_value(v, seen, depth)
   end
   for k,val in pairs(v) do
     if type(k)~="string" then seen[v]=nil; error("JSON object keys must be strings",0) end
+    if not utf8.len(k) then seen[v]=nil; error("JSON object key is not UTF-8",0) end
     out[#out+1]=esc(k)..":"..encode_value(val,seen,depth+1)
   end
   table.sort(out)
@@ -144,7 +148,10 @@ local function decoder(s)
       if not s:sub(p,p):match('%d') then fail("invalid exponent") end
       repeat p=p+1 until not s:sub(p,p):match('%d')
     end
-    local v=tonumber(s:sub(start,p-1)); if not v then fail("invalid number") end
+    local v=tonumber(s:sub(start,p-1))
+    if not v or v~=v or v==math.huge or v==-math.huge then
+      fail("non-finite or invalid number")
+    end
     return v
   end
 
@@ -167,7 +174,9 @@ local function decoder(s)
       if s:sub(p,p)~='"' then fail("expected object key") end
       local k=stringv(); ws()
       if s:sub(p,p)~=':' then fail("expected ':'") end
-      p=p+1; ws(); o[k]=parse(depth+1); ws()
+      p=p+1; ws()
+      if rawget(o,k)~=nil then fail("duplicate object key") end
+      o[k]=parse(depth+1); ws()
       local c=s:sub(p,p)
       if c=='}' then p=p+1; return o end
       if c~=',' then fail("expected ',' or '}'") end
@@ -194,6 +203,8 @@ end
 
 function M.decode(s)
   if type(s)~="string" then return nil,"JSON input must be a string" end
+  if #s>16*1024*1024 then return nil,"JSON input exceeds 16 MiB limit" end
+  if not utf8.len(s) then return nil,"JSON input is not valid UTF-8" end
   local ok,res=pcall(decoder,s)
   if not ok then return nil,res end
   return res
