@@ -12,6 +12,7 @@ on:
       - scripts/apply-v0716-cli-parser.py
       - scripts/stage-v0716-command-contract-dev.sh
       - tests/lua_v0716_command_contract.lua
+      - tests/lua_v0716_json_network_input.lua
       - tests/test_v0716_all_commands_audit.py
       - tests/test_v0716_cli_parser.py
       - .github/workflows/validate-v0716-lua-commands.yml
@@ -43,6 +44,10 @@ jobs:
       - name: Test guarded arguments and non-retrying side effects
         run: |
           lua tests/lua_v0716_command_contract.lua
+      - name: Validate JSON, HTTP and UTF-8 keyboard contracts (offline)
+        run: |
+          luac -p tests/lua_v0716_json_network_input.lua
+          lua tests/lua_v0716_json_network_input.lua
       - name: Test malformed image/color results with host Lua
         run: |
           python3 -m unittest tests/test_v0716_cli_parser.py -v
