@@ -181,7 +181,7 @@ jobs:
           test -f upstream/layout/usr/share/nktouch/examples/test_core_readonly.lua
           test -f upstream/layout/usr/share/nktouch/examples/test_vision_oneframe.lua
           test -f upstream/layout/usr/share/nktouch/examples/test_gestures_optin.lua
-          grep -Fq 'initWithScriptName:@"test_inputtext_notes_v2.lua"' upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
+          grep -Fq '@"file":@"test_inputtext_notes_v2.lua"' upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
           test -s upstream/layout/usr/share/nktouch/lua/nkinput_v2.lua
           grep -Fq 'nk_input_v2_id' upstream/pccontrol/UIKeyboard.xm
           grep -Fq 'NKInputV2FocusedView' upstream/appdelegate/UIKeyboard.xm
