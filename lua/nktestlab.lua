@@ -39,6 +39,7 @@ local function reporter(nk,selected,id,now,reportPath)
   local report={
     version=M.VERSION, run_id=id, started_at=os.date("!%Y-%m-%dT%H:%M:%SZ"),
     selected=selected, groups={}, tests={},
+    mode="read_only_default", visual_confirmation=false, coverage="PARTIAL",
     pass=0, fail=0, warn=0, skip=0, status="SKIP"
   }
   for _,name in ipairs(selected) do
@@ -81,6 +82,9 @@ local function reporter(nk,selected,id,now,reportPath)
     elseif report.warn>0 then report.status="WARN"
     elseif report.pass>0 then report.status="PASS"
     else report.status="SKIP" end
+    -- PASS means the executed checks passed. A SKIP still means incomplete
+    -- coverage; successful HID/text dispatch is not visual confirmation.
+    report.coverage=(report.skip>0) and "PARTIAL" or "FULL"
     local jsonOk,json=pcall(require,"nkjson")
     if jsonOk and json and json.encode and reportPath then
       local encoded,encodingErr=json.encode(report)
