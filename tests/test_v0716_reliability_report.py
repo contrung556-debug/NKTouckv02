@@ -33,11 +33,11 @@ local report=lab.run({selected={"runtime","task"},run_id="reliability_mock_01"},
 assert(report.clock_type=="mock_clock")
 assert(report.mode=="read_only_default" and not report.visual_confirmation)
 assert(report.coverage=="PARTIAL" and report.status=="WARN")
-assert(report.pass==6 and report.warn==1 and report.skip==2,
+assert(report.pass==7 and report.warn==1 and report.skip==3,
   string.format("%d/%d/%d",report.pass,report.warn,report.skip))
 local t=report.timing
-assert(t.checks==#report.tests and t.checks==9)
-assert(t.total_ms==63 and t.avg_check_ms==7)
+assert(t.checks==#report.tests and t.checks==11)
+assert(t.total_ms==77 and t.avg_check_ms==7)
 assert(t.p95_check_ms==7 and t.max_check_ms==7)
 assert(t.elapsed_ms>=t.total_ms)
 assert(t.slowest_check.ms==7)
@@ -45,9 +45,9 @@ local rt=report.groups.runtime
 assert(rt.executed==4 and rt.check_pass_rate_pct==75)
 assert(rt.timing.checks==4 and rt.timing.total_ms==28)
 local task=report.groups.task
-assert(task.executed==3 and task.timing.checks==5)
+assert(task.executed==4 and task.timing.checks==7)
 assert(task.check_pass_rate_pct==100)
-assert(task.timing.total_ms==35)
+assert(task.timing.total_ms==49)
 print("[NKLAB][RELIABILITY] AGGREGATION_PASS")
 '''
         with tempfile.TemporaryDirectory() as d:
