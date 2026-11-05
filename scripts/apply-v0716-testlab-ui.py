@@ -30,8 +30,8 @@ s=s.replace("#pragma mark - Editor\n",block+"\n#pragma mark - Editor\n",1)
 # Add a discoverable dashboard entry; no changes to existing tools.
 # Locate only the dashboard section. Earlier versions add additional cards
 # and reorganize stack calls, so never rely on the full old 5-card sequence.
-start=s.index("#pragma mark - Dashboard\\n")
-end=s.index("#pragma mark - Library\\n",start)
+start=s.index("#pragma mark - Dashboard\n")
+end=s.index("#pragma mark - Library\n",start)
 dashboard=s[start:end]
 anchor="[stack addArrangedSubview:status];"
 if dashboard.count(anchor)!=1:
