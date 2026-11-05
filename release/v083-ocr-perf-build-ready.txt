@@ -1,0 +1,10 @@
+NKTouch v0.8.3 OCR Performance & Screen Stability development candidate.
+Base: published v0.8.2 IPC, retaining ZXTouch-based SpringBoard and Touch.
+Source CI: successful run 42053377042 (unit and Lua mock; no device claim).
+Build: artifact-only rootless .deb, do not publish Sileo.
+- 10 sampled, monotonic-clock same-frame OCR iterations (plus opt-in warmup).
+- Optional live OCR comparison must be labeled separate capture.
+- 50 frame memory stress (or 0/10/100 chosen manually).
+- Two frame screen pixel heuristic; fail-closed when samples change.
+- Existing read-only Test Lab and user-editable scripts preserved.
+- Device OCR accuracy, transition sensitivity and long-run memory pending.
