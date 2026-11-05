@@ -3,6 +3,9 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import json
+import re
+import shutil
 
 ROOT=Path(__file__).resolve().parents[1]
 PATCH=ROOT/"scripts/apply-v0716-testlab-ui.py"
@@ -60,6 +63,50 @@ if(ip.row==self.scripts.count+1){[self nkShowSamples];return;}
         self.assertIn("NSJSONSerialization",s)
         self.assertNotIn("nk.tap(",s)
         self.assertNotIn("nk.inputText(",s)
+
+
+    @unittest.skipUnless(shutil.which("lua") and shutil.which("luac"),
+                         "Host Lua compiler needed")
+    def test_generated_editor_script_compiles_and_is_read_only(self):
+        s=VIEW.read_text()
+        start=s.index("NSString *script=[NSString stringWithFormat:")
+        end=s.index('runID,runID,[quoted componentsJoinedByString:@","]];',start)
+        body=s[start:end]
+        for line in body.splitlines()[1:]:
+            if line.strip().startswith('"'):
+                self.fail("Objective-C adjacent generated script literals must be @\"...\"")
+        strings=re.findall(r'@"((?:\\.|[^"\\])*)"',body)
+        self.assertGreater(len(strings),12)
+        template="".join(json.loads('"'+part+'"') for part in strings)
+        self.assertEqual(template.count("%@"),3)
+        script=template.replace("%@","lab_test_1234",1).replace(
+            "%@","lab_test_1234",1).replace(
+            "%@",'"runtime","touch","input","color","vision","network","task"',1)
+        with tempfile.TemporaryDirectory() as temp:
+            script_file=Path(temp)/"generated.lua"
+            script_file.write_text(script)
+            syntax=subprocess.run(["luac","-p",str(script_file)],
+                       capture_output=True,text=True)
+            self.assertEqual(syntax.returncode,0,syntax.stdout+syntax.stderr)
+            harness=Path(temp)/"harness.lua"
+            harness.write_text(r'''
+package.preload.nktestlab=function()
+ return {run=function(opts)
+  assert(opts.run_id=="lab_test_1234")
+  assert(#opts.selected==7)
+  assert(opts.touch.enabled==false and opts.input.enabled==false)
+  assert(opts.network.enabled==false)
+  print("GENERATED_LUA_SAFE")
+  return {fail=0}
+ end}
+end
+dofile(arg[1])
+''')
+            run=subprocess.run(["lua",str(harness),str(script_file)],
+                         capture_output=True,text=True,timeout=10)
+            self.assertEqual(run.returncode,0,run.stdout+run.stderr)
+            self.assertIn("GENERATED_LUA_SAFE",run.stdout)
+
 
 if __name__=="__main__":
     unittest.main()
