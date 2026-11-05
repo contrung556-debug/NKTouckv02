@@ -43,7 +43,7 @@ class NKTestLabRunner(unittest.TestCase):
         self.assertIn('NKTestLabUIViewController.m.inc',src)
         self.assertIn('NKLuaTestLabViewController',src)
         self.assertIn('stage-v0716-command-contract-dev.sh',script)
-        self.assertIn('install -m 0644 \"$ROOT/lua/nktestlab.lua\"',script)
+        self.assertIn('for name in nktestlab.lua nkcoords.lua nkstability.lua nkregression.lua',script)
         self.assertNotIn('dpkg-deb',script)
         self.assertNotIn('sileo-repo',script)
         compile(src,str(APPLY),"exec")
