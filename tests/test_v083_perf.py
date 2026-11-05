@@ -43,6 +43,8 @@ class OCRPerfReleaseTests(unittest.TestCase):
         source = BUILD.read_text()
         self.assertIn("v0.8.3-ocr-perf-stability-dev", source)
         self.assertIn("NK_VERSION: 0.8.3", source)
+        self.assertIn("runs-on: macos-15", source)
+        self.assertNotIn("runs-on: macos-14", source)
         self.assertIn("NKTouch-v0.8.3-ocr-perf-rootless", source)
         # Inspect the *packaged* 0.8.3 binary, not stale version 0.8.2.
         self.assertIn('grep -Fq "PACKAGE_VERSION=\\\"$NK_VERSION\\\"" "$CTL_BIN"', source)
