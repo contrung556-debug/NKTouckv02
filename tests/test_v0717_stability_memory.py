@@ -14,7 +14,12 @@ class StabilityMemoryV0717(unittest.TestCase):
         self.assertIn("supportedRecognitionLanguagesAndReturnError:nil",fn)
         self.assertIn("[supported containsObject:lang]",fn)
         self.assertIn("automaticallyDetectsLanguage=YES",fn)
-        self.assertIn("if (!success && len)",fn)
+        # v0.7.18 keeps a same-frame CGImage fallback even when no
+        # explicit language was passed (all auto-language requests failed
+        # on the initial iPhone read-only diagnostic).
+        self.assertIn("if (!success)",fn)
+        self.assertIn("initWithCIImage:ciImage",fn)
+        self.assertIn("req.revision=2",fn)
         self.assertIn("initWithCGImage:crop",fn)
         self.assertIn("CGImageRelease(crop)",fn)
         self.assertNotIn("TASK_SCREENSHOT",fn)
