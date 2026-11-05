@@ -1,0 +1,10 @@
+NKTouch v0.7.16 — user-authorized experimental Sileo release
+Requested by user: "Đưa lên sileo đi" — 2026-11-05
+Build source: v0.7.16-command-hardening-dev
+App/package: com.nk.nktouch 0.7.16 iphoneos-arm64
+Scope: seven-group Test Lab, command reliability, Touch/Color/Vision, InputText, HTTP/JSON, task stability.
+Only one full macOS/iOS build is triggered by committing this marker.
+Publish ONLY if Xcode/Theos compilation, .deb inspection and GitHub Actions build-rootless job succeed.
+Preserve all existing packages including NKTouch 0.7.15 for rollback.
+Visibility: EXPERIMENTAL BETA — device tests/actual iPhone accuracy remain pending.
+Never represent host CI success as completed real iPhone verification.
