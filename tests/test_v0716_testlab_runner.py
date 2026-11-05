@@ -188,7 +188,7 @@ nk.swipe=function(x,y,x2)
 end
 nk.path=function()return nil,"bad","INVALID"end
 nk.sleep=function()return true end
-local touch={enabled=true,bundle="com.apple.mobilenotes",
+local touch={enabled=true,confirmed=true,bundle="com.apple.mobilenotes",
  tap={x=120,y=300},hold={x=120,y=300,ms=300},
  swipe={x1=120,y1=400,x2=180,y2=450,ms=500}}
 local denied=lab.run({selected={"touch"},touch=touch,run_id="wrong_app_01"},
@@ -231,7 +231,7 @@ nk.inputPassword=function(text,opts)
  assert(opts.verify)
  return nil,"secure OCR forbidden","SECURE"
 end
-local input={enabled=true,bundle="com.apple.mobilenotes",x=100,y=250,
+local input={enabled=true,confirmed=true,bundle="com.apple.mobilenotes",x=100,y=250,
              text="NKTouch public sample"}
 local denied=lab.run({selected={"input"},input=input,run_id="input_denied_01"},
                      {nk=nk,reportPath=false})
