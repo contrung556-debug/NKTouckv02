@@ -304,7 +304,7 @@ jobs:
           ln -s "$SDK_PATH" "theos/sdks/$(basename "$SDK_PATH")"
           test -L "theos/sdks/$(basename "$SDK_PATH")"
           SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
-          [[ "$SDK_VERSION" =~ ^[0-9]+\\.[0-9]+$ ]] || {
+          [[ "$SDK_VERSION" =~ ^[0-9]+\.[0-9]+$ ]] || {
             echo "Invalid local iPhoneOS SDK version: $SDK_VERSION" >&2
             exit 2
           }
@@ -322,7 +322,7 @@ jobs:
           test -d "theos/sdks/iPhoneOS${NK_THEOS_SDK_VERSION}.sdk"
           # Make's command-line TARGET overrides upstream Makefile's 16.5 pin.
           # Preserve the minimum supported deployment target 15.0.
-          make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1 \\
+          make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1 \
             "TARGET=iphone:clang:${NK_THEOS_SDK_VERSION}:15.0"
         env:
           THEOS: ${{ github.workspace }}/upstream/theos
