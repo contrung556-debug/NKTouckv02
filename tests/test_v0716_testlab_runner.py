@@ -32,7 +32,7 @@ class NKTestLabRunner(unittest.TestCase):
                     'Task Stability','labCreateRunner','labShowReport','labCopyReport',
                     'testlab-last.json','nktestlab_%@.lua','NKSaveTarget(filename',
                     'initWithScriptName:filename','enabled=false',
-                    'selected={%@}','run_id=\"%@\"'):
+                    'selected={%@}','run_id=\\\"%@\\\"'):
             self.assertIn(key,s)
         self.assertNotIn('nktask run',s)
         self.assertIn('if ([fs fileExistsAtPath:path])',s)
