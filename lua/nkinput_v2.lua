@@ -42,11 +42,12 @@ local function optionsValid(opts)
       end
     end
     if verify.expected~=nil and (type(verify.expected)~="string"
-        or verify.expected=="") then
+        or verify.expected=="" or verify.expected:find("\0",1,true)
+        or not utf8.len(verify.expected)) then
       return nil,"verify.expected must be nonempty text","INVALID"
     end
     if verify.language~=nil and (type(verify.language)~="string"
-        or #verify.language>64) then
+        or #verify.language>64 or verify.language:find("[\r\n%z]")) then
       return nil,"verify.language invalid","INVALID"
     end
   end
@@ -69,7 +70,14 @@ function M.input(nk,text,opts)
   if config.verify and type(nk.ocr)~="function" then
     return nil,"OCR API unavailable for verification","NO_OCR"
   end
-  local ok,submitErr,submitCode=nk._inputNativeV2(text,config.mode)
+  -- A native exception can happen after partial delivery. Treat the result
+  -- as uncertain; NEVER fall back to legacy text or retry automatically.
+  local dispatched,ok,submitErr,submitCode=pcall(
+    nk._inputNativeV2,text,config.mode)
+  if not dispatched then
+    return nil,"input dispatch raised; delivery uncertain (no retry): "..
+      tostring(ok),"DISPATCH_UNCERTAIN"
+  end
   if not ok then return nil,submitErr or "input dispatch failed",submitCode or "INPUT" end
 
   local result={sent=true,verified=false,mode=config.mode,
@@ -77,16 +85,17 @@ function M.input(nk,text,opts)
   if not config.verify then return true,result end
 
   if config.delay>0 and type(nk.sleep)=="function" then
-    local slept,sleepErr=nk.sleep(config.delay)
-    if not slept then
+    local sleepOK,slept,sleepErr=pcall(nk.sleep,config.delay)
+    if not sleepOK or not slept then
       result.status="unverified"
       return nil,"input dispatched; verification delay failed (no retry)",
              "UNVERIFIED",result
     end
   end
   local r=config.verify
-  local actual,ocrErr,ocrCode=nk.ocr(r.x,r.y,r.w,r.h,r.language or "")
-  if not actual then
+  local ocrOK,actual,ocrErr,ocrCode=pcall(
+    nk.ocr,r.x,r.y,r.w,r.h,r.language or "")
+  if not ocrOK or type(actual)~="string" then
     result.status="unverified"
     return nil,"input dispatched but OCR unavailable (no retry): "..tostring(ocrCode or "OCR"),
            "UNVERIFIED",result
