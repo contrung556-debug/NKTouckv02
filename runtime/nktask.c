@@ -269,8 +269,20 @@ static int spawn_lua(task_state *s, int ac, char **av, pid_t *pid_out) {
 // O_NOFOLLOW prevents a script-controlled symlink from redirecting the report.
 static void append_task_exit_summary(const task_state *s) {
     if (!s || !s->log_path[0]) return;
-    int fd=open(s->log_path,O_WRONLY|O_APPEND|O_NOFOLLOW);
+    struct stat expected,opened;
+    if (lstat(s->log_path,&expected)!=0 || !S_ISREG(expected.st_mode))
+        return;
+    int flags=O_WRONLY|O_APPEND;
+#ifdef O_NOFOLLOW
+    flags|=O_NOFOLLOW;
+#endif
+    int fd=open(s->log_path,flags);
     if (fd<0) return;
+    if (fstat(fd,&opened)!=0 || !S_ISREG(opened.st_mode) ||
+        expected.st_ino!=opened.st_ino || expected.st_dev!=opened.st_dev) {
+        (void)close(fd);
+        return;
+    }
     long elapsed=s->ended_at>=s->started_at ?
         s->ended_at-s->started_at : 0;
     (void)dprintf(fd,
