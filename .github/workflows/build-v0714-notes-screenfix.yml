@@ -147,6 +147,10 @@ jobs:
           python3 -m unittest tests/test_v0711_target_apps.py -v
           python3 -m unittest tests/test_v0712_inputtext_fix.py -v
           python3 -m unittest tests/test_v0713_notes_input_selftest.py -v
+          python3 -m unittest tests/test_v0714_notes_screenfix.py -v
+          python3 -m py_compile scripts/apply-v0714-notes-screenfix.py
+          bash -n scripts/prepare-v0714-notes-screenfix.sh
+          lua -e 'assert(loadfile("examples/test_inputtext_notes_v2.lua"))'
           python3 -m py_compile scripts/apply-v0713-notes-input-selftest.py
           bash -n scripts/prepare-v0713-notes-input-selftest.sh
           lua -e 'assert(loadfile("examples/test_inputtext_notes.lua"))'
