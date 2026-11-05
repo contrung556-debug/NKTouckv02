@@ -403,7 +403,7 @@ function M.ocrWithFallback(x,y,w,h,languages)
   end
   local result,frameErr,frameCode=M.withFrame(function(frame)
     local text,e,c=frame:ocr(x,y,w,h,languages or "")
-    if text==nil then return {ok=false,code=c or "OCR"} end
+    if text==nil then return {ok=false,code=c or "OCR",error=tostring(e or "")} end
     local info=frame:info()
     return {ok=true,text=text,backend=info and info.ocr_backend or "UNKNOWN"}
   end)
@@ -411,14 +411,17 @@ function M.ocrWithFallback(x,y,w,h,languages)
     return result.text,{backend=result.backend,same_frame=true,recaptured=false}
   end
   local cause=result and result.code or frameCode or "OCR"
+  local reason=result and result.error or frameErr or ""
+  local status=tonumber(tostring(reason):match("NSOSStatusErrorDomain:(%-?%d+)"))
   if cause=="INVALID" or cause=="OUT_OF_BOUNDS" or cause=="CLOSED" then
-    return nil,frameErr or "invalid OCR request",cause
+    return nil,reason~="" and reason or "invalid OCR request",cause
   end
   local live,liveErr,liveCode=M.ocr(x,y,w,h,languages or "")
   if live==nil then return nil,liveErr or frameErr or "OCR unavailable",
       liveCode or cause end
   return live,{backend="OCR_FALLBACK_LIVE",same_frame=false,
-               recaptured=true,frame_error_code=cause}
+               recaptured=true,frame_error_code=cause,
+               frame_error_osstatus=status}
 end
 
 function M.runScript(path,...)
