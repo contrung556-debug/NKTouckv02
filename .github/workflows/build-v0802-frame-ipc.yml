@@ -126,6 +126,7 @@ jobs:
           python3 -m py_compile scripts/apply-v0716-testlab-ui.py scripts/apply-v0716-cli-parser.py scripts/apply-v0716-command-contract.py
           python3 -m unittest tests/test_v0716_native_preflight.py tests/test_v0716_color_accuracy.py tests/test_v0716_testlab_ui.py -v
           python3 -m unittest tests/test_v0717_stability_memory.py tests/test_v0718_ocr_ciimage.py tests/test_v0719_testlab_5core.py tests/test_v0800_integrated.py tests/test_v0800_release.py tests/test_v0801_ocr_buffer.py tests/test_v0802_ocr_ipc.py tests/test_v0716_memory_core.py -v
+          lua tests/lua_v0802_ocr_fallback.lua
           lua tests/lua_v0716_input_json_hardening.lua
           bash -n scripts/prepare-v0715-lua-selftest.sh
           lua -e 'assert(loadfile("examples/test_core_readonly.lua"))'
