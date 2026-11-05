@@ -49,15 +49,17 @@ class OCRPerfReleaseTests(unittest.TestCase):
         # Inspect the *packaged* 0.8.3 binary, not stale version 0.8.2.
         self.assertIn('grep -Fq "PACKAGE_VERSION=\\\"$NK_VERSION\\\"" "$CTL_BIN"', source)
         self.assertNotIn('grep -Fq \'PACKAGE_VERSION="0.8.2"\' "$CTL_BIN"', source)
-        # Theos installer failed on a malformed remote 16.5 SDK tarball.
-        self.assertIn('SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"', source)
-        self.assertIn('ln -s "$SDK_PATH"', source)
-        self.assertIn('SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"', source)
-        self.assertIn('"TARGET=iphone:clang:${NK_THEOS_SDK_VERSION}:15.0"', source)
-        self.assertIn('NK_THEOS_SDK_VERSION=$SDK_VERSION', source)
-        self.assertIn("make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1 \\", source)
-        self.assertNotIn("make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1 \\\\", source)
+        # Keep the private link symbols: stock Xcode lacks IOMobileFramebuffer.
+        # Fetch only the versioned public Theos SDK release and inspect the
+        # resulting real .tbd, never silently strip a required framework.
+        self.assertIn("theos/sdks/releases/download/master-146e41f/iPhoneOS16.5.sdk.tar.xz", source)
+        self.assertIn("tar -tJf", source)
+        self.assertIn("tar -xJf", source)
+        self.assertIn('test "$BYTES" -gt 10000000', source)
+        self.assertIn("IOMobileFramebuffer.framework/IOMobileFramebuffer.tbd", source)
+        self.assertIn('"TARGET=iphone:clang:16.5:15.0"', source)
         self.assertNotIn("bin/install-theos", source)
+        self.assertNotIn("NK_THEOS_SDK_VERSION", source)
         self.assertIn("bash scripts/stage-v083-ocr-perf.sh upstream", source)
         self.assertIn("lua tests/lua_v083_perf.lua", source)
         self.assertIn("scripts/prepare-v0802-release.sh", source)
