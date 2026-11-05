@@ -55,3 +55,30 @@
 Expected additional diagnostic output:
 `[NKLAB][PASS/WARN] ocr/pixelbuffer_420f_probe ... 420f status=...`
 and `[NKLAB][RESTORE] request_accepted ...` or `WARN ...`.
+
+### Second review: upstream behavior and diagnosis
+
+The pinned upstream `pccontrol/SocketServer.xm` already removes CRLF
+before handing a null-terminated command to `processTask`; stripping
+newlines again in task 31 is defense in depth, **not a proven root-cause fix**.
+The upstream `Process.xm` launch command ACK does not validate the
+SpringBoard launch return value, so Test Lab now uses a bounded
+`nk.waitApp("com.zjx.zxtouch",2200,250)` check before logging
+`foreground_verified`; otherwise it logs `request_sent_foreground_unverified`.
+
+The 420f probe compares `plain`, `IOSurface`, and
+`IOSurface + MetalCompatibility` allocations, each released
+immediately. Test Lab also records CGImage bits-per-pixel/bitmap-info
+separately. **CGImage format does not reveal Vision's private internal
+CVPixelBuffer allocation attributes.** Pass/fail of these allocation probes
+must not be reported as successful text recognition.
+
+`ocrWithFallback()` preserves `frame_error_code` and, if the original
+error contains `NSOSStatusErrorDomain:-6662`, also sets
+`frame_error_osstatus=-6662`. A fallback is an intentional, separately
+captured live OCR operation and cannot satisfy same-frame OCR tests.
+
+The new IPC task 31 is limited to loopback socket clients; no new remote
+OCR endpoint is authorized. Existing rootless package on Sileo is untouched.
+This revision needs a **new iOS CI artifact** and on-device verification;
+an earlier artifact's successful CI does not validate these later commits.
