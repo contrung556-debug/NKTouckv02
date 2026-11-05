@@ -8,7 +8,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 test -d "$SRC"
 bash "$ROOT/scripts/stage-v0716-command-contract-dev.sh" "$SRC"
 LIB="$SRC/layout/usr/share/nktouch/lua"
-for name in nktestlab.lua nkcoords.lua nkstability.lua nkregression.lua; do
+for name in nktestlab.lua nkcoords.lua nkstability.lua nkregression.lua nkmemory.lua; do
   install -m 0644 "$ROOT/lua/$name" "$LIB/$name"
 done
 python3 "$ROOT/scripts/apply-v0716-testlab-ui.py" "$SRC"
@@ -18,7 +18,7 @@ grep -Fq 'nkOpenTestLab' "$UI"
 grep -Fq 'testlab-last.json' "$UI"
 grep -Fq 'require("nkcommand_contract").install(M)' "$LIB/nktouch.lua"
 grep -Fq 'NKTouch Test Lab v0.7.16-dev' "$LIB/nktestlab.lua"
-for name in nktestlab.lua nkcoords.lua nkstability.lua nkregression.lua; do
+for name in nktestlab.lua nkcoords.lua nkstability.lua nkregression.lua nkmemory.lua; do
   test -s "$LIB/$name"
 done
 test -s "$LIB/nkcommand_contract.lua"
