@@ -202,10 +202,16 @@ local function makeGroups(nk,opts,check)
       end
       local a,e,c=nk.tap(cfg.tap.x,cfg.tap.y)
       if not a then return "FAIL","tap: "..safe(c or e) end
-      nk.sleep(350)
+      local slept,se,sc=nk.sleep(350)
+      if not slept then return "FAIL","delay after tap: "..safe(sc or se) end
+      local stays,foregroundErr=assertForeground(cfg.bundle)
+      if not stays then return "FAIL","after tap: "..foregroundErr end
       a,e,c=nk.hold(cfg.hold.x,cfg.hold.y,cfg.hold.ms)
       if not a then return "FAIL","hold: "..safe(c or e) end
-      nk.sleep(350)
+      slept,se,sc=nk.sleep(350)
+      if not slept then return "FAIL","delay after hold: "..safe(sc or se) end
+      stays,foregroundErr=assertForeground(cfg.bundle)
+      if not stays then return "FAIL","after hold: "..foregroundErr end
       a,e,c=nk.swipe(cfg.swipe.x1,cfg.swipe.y1,cfg.swipe.x2,
                         cfg.swipe.y2,cfg.swipe.ms)
       if not a then return "FAIL","swipe: "..safe(c or e) end
@@ -260,7 +266,10 @@ local function makeGroups(nk,opts,check)
       end
       local tapped,e,c=nk.tap(cfg.x,cfg.y)
       if not tapped then return "FAIL","focus tap: "..safe(c or e) end
-      nk.sleep(400)
+      local slept,se,sc=nk.sleep(400)
+      if not slept then return "FAIL","delay after focus tap: "..safe(sc or se) end
+      local still,focusErr=assertForeground(cfg.bundle)
+      if not still then return "FAIL","after focus tap: "..focusErr end
       -- Absolutely no retry, including when OCR result is ambiguous.
       local ok,meta,code=nk.inputText(text,verify and {verify=verify} or {})
       if ok and type(meta)=="table" and meta.verified then
