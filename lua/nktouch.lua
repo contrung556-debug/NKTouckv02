@@ -391,7 +391,8 @@ end
 -- is the same screenshot. Normal frame:ocr() remains strict and unchanged.
 function M.ocrWithFallback(x,y,w,h,languages)
   local args={x,y,w,h}
-  for i,n in ipairs(args) do
+  for i=1,4 do
+    local n=args[i]
     if type(n)~="number" or n%1~=0 or n<0 or n>10000 or
        (i>=3 and n==0) then
       return nil,"invalid OCR rectangle","INVALID"
