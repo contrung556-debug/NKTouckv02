@@ -603,6 +603,11 @@ local function makeGroups(nk,opts,check)
     test("task","read_latency_sample",function()
       local stability=require("nkstability")
       if not nk.DIRECT then return "SKIP","native monotonic clock required" end
+      local hasCore,core=pcall(require,"nkcore")
+      if not hasCore or type(core)~="table" or
+         type(core.nowMs)~="function" then
+        return "SKIP","native monotonic clock not available"
+      end
       local stats,err,code=stability.sampleRead(function()
         return nk.screen()
       end,{read_only=true,count=5})
