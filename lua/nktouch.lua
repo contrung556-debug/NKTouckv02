@@ -387,6 +387,39 @@ function M.withFrame(callback)
   return vision.withFrame(M,callback)
 end
 
+-- v0.8.2: opt-in resilience. Frame OCR must never pretend a live recapture
+-- is the same screenshot. Normal frame:ocr() remains strict and unchanged.
+function M.ocrWithFallback(x,y,w,h,languages)
+  local args={x,y,w,h}
+  for i,n in ipairs(args) do
+    if type(n)~="number" or n%1~=0 or n<0 or n>10000 or
+       (i>=3 and n==0) then
+      return nil,"invalid OCR rectangle","INVALID"
+    end
+  end
+  if languages~=nil and (type(languages)~="string" or #languages>64) then
+    return nil,"invalid OCR languages","INVALID"
+  end
+  local result,frameErr,frameCode=M.withFrame(function(frame)
+    local text,e,c=frame:ocr(x,y,w,h,languages or "")
+    if text==nil then return {ok=false,code=c or "OCR"} end
+    local info=frame:info()
+    return {ok=true,text=text,backend=info and info.ocr_backend or "UNKNOWN"}
+  end)
+  if result and result.ok then
+    return result.text,{backend=result.backend,same_frame=true,recaptured=false}
+  end
+  local cause=result and result.code or frameCode or "OCR"
+  if cause=="INVALID" or cause=="OUT_OF_BOUNDS" or cause=="CLOSED" then
+    return nil,frameErr or "invalid OCR request",cause
+  end
+  local live,liveErr,liveCode=M.ocr(x,y,w,h,languages or "")
+  if live==nil then return nil,liveErr or frameErr or "OCR unavailable",
+      liveCode or cause end
+  return live,{backend="OCR_FALLBACK_LIVE",same_frame=false,
+               recaptured=true,frame_error_code=cause}
+end
+
 function M.runScript(path,...)
   local p={"run",path}; for _,v in ipairs({...}) do p[#p+1]=v end; return run(p)
 end
