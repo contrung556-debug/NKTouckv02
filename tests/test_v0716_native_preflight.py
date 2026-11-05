@@ -24,7 +24,7 @@ class NKCoreNativePreflight(unittest.TestCase):
             self.assertIn(token,part)
         self.assertLess(part.index("coord(x2,&sx2)"),part.index("connect_core("))
         self.assertLess(part.index("coord(y2,&sy2)"),part.index("connect_core("))
-        self.assertLess(part.index("connect_core("),part.index("TOUCH_DOWN"))
+        self.assertLess(part.index("connect_core("),part.index("touch_packet(fd, TOUCH_DOWN"))
 
     def test_native_image_match_reply_rejects_nonfinite_and_no_match(self):
         src=NATIVE.read_text()
