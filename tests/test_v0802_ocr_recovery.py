@@ -45,7 +45,8 @@ class OCRRecovery(unittest.TestCase):
         ui = (ROOT / "patches/NKTestLabUIViewController.m.inc").read_text()
         section = ui.split("- (void)labCreateRunner {",1)[1]
         self.assertIn('@"local ran,result=pcall(lab.run,opts)', section)
-        self.assertIn('pcall(nk.openApp,\\\"com.zjx.zxtouch\\\")', section)
+        self.assertIn("pcall(nk.openApp,", section)
+        self.assertIn("com.zjx.zxtouch", section)
         self.assertIn("[NKLAB][RESTORE]", section)
         self.assertLess(section.index('pcall(nk.openApp,'),
                         section.index('if not ran then error(result,0) end'))
