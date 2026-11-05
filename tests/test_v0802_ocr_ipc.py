@@ -96,6 +96,11 @@ class FrameOCRIPC(unittest.TestCase):
                     "NKTouch-v0.8.2-frame-ipc-rootless",
                     "tests/test_v0802_ocr_ipc.py"):
             self.assertIn(val,wf)
-        self.assertNotIn("publish-sileo",wf)
+        # Publication is now explicitly opted in by the maintainer.
+        # It MUST be downstream of a successful same-run artifact build.
+        self.assertIn("publish-beta-to-sileo:", wf)
+        self.assertIn("needs: build-rootless", wf)
+        self.assertIn("actions/download-artifact@v4", wf)
+        self.assertIn("scripts/publish-v0802-sileo.sh", wf)
 
 if __name__=="__main__": unittest.main()
