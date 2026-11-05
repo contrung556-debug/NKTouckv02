@@ -1,0 +1,52 @@
+name: Validate existing NKTouch Lua commands (fast, no build)
+
+# DEV ONLY: never create .deb, upload artifacts or publish to Sileo.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ v0.7.16-command-hardening-dev ]
+    paths:
+      - lua/nkcommand_contract.lua
+      - runtime/nktouch-api.tsv
+      - scripts/apply-v0716-command-contract.py
+      - scripts/apply-v0716-cli-parser.py
+      - scripts/stage-v0716-command-contract-dev.sh
+      - tests/lua_v0716_command_contract.lua
+      - tests/test_v0716_all_commands_audit.py
+      - tests/test_v0716_cli_parser.py
+      - .github/workflows/validate-v0716-lua-commands.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate-lua-commands:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout development sources
+        uses: actions/checkout@v4
+      - name: Install Lua host runtime only
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.4
+          lua -v
+      - name: Check scripts and patch syntax
+        run: |
+          set -euxo pipefail
+          bash -n scripts/stage-v0716-command-contract-dev.sh
+          python3 -m py_compile scripts/apply-v0716-command-contract.py scripts/apply-v0716-cli-parser.py
+          luac -p lua/nkcommand_contract.lua
+          luac -p tests/lua_v0716_command_contract.lua
+      - name: Validate all documented commands and native API registry
+        run: |
+          python3 -m unittest tests/test_v0716_all_commands_audit.py -v
+      - name: Test guarded arguments and non-retrying side effects
+        run: |
+          lua tests/lua_v0716_command_contract.lua
+      - name: Test malformed image/color results with host Lua
+        run: |
+          python3 -m unittest tests/test_v0716_cli_parser.py -v
+      - name: Retain previously passed fast tests
+        run: |
+          python3 -m unittest tests/test_v0714_notes_screenfix.py -v
+          python3 -m unittest tests/test_v0715_lua_selftest.py -v
