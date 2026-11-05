@@ -74,7 +74,9 @@ Description: NKTouch v0.8.2 same-JPEG OCR IPC beta: immutable frame sent to exis
             put("layout/usr/share/nktouch/lua/nktestlab.lua",
                 '-- NKTouch Test Lab v0.8.2-beta\nlocal M={VERSION="0.8.2-beta"}\n')
             put("zxtouch/zxtouch/Settings/SettingsPageViewController.m",
-                'nkLabel:@"0.8.2"; // NKTouch 0.8.2\n')
+                'nkLabel:@"0.8.2"; // NKTouch 0.8.2\n'
+                '@{@"file":@"test_gestures_optin.lua"}\n'
+                '@{@"title":@"Tap / Hold / Swipe • tuỳ chọn", @"file":@"test_gestures_optin.lua"}\n')
             cp = subprocess.run(["bash", str(STAGE), str(root)], cwd=ROOT,
                                 capture_output=True, text=True)
             self.assertEqual(cp.returncode, 0, cp.stdout + cp.stderr)
@@ -82,6 +84,8 @@ Description: NKTouch v0.8.2 same-JPEG OCR IPC beta: immutable frame sent to exis
             self.assertIn("0.8.3-beta", (root/"layout/usr/share/nktouch/lua/nktestlab.lua").read_text())
             self.assertTrue((root/"layout/usr/share/nktouch/lua/nkocr_perf.lua").is_file())
             self.assertTrue((root/"layout/usr/share/nktouch/examples/test_ocr_stability_v083.lua").is_file())
+            self.assertIn("test_ocr_perf_v083.lua",
+                          (root/"zxtouch/zxtouch/Settings/SettingsPageViewController.m").read_text())
             again = subprocess.run(["bash", str(STAGE), str(root)], cwd=ROOT,
                                    capture_output=True, text=True)
             self.assertNotEqual(again.returncode, 0, "must never silently restage twice")
