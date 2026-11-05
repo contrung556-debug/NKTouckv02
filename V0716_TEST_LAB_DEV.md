@@ -140,3 +140,62 @@ Fast CI:
 **Still not performed:** Xcode/Theos compile, on-device pixel precision
 measurement, gesture visual verification, or Sileo publication. User requested
 that all current commands be hardened before a consolidated build.
+
+
+## Consolidated hardening batch — 5 November 2026
+
+The v0.7.16-dev code batch now includes, alongside the seven original groups:
+
+1. **Native Touch preflight:** malformed tap coordinates and *both* swipe endpoints
+   are refused before opening the touch socket. This is backed by a host-compiled
+   \`nkcore\` Lua module test. It is NOT evidence of accurate UIKit gesture replay.
+2. **Coordinate/Retina audit:** \`nkcoords.screen\`, \`point\`, \`path\` and
+   \`inspectFrame\` only accept explicit units/bounds. Point-to-pixel conversion
+   requires an explicitly supplied scale; screenshot size and screen size
+   mismatches trigger warnings, never automatic rotation/rescaling.
+3. **Color/Vision integrity:** Test Lab verifies packed RGB, observed channel
+   tolerances, exact 1×1 search position and frame-vs-screen geometry. One
+   immutable Vision frame is still reused across color/OCR/template checks.
+   No-match / nonfinite native image replies no longer masquerade as hits.
+4. **Long-run guardrails:** \`nkstability.pollRead\` retries only explicitly
+   read-only probes, with a monotonic clock, deadlines, attempt caps and
+   transient-error classification. \`sampleRead\` measures up to 30 safe
+   read probes; it requires an actual native monotonic clock for device timing.
+   Interactive HID and text actions never get automatic retries.
+5. **Regression comparison:** \`nkregression.compare\` detects check status
+   deterioration, missing tests and native monotonic timing drift. Test Lab
+   compares against the previous bounded JSON file *before* atomic replacement,
+   and includes the result in its report. A check PASS is not equivalent to
+   visible automation success. Regression comparisons are diagnostic only.
+6. **Release readiness review:** \`scripts/check-v0716-readiness.py\` returns
+   \`BLOCKED\` until there is user-recorded on-device evidence for the seven
+   groups and a separate human review. This script cannot publish anything.
+
+### Developer verification
+
+The development-only GitHub workflow
+\`validate-v0716-testlab.yml\` runs Linux Lua 5.4, gcc native-module preflight
+checks and the existing regression suite. The native module is compiled
+for the CI Linux host **only**, never as an iOS package.
+
+Run the key checks locally with a Linux Lua 5.4 environment:
+
+\`\`\`sh
+lua tests/lua_v0716_coords_stability.lua
+lua tests/lua_v0716_regression.lua /tmp/nktestlab-regression.json
+python3 -m unittest tests/test_v0716_native_preflight.py -v
+python3 -m unittest tests/test_v0716_testlab_runner.py -v
+python3 scripts/check-v0716-readiness.py
+\`\`\`
+
+### Remaining blockers (must NOT be marked PASS in source-only tests)
+
+- iOS/UIKit final compilation of Test Lab UI has not yet happened.
+- Actual device foreground/screen-size calibration and physical HID touch accuracy.
+- Live screenshot RGB/camera compression effects, Vision OCR and template hit accuracy.
+- Real InputText focus/confirmation in target applications other than tested Notes.
+- Long-duration memory, stop, task-kill, interrupted IPC and foreground-switch behavior.
+- User review of all seven group results on their own iPhone.
+
+The existing Sileo release is **v0.7.15**. This dev branch has no v0.7.16
+build workflow, release-ready marker, or Sileo publisher.
