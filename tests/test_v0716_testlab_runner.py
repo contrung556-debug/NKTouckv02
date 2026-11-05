@@ -83,7 +83,7 @@ mock.path=function(path)
 end
 mock.getColor=function()return {red=12,green=30,blue=42,packed=12*65536+30*256+42}end
 mock.matchColor=function()return true,{red=12,green=30,blue=42}end
-mock.findColor=function(x,y)return {x=x,y=y}end
+mock.findColor=function(x,y)return {x=x,y=y,red=12,green=30,blue=42}end
 mock.findImage=function()error("template is disabled")end
 mock.withFrame=function(cb)
  frameCount=frameCount+1
