@@ -10,3 +10,4 @@ Visibility: EXPERIMENTAL BETA — device tests/actual iPhone accuracy remain pen
 Never represent host CI success as completed real iPhone verification.
 Retry 2: validated resilient Test Lab dashboard insertion on 2026-11-05; previous attempt stopped before package build, no Sileo change.
 Retry 3: resilient dashboard implementation method injection after 2026-11-05 source-level fast CI PASS; second attempt stopped before iOS app compilation.
+Retry 4: full release workflow shell syntax validated by Ubuntu CI; previous attempt never started Xcode/Theos and did not modify Sileo.
