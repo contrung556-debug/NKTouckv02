@@ -35,11 +35,13 @@ local function statusPriority(s)
   return ({FAIL=4,WARN=3,PASS=2,SKIP=1})[s] or 0
 end
 
-local function reporter(nk,selected,id,now,reportPath)
+local function reporter(nk,selected,id,now,reportPath,mode,clockType)
+  local startedClock=now()
   local report={
     version=M.VERSION, run_id=id, started_at=os.date("!%Y-%m-%dT%H:%M:%SZ"),
     selected=selected, groups={}, tests={},
-    mode="read_only_default", visual_confirmation=false, coverage="PARTIAL",
+    mode=mode or "read_only_default", visual_confirmation=false,
+    coverage="PARTIAL", clock_type=clockType or "unknown",
     pass=0, fail=0, warn=0, skip=0, status="SKIP"
   }
   for _,name in ipairs(selected) do
@@ -50,8 +52,12 @@ local function reporter(nk,selected,id,now,reportPath)
     assert(statusPriority(status)>0,"invalid Lab status")
     local message=safe(detail)
     local g=assert(report.groups[group],"unknown Lab group")
+    local measured=tonumber(ms) or 0
+    if measured~=measured or measured==math.huge or measured==-math.huge then
+      measured=0
+    end
     local item={group=group,name=test,status=status,detail=message,
-                ms=math.max(0,math.floor(ms or 0))}
+                ms=math.max(0,math.floor(measured))}
     report.tests[#report.tests+1]=item
     local key=status:lower()
     g[key]=g[key]+1
@@ -85,6 +91,52 @@ local function reporter(nk,selected,id,now,reportPath)
     -- PASS means the executed checks passed. A SKIP still means incomplete
     -- coverage; successful HID/text dispatch is not visual confirmation.
     report.coverage=(report.skip>0) and "PARTIAL" or "FULL"
+    -- Reliability Report: measured timings of individual checks, NOT
+    -- gesture accuracy or successful execution of an entire automation.
+    -- No history or fabricated success rates from unexecuted SKIP tests.
+    local elapsed=(tonumber(now()) or 0)-(tonumber(startedClock) or 0)
+    if elapsed~=elapsed or elapsed<0 or elapsed==math.huge then elapsed=0 end
+    local durations={}
+    local groupTimes={}
+    local slowest=nil
+    for _,name in ipairs(selected) do groupTimes[name]={} end
+    local allSum=0
+    for _,test in ipairs(report.tests) do
+      durations[#durations+1]=test.ms
+      allSum=allSum+test.ms
+      local list=groupTimes[test.group]
+      list[#list+1]=test.ms
+      if not slowest or test.ms>slowest.ms then
+        slowest={group=test.group,name=test.name,ms=test.ms}
+      end
+    end
+    local function metrics(times)
+      local n=#times
+      if n==0 then return {checks=0,total_ms=0,avg_check_ms=0,
+                           p95_check_ms=0,max_check_ms=0} end
+      table.sort(times)
+      local sum=0
+      for _,ms in ipairs(times) do sum=sum+ms end
+      -- Nearest-rank p95 across different checks in THIS run only.
+      -- It does not estimate the p95 latency of an individual API.
+      return {checks=n,total_ms=sum,
+              avg_check_ms=math.floor(sum/n*100+0.5)/100,
+              p95_check_ms=times[math.max(1,math.ceil(n*.95))],
+              max_check_ms=times[n]}
+    end
+    report.timing=metrics(durations)
+    report.timing.elapsed_ms=math.floor(elapsed)
+    report.timing.slowest_check=slowest
+    for _,name in ipairs(selected) do
+      local group=report.groups[name]
+      group.timing=metrics(groupTimes[name])
+      local executed=group.pass+group.warn+group.fail
+      group.executed=executed
+      -- Semantic label avoids confusing unit-check success with
+      -- user-interface accuracy or field insertion verification.
+      group.check_pass_rate_pct=executed>0 and
+          math.floor(group.pass/executed*10000+0.5)/100 or nil
+    end
     local jsonOk,json=pcall(require,"nkjson")
     if jsonOk and json and json.encode and reportPath then
       local encoded,encodingErr=json.encode(report)
@@ -485,10 +537,17 @@ function M.run(opts,dependencies)
   dependencies=dependencies or {}
   local nk=dependencies.nk or require("nktouch_v7")
   local now=dependencies.now
+  local clockType=dependencies.now and "mock_clock" or "cpu_time_only"
   if not now then
     local ok,core=pcall(require,"nkcore")
-    if ok and type(core.nowMs)=="function" then now=core.nowMs
-    else now=function()return math.floor(os.clock()*1000) end end
+    if ok and type(core)=="table" and type(core.nowMs)=="function" then
+      now=core.nowMs
+      clockType="monotonic_native_ms"
+    else
+      -- os.clock counts CPU time, NOT wall clock. Never present fallback
+      -- values as true end-to-end latency after nk.sleep/network requests.
+      now=function()return math.floor(os.clock()*1000) end
+    end
   end
   local id=opts.run_id or ("manual_"..os.date("!%Y%m%d_%H%M%S"))
   if not runId(id) then error("invalid Test Lab run ID",0) end
@@ -510,7 +569,11 @@ function M.run(opts,dependencies)
   local reportPath=dependencies.reportPath
   if reportPath==nil then reportPath=REPORT end
   if reportPath==false then reportPath=nil end
-  local check,finish=reporter(nk,groups,id,now,reportPath)
+  local mode=((type(opts.touch)=="table" and opts.touch.enabled==true)
+      or (type(opts.input)=="table" and opts.input.enabled==true)
+      or (type(opts.network)=="table" and opts.network.enabled==true))
+      and "opt_in_requested" or "read_only_default"
+  local check,finish=reporter(nk,groups,id,now,reportPath,mode,clockType)
   local handlers=makeGroups(nk,opts,check)
   print(("[NKLAB] version=%s run=%s selected=%s mode=read-only-default"):format(
     M.VERSION,id,table.concat(groups,",")))
