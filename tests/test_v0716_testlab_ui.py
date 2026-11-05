@@ -21,7 +21,7 @@ static BOOL NKSaveTarget(NSString *script, NSString *bundle, NSString *name);
 @end
 #pragma mark - Library
 - (void)nkShowSamples {
-[menu addAction:[UIAlertAction actionWithTitle:@"Huỷ" style:UIAlertActionStyleCancel handler:nil]];
+    [menu addAction:[UIAlertAction actionWithTitle:@"Huỷ" style:UIAlertActionStyleCancel handler:nil]];
 }
 if(ip.row==self.scripts.count+1){[self nkShowSamples];return;}
 #pragma mark - Editor
