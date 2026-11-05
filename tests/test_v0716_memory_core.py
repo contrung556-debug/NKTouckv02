@@ -41,14 +41,14 @@ class VisionMemory(unittest.TestCase):
 package.path="lua/?.lua;"..package.path
 local memory=require("nkmemory")
 local before=assert(memory.stats())
-assert(before.scope=="LUA_HEAP_ONLY" and not before.process_rss_available)
+assert(before.scope=="LUA_HEAP_AND_OPTIONAL_PROCESS_RSS" and not before.process_rss_available)
 local chunks={}
 for i=1,3000 do chunks[i]={value=("abc"..i):rep(30)} end
 local held=assert(memory.stats())
 assert(held.lua_kb>before.lua_kb)
 chunks=nil
 local partial=assert(memory.release({mode="step",step_kb=128}))
-assert(partial.scope=="LUA_HEAP_ONLY" and partial.mode=="step")
+assert(partial.scope=="LUA_HEAP_AND_OPTIONAL_PROCESS_RSS" and partial.mode=="step")
 local full=assert(memory.release({mode="full"}))
 assert(full.mode=="full")
 assert(full.lua_kb_after < held.lua_kb,"Lua heap was not reclaimed")
