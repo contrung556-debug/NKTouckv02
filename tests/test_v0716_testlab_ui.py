@@ -81,7 +81,7 @@ if(ip.row==self.scripts.count+1){[self nkShowSamples];return;}
         self.assertEqual(template.count("%@"),3)
         script=template.replace("%@","lab_test_1234",1).replace(
             "%@","lab_test_1234",1).replace(
-            "%@",'"runtime","touch","input","color","vision","network","task"',1)
+            "%@",'"ocr","color","touch","input","memory"',1)
         with tempfile.TemporaryDirectory() as temp:
             script_file=Path(temp)/"generated.lua"
             script_file.write_text(script)
