@@ -17,12 +17,14 @@
     static dispatch_once_t once;
     dispatch_once(&once,^{
         items=@[
+            @{@"id":@"ocr",     @"title":@"OCR Engine", @"desc":@"Ảnh dùng lại • OCR native • OCR trực tiếp"},
+            @{@"id":@"color",   @"title":@"Color Engine", @"desc":@"RGB • sai số • tìm màu 1 pixel"},
+            @{@"id":@"touch",   @"title":@"Touch Engine", @"desc":@"Tọa độ • tap/hold/swipe an toàn"},
+            @{@"id":@"input",   @"title":@"InputText", @"desc":@"Unicode • kiểm tra nhập một lần"},
+            @{@"id":@"memory",  @"title":@"Memory Stability", @"desc":@"10 frame • RSS • giải phóng Lua"},
             @{@"id":@"runtime", @"title":@"Lua Runtime", @"desc":@"Lua 5.4 • module • cú pháp"},
-            @{@"id":@"touch",   @"title":@"Touch Engine", @"desc":@"Tap • Hold • Swipe • Path"},
-            @{@"id":@"input",   @"title":@"Input Engine", @"desc":@"Unicode • kiểm tra an toàn"},
-            @{@"id":@"color",   @"title":@"Color Engine", @"desc":@"getColor • matchColor • findColor"},
-            @{@"id":@"vision",  @"title":@"Vision Core", @"desc":@"Ảnh dùng lại • OCR • mẫu ảnh"},
-            @{@"id":@"network", @"title":@"Network & JSON", @"desc":@"JSON • kiểm tra URL • HTTPS tùy chọn"},
+            @{@"id":@"vision",  @"title":@"Vision Core", @"desc":@"Frame • pixel • ảnh mẫu"},
+            @{@"id":@"network", @"title":@"Network & JSON", @"desc":@"JSON • URL • HTTPS có xác nhận"},
             @{@"id":@"task",    @"title":@"Task Stability", @"desc":@"IPC • timeout • stress nhẹ"}
         ];
     });
@@ -35,21 +37,25 @@
     self.view.backgroundColor=NKBG();
     if (@available(iOS 13.0,*)) self.overrideUserInterfaceStyle=UIUserInterfaceStyleDark;
     self.chosen=[NSMutableSet set];
-    for (NSDictionary *item in [self labGroups]) [self.chosen addObject:item[@"id"]];
+    [self.chosen addObjectsFromArray:@[@"ocr",@"color",@"touch",@"input",@"memory"]];
 
-    self.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc]
+    UIBarButtonItem *reportButton=[[UIBarButtonItem alloc]
         initWithTitle:@"Báo cáo" style:UIBarButtonItemStylePlain
         target:self action:@selector(labShowReport)];
+    UIBarButtonItem *presetButton=[[UIBarButtonItem alloc]
+        initWithTitle:@"5 lõi" style:UIBarButtonItemStylePlain
+        target:self action:@selector(labSelectCorePreset)];
+    self.navigationItem.rightBarButtonItems=@[reportButton,presetButton];
 
     UILabel *title=[[UILabel alloc]init];
     title.translatesAutoresizingMaskIntoConstraints=NO;
-    title.text=@"Kiểm tra các lệnh hiện có";
+    title.text=@"Kiểm tra 5 chức năng cốt lõi";
     title.font=[UIFont systemFontOfSize:19 weight:UIFontWeightBold];
     title.textColor=UIColor.whiteColor;
 
     self.hint=[[UILabel alloc]init];
     self.hint.translatesAutoresizingMaskIntoConstraints=NO;
-    self.hint.text=@"Mặc định chỉ đọc. Touch/Input không tự thao tác; HTTPS không tự gọi. Chọn nhóm rồi mở script kiểm tra trong Lua Editor.";
+    self.hint.text=@"Mặc định chọn OCR, Color, Touch, InputText, Memory. Chỉ đọc; thử chạm/nhập cần bật và xác nhận trong Lua Editor. Chọn thêm nhóm nâng cao khi cần.";
     self.hint.numberOfLines=0;
     self.hint.font=[UIFont systemFontOfSize:12];
     self.hint.textColor=NKMuted();
@@ -112,6 +118,7 @@
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     [self labRefreshSummary];
+    [self.table reloadData];
 }
 
 - (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {
@@ -129,8 +136,18 @@
     cell.textLabel.text=group[@"title"];
     cell.textLabel.font=[UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
     cell.textLabel.textColor=UIColor.whiteColor;
-    cell.detailTextLabel.text=group[@"desc"];
-    cell.detailTextLabel.textColor=NKMuted();
+    NSDictionary *lastReport=[self labReadReport];
+    NSDictionary *prevGroups=[lastReport[@"groups"] isKindOfClass:[NSDictionary class]]?
+       lastReport[@"groups"]:@{};
+    NSDictionary *prior=[prevGroups[group[@"id"]] isKindOfClass:[NSDictionary class]]?
+       prevGroups[group[@"id"]]:nil;
+    NSString *priorStatus=[prior[@"status"] isKindOfClass:[NSString class]]?
+       prior[@"status"]:nil;
+    cell.detailTextLabel.text=priorStatus?
+       [NSString stringWithFormat:@"%@ • lần trước: %@",group[@"desc"],priorStatus]:
+       group[@"desc"];
+    cell.detailTextLabel.textColor=[priorStatus isEqualToString:@"FAIL"]?
+         NKC(0xFF7777):([priorStatus isEqualToString:@"PASS"]?NKGreen():NKMuted());
     cell.detailTextLabel.font=[UIFont systemFontOfSize:11];
     cell.backgroundColor=NKC(0x202139);
     cell.accessoryType=[self.chosen containsObject:group[@"id"]]?
@@ -145,6 +162,12 @@
     if ([self.chosen containsObject:key]) [self.chosen removeObject:key];
     else [self.chosen addObject:key];
     [table reloadRowsAtIndexPaths:@[ip] withRowAnimation:UITableViewRowAnimationNone];
+}
+
+- (void)labSelectCorePreset {
+    [self.chosen removeAllObjects];
+    [self.chosen addObjectsFromArray:@[@"ocr",@"color",@"touch",@"input",@"memory"]];
+    [self.table reloadData];
 }
 
 - (void)labAlert:(NSString *)title message:(NSString *)message {
@@ -203,7 +226,7 @@
     [out appendString:@"P95 is over different checks in one run, not per-API long-term latency.\n\n"];
     NSDictionary *groups=[report[@"groups"] isKindOfClass:[NSDictionary class]]?
         report[@"groups"]:@{};
-    NSArray *order=@[@"runtime",@"touch",@"input",@"color",@"vision",@"network",@"task"];
+    NSArray *order=@[@"ocr",@"color",@"touch",@"input",@"memory",@"runtime",@"vision",@"network",@"task"];
     for (NSString *groupName in order) {
         NSDictionary *g=[groups[groupName] isKindOfClass:[NSDictionary class]]?
              groups[groupName]:nil;
@@ -297,7 +320,7 @@
     NSString *runID=[NSString stringWithFormat:@"lab_%@",uuid];
     // Each execution gets a unique filename. Never overwrite user-edited Lua.
     NSString *script=[NSString stringWithFormat:
-     @"-- NKTouch Test Lab v0.7.16-dev | Generated: %@\n"
+     @"-- NKTouch Test Lab v0.7.19-dev | Generated: %@\n"
       @"-- Default: READ ONLY. Touch / Input / HTTPS will not run without opt-in.\n"
       @"-- For interactions: set enabled=true AND confirmed=true only after\n"
       @"-- setting a safe non-sensitive test screen and physical-pixel coordinates.\n"
@@ -311,7 +334,8 @@
       @"         swipe={x1=0,y1=0,x2=0,y2=0,ms=500}},\n"
       @"  input={enabled=false,confirmed=false,bundle=\"\",x=0,y=0,text=\"NKTouch Lab Test\"},\n"
       @"  network={enabled=false},\n"
-      @"  vision={}\n"
+      @"  vision={},\n"
+      @"  memory={loops=10}\n"
       @"}\n"
       @"local result=lab.run(opts)\n"
       @"if result.fail>0 then error(\"NKTouch Test Lab FAILED; see Task Center Logs\",0) end\n",
