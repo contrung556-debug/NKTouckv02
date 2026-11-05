@@ -12,6 +12,7 @@ on:
       - scripts/prepare-v0802-release.sh
       - tests/test_v0802_ocr_ipc.py
       - tests/test_v0802_ocr_recovery.py
+      - tests/test_v0716_testlab_ui.py
       - tests/lua_v0802_ocr_fallback.lua
       - .github/workflows/build-v0802-frame-ipc.yml
       - .github/workflows/validate-v0802-frame-ipc.yml
@@ -37,6 +38,7 @@ jobs:
           python3 -m unittest \
             tests/test_v0802_ocr_ipc.py \
             tests/test_v0802_ocr_recovery.py \
+            tests/test_v0716_testlab_ui.py \
             tests/test_v0801_ocr_buffer.py \
             tests/test_v0800_integrated.py \
             tests/test_v0800_release.py \
