@@ -1,0 +1,43 @@
+name: Validate NKTouch v0.7.15 Lua Self-Test (fast)
+
+# Fast checks for every source change. NEVER builds the iOS app or .deb.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ v0.7.15-lua-selftest-suite ]
+    paths:
+      - examples/test_core_readonly.lua
+      - examples/test_vision_oneframe.lua
+      - examples/test_gestures_optin.lua
+      - scripts/apply-v0715-selftest-suite.py
+      - scripts/prepare-v0715-lua-selftest.sh
+      - tests/test_v0715_lua_selftest.py
+      - .github/workflows/validate-v0715-lua.yml
+      - .github/workflows/build-v0715-lua-selftest.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Install host Lua 5.4 (no iOS toolchain)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.4
+          lua -v
+      - name: Compile scripts and stage patch
+        run: |
+          set -euxo pipefail
+          python3 -m py_compile scripts/apply-v0715-selftest-suite.py
+          bash -n scripts/prepare-v0715-lua-selftest.sh
+          luac -p examples/test_core_readonly.lua
+          luac -p examples/test_vision_oneframe.lua
+          luac -p examples/test_gestures_optin.lua
+      - name: Run Lua suite regression tests
+        run: |
+          python3 -m unittest tests/test_v0715_lua_selftest.py -v
+          python3 -m unittest tests/test_v0714_notes_screenfix.py -v
