@@ -289,29 +289,32 @@ jobs:
           rm -rf layout/Applications/zxtouch.app
           cp -r "$APP" layout/Applications/zxtouch.app
 
-      - name: Setup rootless Theos with local Xcode iPhoneOS SDK
+      - name: Setup Theos with pinned patched iPhoneOS16.5 SDK
         working-directory: upstream
         run: |
           set -euo pipefail
-          # Avoid the upstream install-theos 'latest SDK' download. It returned
-          # an invalid iPhoneOS16.5.sdk archive and exited 8 in run 42054043935.
+          # The stock Xcode 18.5 SDK lacks IOMobileFramebuffer (private).
+          # The upstream TARGET also pins iPhoneOS16.5. Use the public,
+          # versioned Theos patched SDK release instead of 'install-sdk latest'.
           git clone --depth 1 --recurse-submodules https://github.com/roothide/theos.git theos
           test -s theos/makefiles/common.mk
-          SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"
-          test -d "$SDK_PATH"
-          test -s "$SDK_PATH/SDKSettings.plist"
-          mkdir -p theos/sdks
-          ln -s "$SDK_PATH" "theos/sdks/$(basename "$SDK_PATH")"
-          test -L "theos/sdks/$(basename "$SDK_PATH")"
-          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
-          [[ "$SDK_VERSION" =~ ^[0-9]+\.[0-9]+$ ]] || {
-            echo "Invalid local iPhoneOS SDK version: $SDK_VERSION" >&2
-            exit 2
-          }
-          test "$(basename "$SDK_PATH")" = "iPhoneOS${SDK_VERSION}.sdk"
-          echo "NK_THEOS_SDK_VERSION=$SDK_VERSION" >> "$GITHUB_ENV"
-          echo "Using local Xcode SDK iPhoneOS${SDK_VERSION}.sdk instead of upstream's pinned 16.5"
           command -v ldid
+          mkdir -p theos/sdks
+          SDK_ARCHIVE="/tmp/nktouch-patched-iphoneos16.5.tar.xz"
+          curl --fail --location --show-error --silent \
+            --retry 4 --retry-all-errors --retry-delay 3 \
+            --connect-timeout 20 --max-time 180 \
+            "https://github.com/theos/sdks/releases/download/master-146e41f/iPhoneOS16.5.sdk.tar.xz" \
+            --output "$SDK_ARCHIVE"
+          BYTES="$(wc -c < "$SDK_ARCHIVE" | tr -d ' ')"
+          test "$BYTES" -gt 10000000
+          test "$BYTES" -lt 50000000
+          tar -tJf "$SDK_ARCHIVE" >/dev/null
+          tar -xJf "$SDK_ARCHIVE" -C theos/sdks
+          rm -f "$SDK_ARCHIVE"
+          test -s "theos/sdks/iPhoneOS16.5.sdk/SDKSettings.plist"
+          test -s "theos/sdks/iPhoneOS16.5.sdk/System/Library/PrivateFrameworks/IOMobileFramebuffer.framework/IOMobileFramebuffer.tbd"
+          echo "Theos patched SDK 16.5 ready with IOMobileFramebuffer private framework stub"
         env:
           THEOS: ${{ github.workspace }}/upstream/theos
 
@@ -319,11 +322,9 @@ jobs:
         working-directory: upstream
         run: |
           set -euo pipefail
-          test -d "theos/sdks/iPhoneOS${NK_THEOS_SDK_VERSION}.sdk"
-          # Make's command-line TARGET overrides upstream Makefile's 16.5 pin.
-          # Preserve the minimum supported deployment target 15.0.
+          test -s "theos/sdks/iPhoneOS16.5.sdk/System/Library/PrivateFrameworks/IOMobileFramebuffer.framework/IOMobileFramebuffer.tbd"
           make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1 \
-            "TARGET=iphone:clang:${NK_THEOS_SDK_VERSION}:15.0"
+            "TARGET=iphone:clang:16.5:15.0"
         env:
           THEOS: ${{ github.workspace }}/upstream/theos
 
