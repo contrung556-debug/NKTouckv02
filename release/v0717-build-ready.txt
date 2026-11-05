@@ -1,0 +1,4 @@
+NKTouch v0.7.17 Stability + Memory Core beta candidate
+Single artifact-only build gate (never Sileo publish).
+CI prerequisite: Validate NKTouch v0.7.17 Stability & Memory Core run 41996545417 = success.
+Device verification pending: actual RSS, frame OCR locale fallback, post-FINISH SIGSEGV.
