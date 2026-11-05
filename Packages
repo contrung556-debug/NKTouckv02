@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.8.3 OCR performance and stability experimental beta; retains validated v0.8.2 same-frame SpringBoard OCR IPC
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.8.3
+Installed-Size: 7240
+Filename: debs/com.nk.nktouch_0.8.3_iphoneos-arm64.deb
+Size: 1389448
+MD5sum: 2c529e9699ce5dee0f308c12cf3a5f57
+SHA1: dadd4bafa188a02378aedfe610168b69b12c0627
+SHA256: eedff6f0bd64f9bbbdc5fdde513bfadad16f2cae1735aff0f220819262b70c2d
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.8.2 same-JPEG OCR IPC beta: immutable frame sent to existing SpringBoard Vision service; device validation pending
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
