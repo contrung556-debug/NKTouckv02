@@ -1,0 +1,427 @@
+name: Build NKTouch v0.8.3 OCR Performance candidate (artifact only)
+
+# Heavy iOS candidate build ONLY on ready marker or explicit dispatch. Never publish to Sileo.
+# Source/test commits alone do not trigger slow builds.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ v0.8.3-ocr-perf-stability-dev ]
+    paths:
+      - release/v083-ocr-perf-build-ready.txt
+
+permissions:
+  contents: read
+
+jobs:
+  build-rootless:
+    runs-on: macos-14
+    env:
+      UPSTREAM_REPO: https://github.com/epic0001/zxtouchrootless.git
+      UPSTREAM_SHA: a602da112ef1a688fb2601424443abb1ccc28c63
+      NK_VERSION: 0.8.3
+      NK_BUILD: 80300
+      LUA_VERSION: 5.4.9
+      LUA_SHA256: 2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6
+
+    steps:
+      - name: Checkout NKTouch InputText Fix
+        uses: actions/checkout@v4
+
+      - name: Fetch pinned GPL automation core
+        run: |
+          set -euxo pipefail
+          git init upstream
+          git -C upstream remote add origin "$UPSTREAM_REPO"
+          git -C upstream fetch --depth 1 origin "$UPSTREAM_SHA"
+          git -C upstream checkout --detach FETCH_HEAD
+          git -C upstream submodule update --init --recursive
+
+      - name: Patch retained task engine for direct Lua spawn
+        run: |
+          set -euxo pipefail
+          python3 scripts/apply-v746-direct-lua-spawn.py runtime/nktask.c
+          grep -Fq '#define VERSION "0.7.0"' runtime/nktask.c
+          grep -Fq '#define LUA "/var/jb/usr/libexec/nktouch/lua54"' runtime/nktask.c
+          grep -Fq 'spawn_failed executable=' runtime/nktask.c
+          if grep -Fq '/var/jb/usr/bin/nktouch-lua' runtime/nktask.c; then exit 1; fi
+
+      - name: Build native engine task supervisor and HTTP helper
+        run: |
+          set -euxo pipefail
+          SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
+          brew install ldid 2>/dev/null || true
+          xcrun --sdk iphoneos clang -Os -Wall -Wextra -Werror -arch arm64 -miphoneos-version-min=15.0 -isysroot "$SDKROOT" runtime/nktouch-native.c -o runtime/nktouch-native
+          clang -std=c11 -Wall -Wextra -fsyntax-only runtime/nktask.c
+          xcrun --sdk iphoneos clang -std=c11 -Os -Wall -Wextra -arch arm64 -miphoneos-version-min=15.0 -isysroot "$SDKROOT" runtime/nktask.c -o runtime/nktask
+          xcrun --sdk iphoneos clang -fobjc-arc -Os -Wall -Wextra -Werror -arch arm64 -miphoneos-version-min=15.0 -isysroot "$SDKROOT" runtime/nkhttp.m -framework Foundation -o runtime/nkhttp
+          chmod 755 runtime/nktouch-native runtime/nktask runtime/nkhttp runtime/nktouchctl-v7 runtime/nkrecorder runtime/nkeditor runtime/nkbundle runtime/nknetwork runtime/nktouch-lua
+          ldid -S runtime/nktouch-native
+          ldid -S runtime/nktask
+          ldid -S runtime/nkhttp
+
+      - name: Build bundled Lua 5.4.9 with nkcore
+        run: |
+          set -euxo pipefail
+          SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
+          curl --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 -fsSL "https://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz" -o /tmp/lua.tar.gz
+          printf '%s  %s\n' "$LUA_SHA256" /tmp/lua.tar.gz | shasum -a 256 -c -
+          rm -rf lua-src && mkdir lua-src
+          tar -xzf /tmp/lua.tar.gz -C lua-src --strip-components=1
+          cp lua-src/README runtime/LUA_README.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('lua-src/src/linit.c'); src=p.read_text()
+          include='#include "lualib.h"\n'
+          src=src.replace(include, include+'\nextern int luaopen_nkcore(lua_State *L);\nextern int luaopen_nkvision_native(lua_State *L);\n', 1)
+          marker='  {NULL, NULL}\n'
+          src=src.replace(marker, '  {"nkcore", luaopen_nkcore},\n  {"nkvision_native", luaopen_nkvision_native},\n'+marker, 1)
+          Path('runtime/linit-nktouch.c').write_text(src)
+          PY
+          COMMON=$(find lua-src/src -maxdepth 1 -type f -name '*.c' ! -name 'lua.c' ! -name 'luac.c' ! -name 'linit.c' -print | sort | tr '\n' ' ')
+          FLAGS="-Os -arch arm64 -miphoneos-version-min=15.0 -isysroot $SDKROOT -Ilua-src/src -DLUA_USE_POSIX -Dl_system=nktouch_lua_system -Dl_popen=nktouch_lua_popen -Dl_pclose=nktouch_lua_pclose -include $GITHUB_WORKSPACE/runtime/lua-ios-shim.h"
+          xcrun --sdk iphoneos clang $FLAGS -fobjc-arc -c runtime/nkvision.m -o runtime/nkvision.o
+          xcrun --sdk iphoneos clang $FLAGS $COMMON runtime/linit-nktouch.c runtime/nkcore.c runtime/nkvision.o runtime/lua-ios-shim.c lua-src/src/lua.c -lm -framework Foundation -framework CoreGraphics -framework CoreImage -framework CoreVideo -framework ImageIO -framework Vision -Wl,-dead_strip -o runtime/lua54
+          xcrun --sdk iphoneos clang $FLAGS $COMMON runtime/lua-ios-shim.c lua-src/src/luac.c -lm -Wl,-dead_strip -o runtime/luac54
+          chmod 755 runtime/lua54 runtime/luac54
+          ldid -S runtime/lua54
+          ldid -S runtime/luac54
+
+      - name: Install host Lua for gesture tests
+        run: brew install lua
+
+      - name: Run retained tests and v0.7.10 input guards
+        run: |
+          set -euxo pipefail
+          python3 -m unittest tests/test_v064_contract.py -v
+          python3 -m unittest tests/test_v072_contract.py -v
+          python3 -m unittest tests/test_v073_contract.py -v
+          python3 -m unittest tests/test_v074_contract.py -v
+          python3 -m unittest tests/test_v0752_recorder_v3.py -v
+          python3 -m unittest tests/test_v0753_editor_pro.py -v
+          python3 -m unittest tests/test_v0756_control_foundation.py -v
+          python3 -m unittest tests/test_v076_gesture_engine.py -v
+          python3 -m unittest tests/test_v077_lua_core_reliability.py -v
+          python3 -m unittest tests/test_v078_core_selftest.py -v
+          python3 -m unittest tests/test_v0781_core_selftest_hotfix.py -v
+          python3 -m unittest tests/test_v079_vision_core.py -v
+          python3 -m unittest tests/test_v0710_input_engine_v2.py -v
+          python3 -m py_compile scripts/apply-v0756-control-foundation.py
+          bash -n scripts/prepare-v0756-control-foundation.sh
+          bash -n scripts/prepare-v076-gesture-engine.sh
+          bash -n scripts/prepare-v077-lua-core-reliability.sh
+          bash -n scripts/prepare-v078-core-selftest.sh
+          bash -n scripts/prepare-v0781-core-selftest-hotfix.sh
+          bash -n scripts/prepare-v079-vision-core.sh
+          bash -n scripts/prepare-v0710-input-engine-v2.sh
+          bash -n scripts/prepare-v0711-target-apps.sh
+          python3 -m unittest tests/test_v0711_target_apps.py -v
+          python3 -m unittest tests/test_v0712_inputtext_fix.py -v
+          python3 -m unittest tests/test_v0713_notes_input_selftest.py -v
+          python3 -m unittest tests/test_v0714_notes_screenfix.py -v
+          python3 -m unittest tests/test_v0715_lua_selftest.py -v
+          python3 -m py_compile scripts/apply-v0715-selftest-suite.py
+          bash -n scripts/prepare-v0802-release.sh
+          python3 -m py_compile scripts/apply-v0802-ocr-ipc.py
+          bash -n scripts/stage-v0716-testlab-dev.sh
+          python3 -m py_compile scripts/apply-v0716-testlab-ui.py scripts/apply-v0716-cli-parser.py scripts/apply-v0716-command-contract.py
+          python3 -m unittest tests/test_v0716_native_preflight.py tests/test_v0716_color_accuracy.py tests/test_v0716_testlab_ui.py -v
+          python3 -m unittest tests/test_v0717_stability_memory.py tests/test_v0718_ocr_ciimage.py tests/test_v0719_testlab_5core.py tests/test_v0800_integrated.py tests/test_v0800_release.py tests/test_v0801_ocr_buffer.py tests/test_v0802_ocr_ipc.py tests/test_v0716_memory_core.py -v
+          lua tests/lua_v0802_ocr_fallback.lua
+          lua tests/lua_v083_perf.lua
+          python3 -m unittest tests/test_v083_perf.py -v
+          lua tests/lua_v0716_input_json_hardening.lua
+          bash -n scripts/prepare-v0715-lua-selftest.sh
+          lua -e 'assert(loadfile("examples/test_core_readonly.lua"))'
+          lua -e 'assert(loadfile("examples/test_vision_oneframe.lua"))'
+          lua -e 'assert(loadfile("examples/test_gestures_optin.lua"))'
+          python3 -m py_compile scripts/apply-v0714-notes-screenfix.py
+          bash -n scripts/prepare-v0714-notes-screenfix.sh
+          lua -e 'assert(loadfile("examples/test_inputtext_notes_v2.lua"))'
+          python3 -m py_compile scripts/apply-v0713-notes-input-selftest.py
+          bash -n scripts/prepare-v0713-notes-input-selftest.sh
+          lua -e 'assert(loadfile("examples/test_inputtext_notes.lua"))'
+          python3 -m py_compile scripts/apply-v0712-inputtext-fix.py
+          bash -n scripts/prepare-v0712-inputtext-fix.sh
+          python3 -m py_compile scripts/apply-input-engine-v2.py
+          lua -e 'assert(loadfile("lua/nkinput_v2.lua"))'
+          lua -e 'assert(loadfile("lua/nkvision.lua"))'
+          lua -e 'assert(loadfile("lua/nkmemory.lua"))'
+          bash -n scripts/prepare-v0802-release.sh
+          lua -e 'assert(loadfile("lua/nkvision_selftest.lua"))'
+          python3 -m py_compile scripts/apply-v078-core-selftest-ui.py
+          lua -e 'assert(loadfile("lua/nkcore_selftest.lua"))'
+          python3 -m py_compile scripts/apply-v076-gesture-engine.py
+          lua -e 'assert(loadfile("lua/nkgesture_v6.lua"))'
+          grep -q 'NKHotkeyActionRecorderFinish' patches/NKTouchHotkeyEngine.xm
+          grep -q 'UINotificationFeedbackGenerator' patches/NKTouchHotkeyEngine.xm
+          grep -q 'PACKAGE_VERSION="0.7.5.6"' runtime/nktouchctl-v7
+
+      - name: Apply NKTouch v0.8.2 same-frame IPC overlay
+        run: bash scripts/prepare-v0802-release.sh upstream
+
+      - name: Inject bounded same-frame JPEG OCR task into rootless SpringBoard service
+        run: |
+          set -euxo pipefail
+          python3 scripts/apply-v0802-ocr-ipc.py upstream
+          grep -Fxq '#define TASK_NK_FRAME_OCR 31' upstream/pccontrol/Task.h
+          grep -Fq 'NK_FRAME_OCR_UNAVAILABLE' upstream/pccontrol/Task.xm
+          grep -Fq 'pccontrol_FRAMEWORKS = Vision CoreImage ImageIO UIKit' upstream/pccontrol/Makefile
+
+      - name: Source-level release marker and beta safety check
+        run: |
+          set -euxo pipefail
+          grep -Fxq 'Version: 0.8.2' upstream/control
+          grep -Fq 'device validation pending' upstream/control
+          grep -Fq 'NKLuaTestLabViewController' upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
+          grep -Fq 'NKTouch 0.8.2 Same-Frame OCR IPC Beta' upstream/layout/usr/share/doc/nktouch/VERSION
+          test -s upstream/layout/usr/share/nktouch/lua/nkregression.lua
+          test -s upstream/layout/usr/share/nktouch/lua/nktestlab.lua
+          test -s upstream/layout/usr/share/nktouch/lua/nkmemory.lua
+          test -s upstream/layout/usr/share/nktouch/examples/test_lua_exit_probe_readonly.lua
+          grep -Fq 'NKTouch Test Lab v0.8.2-beta' upstream/layout/usr/share/nktouch/lua/nktestlab.lua
+
+
+      - name: Validate v0.8.2 package sources
+        run: |
+          set -euxo pipefail
+          REC=upstream/layout/usr/bin/nkrecorder
+          SETTINGS=upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
+          RUNNER=upstream/zxtouch-runner/main.m
+          TRIGGER=upstream/nktouch-trigger/Tweak.xm
+          CTL=upstream/layout/usr/bin/nktouchctl
+          grep -q '^Version: 0.8.2$' upstream/control
+          grep -Fxq 'NKTouch 0.8.2 Same-Frame OCR IPC Beta' upstream/layout/usr/share/doc/nktouch/VERSION
+          grep -q '^  finish)' "$REC"
+          grep -q 'NKHotkeyActionRecorderFinish' "$TRIGGER"
+          grep -q 'REC STOPPING' "$TRIGGER"
+          grep -q 'REC SAVED' "$TRIGGER"
+          grep -q 'REC ERROR' "$TRIGGER"
+          grep -q 'kNKRecorderAcceptedNotification' "$RUNNER"
+          grep -q 'kNKRecorderCompletedOKNotification' "$RUNNER"
+          grep -q 'kNKRecorderCompletedFailedNotification' "$RUNNER"
+          grep -q 'notify_post(kNKRecorderAcceptedNotification)' "$RUNNER"
+          grep -q 'rung xác nhận' "$SETTINGS"
+          grep -q 'PACKAGE_VERSION="0.8.2"' "$CTL"
+          grep -Fq 'function M.inputTextV2' upstream/layout/usr/share/nktouch/lua/nktouch.lua
+          grep -Fq 'function M.inputText(value,options)' upstream/layout/usr/share/nktouch/lua/nktouch.lua
+          grep -Fq 'nk.installAutoTouchCompat()' upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
+          grep -Fq 'NKSaveTarget(sampleName,@"com.apple.mobilenotes"' upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
+          test -f upstream/layout/usr/share/nktouch/examples/test_inputtext_notes.lua
+          test -f upstream/layout/usr/share/nktouch/examples/test_inputtext_notes_v2.lua
+          for name in nkcoords nkstability nkregression nktestlab nkmemory nkinput_v2 nknet nkjson nkvision nkcommand_contract nkdiagnostics nksnapshot nkactions nksdk; do
+            test -s "upstream/layout/usr/share/nktouch/lua/$name.lua"
+          done
+          grep -Fq 'NKLuaTestLabViewController' "$SETTINGS"
+          grep -Fq 'labCreateRunner' "$SETTINGS"
+          grep -Fq 'confirmed=false' "$SETTINGS"
+          grep -Fq 'require("nkcommand_contract").install(M)' upstream/layout/usr/share/nktouch/lua/nktouch.lua
+          grep -Fq '[NKLAB][SUMMARY]' upstream/layout/usr/share/nktouch/lua/nktestlab.lua
+          grep -Fq 'nkShowSamples' "$SETTINGS"
+          grep -Fq 'test_core_readonly.lua' "$SETTINGS"
+          grep -Fq 'test_vision_oneframe.lua' "$SETTINGS"
+          grep -Fq 'test_gestures_optin.lua' "$SETTINGS"
+          test -f upstream/layout/usr/share/nktouch/examples/test_core_readonly.lua
+          test -f upstream/layout/usr/share/nktouch/examples/test_vision_oneframe.lua
+          test -f upstream/layout/usr/share/nktouch/examples/test_gestures_optin.lua
+          grep -Fq '@"file":@"test_inputtext_notes_v2.lua"' upstream/zxtouch/zxtouch/Settings/SettingsPageViewController.m
+          test -s upstream/layout/usr/share/nktouch/lua/nkinput_v2.lua
+          grep -Fq 'nk_input_v2_id' upstream/pccontrol/UIKeyboard.xm
+          grep -Fq 'NKInputV2FocusedView' upstream/appdelegate/UIKeyboard.xm
+          grep -Fq 'vision-selftest)' "$CTL"
+          test -s upstream/layout/usr/share/nktouch/lua/nkvision.lua
+          test -s upstream/layout/usr/share/nktouch/lua/nkvision_selftest.lua
+          grep -Fq 'function M.captureFrame()' upstream/layout/usr/share/nktouch/lua/nktouch.lua
+          grep -Fq 'Doctor (optional)' "$SETTINGS"
+          grep -Fq 'BOOL pass=wrote&&cc==0&&rc==0&&' "$SETTINGS"
+          grep -Fq 'core-selftest)' "$CTL"
+          grep -Fq 'stringWithContentsOfFile:' "$SETTINGS"
+          grep -Fq '[NKCORE][SUMMARY] status=PASS' "$SETTINGS"
+          test -f upstream/layout/usr/share/nktouch/lua/nkcore_selftest.lua
+          grep -Fq 'COLOR_OUT_OF_BOUNDS' upstream/pccontrol/ColorPicker.xm
+          grep -Fq 'NKColorCopyPixels' upstream/pccontrol/ColorPicker.xm
+          grep -Fq 'function M.matchColor' upstream/layout/usr/share/nktouch/lua/nktouch.lua
+          grep -Fq 'function M.waitColorMatch' upstream/layout/usr/share/nktouch/lua/nktouch.lua
+          grep -Fq 'local VERSION = "0.7.6"' upstream/layout/usr/share/nktouch/nkrecorder.lua
+          grep -Fq 'function M.parseRaw(path)' upstream/layout/usr/share/nktouch/nkgesture_v6.lua
+          grep -Fq 'function M.path(points)' upstream/layout/usr/share/nktouch/lua/nktouch.lua
+          grep -q 'version --all' "$CTL"
+          strings upstream/layout/usr/bin/nktask | grep -Fq '/var/jb/usr/libexec/nktouch/lua54'
+          test ! -e upstream/layout/var/jb
+
+      - name: Run upstream Python tests
+        working-directory: upstream
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Stage v0.8.3 opt-in OCR benchmark and two-frame stability diagnostics
+        run: |
+          set -euxo pipefail
+          bash scripts/stage-v083-ocr-perf.sh upstream
+          grep -Fxq 'Version: 0.8.3' upstream/control
+          grep -Fq 'NKTouch Test Lab v0.8.3-beta' upstream/layout/usr/share/nktouch/lua/nktestlab.lua
+          test -s upstream/layout/usr/share/nktouch/lua/nkocr_perf.lua
+          test -s upstream/layout/usr/share/nktouch/examples/test_ocr_perf_v083.lua
+          test -s upstream/layout/usr/share/nktouch/examples/test_ocr_stability_v083.lua
+
+      - name: Build iOS application
+        working-directory: upstream
+        run: |
+          set -o pipefail
+          xcodebuild -project zxtouch/zxtouch.xcodeproj -target zxtouch -sdk iphoneos -configuration Release SYMROOT="$(pwd)/app-build" ONLY_ACTIVE_ARCH=NO ARCHS="arm64 arm64e" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO AD_HOC_CODE_SIGNING_ALLOWED=YES PRODUCT_BUNDLE_IDENTIFIER=com.zjx.zxtouch 2>&1 | tee xcode_build.log
+
+      - name: Brand synchronize version and sign application
+        working-directory: upstream
+        run: |
+          set -euxo pipefail
+          APP=$(find ./app-build -name 'zxtouch.app' -type d | head -1)
+          test -n "$APP"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName NKTouch' "$APP/Info.plist" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Add :CFBundleDisplayName string NKTouch' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleName NKTouch' "$APP/Info.plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $NK_VERSION" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NK_BUILD" "$APP/Info.plist"
+          EXTAPP="$APP/PlugIns/shortcutext.appex"
+          if [[ -f "$EXTAPP/Info.plist" ]]; then
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $NK_VERSION" "$EXTAPP/Info.plist" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NK_BUILD" "$EXTAPP/Info.plist" 2>/dev/null || true
+          fi
+          ldid -Szxtouch/app-entitlements.plist "$APP/zxtouch"
+          EXT="$APP/PlugIns/shortcutext.appex/shortcutext"
+          if [[ -f "$EXT" ]]; then ldid -Szxtouch/shortcutext-entitlements.plist "$EXT"; fi
+          rm -rf layout/Applications/zxtouch.app
+          cp -r "$APP" layout/Applications/zxtouch.app
+
+      - name: Setup rootless Theos
+        working-directory: upstream
+        run: bash -c "$(curl -fsSL https://raw.githubusercontent.com/roothide/theos/master/bin/install-theos)"
+        env:
+          THEOS: ${{ github.workspace }}/upstream/theos
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build rootless package including Input Engine v2
+        working-directory: upstream
+        run: make clean package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1
+        env:
+          THEOS: ${{ github.workspace }}/upstream/theos
+
+      - name: Install Debian package inspection tools
+        run: |
+          set -euxo pipefail
+          brew install dpkg
+          command -v dpkg-deb
+          dpkg-deb --version
+
+      - name: Inspect and collect deb
+        working-directory: upstream
+        run: |
+          set -euxo pipefail
+          command -v dpkg-deb >/dev/null
+          mkdir -p ../artifacts
+          DEB=''
+          while IFS= read -r -d '' file; do if [[ -z "$DEB" || "$file" -nt "$DEB" ]]; then DEB="$file"; fi; done < <(find packages -maxdepth 1 -type f -name '*.deb' -print0)
+          test -n "$DEB"
+          OUT="../artifacts/NKTouch_${NK_VERSION}_rootless.deb"
+          cp "$DEB" "$OUT"
+          test "$(dpkg-deb -f "$OUT" Version)" = "$NK_VERSION"
+          test "$(dpkg-deb -f "$OUT" Package)" = 'com.nk.nktouch'
+          rm -rf /tmp/nk790 && mkdir -p /tmp/nk790
+          dpkg-deb -x "$OUT" /tmp/nk790
+
+          # Verify the Bridge task is present in the actual packaged tweak.
+          PC_DYLIB="$(find /tmp/nk790 -type f -name 'pccontrol.dylib' -print -quit)"
+          test -s "$PC_DYLIB"
+          python3 - "$PC_DYLIB" <<'PY'
+          from pathlib import Path
+          import sys
+          image=Path(sys.argv[1]).read_bytes()
+          marker="NK_FRAME_OCR_UNAVAILABLE"
+          assert any(marker.encode(codec) in image
+                     for codec in ("utf-8","utf-16le","utf-16be")), (
+              "OCR IPC service missing from packaged pccontrol.dylib")
+          print("PASS packaged pccontrol: bounded same-frame OCR IPC marker")
+          PY
+
+          TRIGGER_DIR=/tmp/nk790/var/jb/Library/MobileSubstrate/DynamicLibraries
+          TRIGGER_DYLIB="$TRIGGER_DIR/NKTouchRecorderTrigger.dylib"
+          TRIGGER_PLIST="$TRIGGER_DIR/NKTouchRecorderTrigger.plist"
+          test -f "$TRIGGER_DYLIB"
+          test -f "$TRIGGER_PLIST"
+
+          if [[ -n "$(find /tmp/nk790 -path '*/var/jb/var/jb/*' -print -quit)" ]]; then
+            echo 'ERROR: nested rootless prefix /var/jb/var/jb detected in package' >&2
+            exit 1
+          fi
+
+          RUNNER_BIN="$(find /tmp/nk790 -type f -name 'zxtouch-runner' -print -quit)"
+          test -n "$RUNNER_BIN"
+          test -x "$RUNNER_BIN"
+          # Objective-C constant strings can be stored as UTF-16 in Mach-O.
+          # Read bytes directly: strings|grep -q can exit 141 under pipefail.
+          python3 - "$TRIGGER_DYLIB" "$RUNNER_BIN" <<'PY'
+          from pathlib import Path
+          import sys
+
+          checks = {
+              Path(sys.argv[1]): (
+                  "com.nk.nktouch.recorder.accepted",
+                  "com.nk.nktouch.recorder.completed.ok",
+                  "REC SAVED",
+              ),
+              Path(sys.argv[2]): ("com.nk.nktouch.recorder.completed.failed",),
+          }
+          for binary, values in checks.items():
+              data = binary.read_bytes()
+              for value in values:
+                  if not any(value.encode(encoding) in data for encoding in ("utf-8", "utf-16le", "utf-16be")):
+                      raise SystemExit(f"Missing expected binary marker {value!r} in {binary}")
+                  print(f"PASS {binary.name}: {value}")
+          PY
+          CTL_BIN=/tmp/nk790/var/jb/usr/bin/nktouchctl
+          test -x "$CTL_BIN"
+          grep -Fq 'PACKAGE_VERSION="0.8.2"' "$CTL_BIN"
+          grep -Fq 'TARGET_NOT_FOREGROUND' zxtouch/zxtouch/Settings/SettingsPageViewController.m
+          grep -Fq 'NKTargetAppPickerViewController' zxtouch/zxtouch/Settings/SettingsPageViewController.m
+          for name in nkcoords nkstability nkregression nktestlab nkmemory nkinput_v2 nknet nkjson nkvision nkcommand_contract nkdiagnostics nksnapshot nkactions nksdk; do
+            test -s "/tmp/nk790/var/jb/usr/share/nktouch/lua/$name.lua"
+          done
+          grep -Fq '[NKLAB][SUMMARY]' /tmp/nk790/var/jb/usr/share/nktouch/lua/nktestlab.lua
+          test -f /tmp/nk790/var/jb/usr/share/nktouch/lua/nkinput_v2.lua
+          grep -Fq 'function M.inputPassword' /tmp/nk790/var/jb/usr/share/nktouch/lua/nktouch.lua
+          grep -Fq 'function M.inputText(value,options)' /tmp/nk790/var/jb/usr/share/nktouch/lua/nktouch.lua
+          test -f /tmp/nk790/var/jb/usr/share/nktouch/examples/test_inputtext_notes.lua
+          test -f /tmp/nk790/var/jb/usr/share/nktouch/examples/test_inputtext_notes_v2.lua
+          test -s /tmp/nk790/var/jb/usr/share/nktouch/examples/test_core_readonly.lua
+          test -s /tmp/nk790/var/jb/usr/share/nktouch/examples/test_vision_oneframe.lua
+          test -s /tmp/nk790/var/jb/usr/share/nktouch/examples/test_gestures_optin.lua
+          grep -Fq '(%d+%.?%d*)' /tmp/nk790/var/jb/usr/share/nktouch/examples/test_inputtext_notes_v2.lua
+          grep -Fq 'nk.waitApp(NOTES_ID, 10000, 250)' /tmp/nk790/var/jb/usr/share/nktouch/examples/test_inputtext_notes.lua
+          grep -Fq 'vision-selftest)' "$CTL_BIN"
+          test -f /tmp/nk790/var/jb/usr/share/nktouch/lua/nkvision.lua
+          test -f /tmp/nk790/var/jb/usr/share/nktouch/lua/nkvision_selftest.lua
+          grep -Fq 'function M.captureFrame()' /tmp/nk790/var/jb/usr/share/nktouch/lua/nktouch.lua
+          grep -Fq 'core-selftest)' "$CTL_BIN"
+          test -f /tmp/nk790/var/jb/usr/share/nktouch/lua/nkcore_selftest.lua
+          grep -Fq '[NKCORE][SUMMARY]' /tmp/nk790/var/jb/usr/share/nktouch/lua/nkcore_selftest.lua
+          grep -Fq 'function M.matchColor' /tmp/nk790/var/jb/usr/share/nktouch/lua/nktouch.lua
+          grep -Fq 'function M.waitColorMatch' /tmp/nk790/var/jb/usr/share/nktouch/lua/nktouch.lua
+          test -f /tmp/nk790/var/jb/usr/share/nktouch/nkgesture_v6.lua
+          test -f /tmp/nk790/var/jb/usr/share/nktouch/nkrecorder.lua
+          grep -Fq 'function M.path(points)' /tmp/nk790/var/jb/usr/share/nktouch/lua/nktouch.lua
+          test -s /tmp/nk790/var/jb/usr/share/nktouch/lua/nkocr_perf.lua
+          test -s /tmp/nk790/var/jb/usr/share/nktouch/examples/test_ocr_perf_v083.lua
+          test -s /tmp/nk790/var/jb/usr/share/nktouch/examples/test_ocr_stability_v083.lua
+          dpkg-deb -I "$OUT"
+
+      - name: Upload v0.8.3 OCR perf deb (artifact only; no Sileo)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NKTouch-v0.8.3-ocr-perf-rootless
+          path: artifacts/*.deb
+          if-no-files-found: error
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NKTouch-v0.8.3-ocr-perf-build-logs
+          path: upstream/xcode_build.log
+          if-no-files-found: ignore
