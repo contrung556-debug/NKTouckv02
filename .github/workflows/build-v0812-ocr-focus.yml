@@ -9,6 +9,7 @@ on:
     paths:
       - release/v0812-build-ready.txt
       - release/v0812-retry-ready.txt
+      - release/v0812-final-ready.txt
 
 permissions:
   contents: read
