@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.8.10 Runtime Self-Test beta: Lua and io.popen diagnostics with read-only cranectl list sample; retains v0.8.9 Runtime, Vision, Native Input and Precision
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.8.10
+Installed-Size: 7344
+Filename: debs/com.nk.nktouch_0.8.10_iphoneos-arm64.deb
+Size: 1408000
+MD5sum: 2821d3ef880ae363b7cf717730b6de4d
+SHA1: 2271fdc0ef4d11422057443bf9040420ee098bc5
+SHA256: 40f841ae355700255fbaebeb6587ceb4e93abf4924d80fb0953132b546ffa68d
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.8.9 Runtime Reliability beta: cooperative Lua deadlines, cancel checks, once-only mutation guard, LIFO cleanup and private diagnostics; retains Vision, Native Input and Precision
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
