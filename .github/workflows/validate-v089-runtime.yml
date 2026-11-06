@@ -1,0 +1,38 @@
+name: Validate NKTouch v0.8.9 Runtime Reliability (host-only)
+
+on:
+  push:
+    branches: [v0.8.9-runtime-reliability-dev]
+    paths:
+      - lua/nkruntime_guard.lua
+      - examples/test_runtime_guard_readonly_v089.lua
+      - examples/test_runtime_guard_write_optin_v089.lua
+      - scripts/stage-v089-runtime.sh
+      - tests/lua_v089_runtime_guard.lua
+      - tests/test_v089_runtime.py
+      - .github/workflows/build-v089-runtime.yml
+      - .github/workflows/validate-v089-runtime.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4 and C compiler
+        run: sudo apt-get update -qq && sudo apt-get install -y lua5.4 gcc
+      - name: Parse Lua and shell scripts and run no-device runtime tests
+        run: |
+          set -euo pipefail
+          bash -n scripts/stage-v089-runtime.sh
+          luac5.4 -p lua/nkruntime_guard.lua
+          luac5.4 -p examples/test_runtime_guard_readonly_v089.lua
+          luac5.4 -p examples/test_runtime_guard_write_optin_v089.lua
+          lua5.4 tests/lua_v089_runtime_guard.lua
+      - name: Cross-version and native task-supervisor regressions
+        run: |
+          set -euo pipefail
+          python3 -m unittest             tests/test_v089_runtime.py             tests/test_v088_vision_speed.py             tests/test_v087_native_focus.py             tests/test_v086_precision.py             tests/test_v085_input_pro.py             tests/test_v083_perf.py             tests/test_v0716_task_supervisor_host.py             tests/test_v0717_stability_memory.py -v
