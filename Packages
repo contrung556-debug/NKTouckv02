@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.8.6 Touch Color Precision beta: same-frame multi-point RGB guards, validated pixel geometry, opt-in guarded touch; retains Native Input Pro and OCR diagnostics
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.8.6
+Installed-Size: 7280
+Filename: debs/com.nk.nktouch_0.8.6_iphoneos-arm64.deb
+Size: 1394830
+MD5sum: 267128c5e633f9bd5f4e504b6879dd3b
+SHA1: e97d6fc60977e9637df85fcf95c7f345a4525c45
+SHA256: f2930e60ec0ca6613c8d03327bb8cb823c68a7cd750e45fcd9639958ea7d0926
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.8.5 Input Engine Pro beta: one-packet native Fast Input, guarded Safe Input and explicit Keyboard mode; retains v0.8.3 OCR performance diagnostics
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
