@@ -1,0 +1,1 @@
+Retry v0.8.12 after stabilizing the OCR test fixture; artifact only.
