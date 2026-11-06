@@ -196,12 +196,22 @@ function M.safe(nk,s,opts)
 
   local focusVerified=false
   if strict then
-    local called,yes=pcall(nk.focusedInput)
-    if not called or yes~=true then
-      return err("native first-responder not confirmed; text not sent",
+    -- A UIKit responder query is read-only. A timeout/error is UNKNOWN,
+    -- not the same as an explicit NO; neither allows text dispatch.
+    local called,yes=pcall(nk.focusedInput,bundle)
+    if not called or yes==nil then
+      return err("native focus query unavailable or timed out; text not sent",
+                 "FOCUS_PROBE_UNAVAILABLE")
+    end
+    if yes~=true then
+      return err("target app has no confirmed UIKeyInput first responder",
                  "FOCUS_NOT_CONFIRMED")
     end
     focusVerified=true
+    -- Read-only last foreground check after native probe, before mutation.
+    -- Still a snapshot: UIKit focus can change before the async insert runs.
+    local still,se,sc=foreground(nk,bundle)
+    if not still then return nil,se,sc end
   end
   local ok,result,code=dispatch(nk,s,"direct",opts.secure==true)
   if not ok then return nil,result,code end
