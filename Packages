@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.8.7 Native Input Reliability beta: read-only UIKit first-responder focus probe, strict guarded input; retains Precision, same-frame OCR and Lua tools
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.8.7
+Installed-Size: 7288
+Filename: debs/com.nk.nktouch_0.8.7_iphoneos-arm64.deb
+Size: 1401604
+MD5sum: 0d9e795617ff27bb01dfbcc2e62f3dd5
+SHA1: c23417a02684c80e3c63cd147a1efa9900c9158a
+SHA256: a109d553217aef82323e1d80e88ebd5c593ac57c37c2d0b3358ce5fd60af43ff
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.8.6 Touch Color Precision beta: same-frame multi-point RGB guards, validated pixel geometry, opt-in guarded touch; retains Native Input Pro and OCR diagnostics
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
