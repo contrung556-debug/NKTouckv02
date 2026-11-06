@@ -1,0 +1,52 @@
+name: Publish NKTouch v0.8.9 Runtime Reliability Beta to Sileo
+on:
+  push:
+    branches: [v0.8.9-runtime-reliability-dev]
+    paths: [.github/workflows/publish-v089-sileo.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: nktouch-sileo-publisher
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact successful candidate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api repos/contrung556-debug/NKTouckv02/actions/runs/42153169788 > /tmp/run.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/run.json'))
+          assert r['head_sha']=='bb73581a485748aa768bc38c7270fd1fb8658ca3'
+          assert r['head_branch']=='v0.8.9-runtime-reliability-dev'
+          assert r['status']=='completed' and r['conclusion']=='success'
+          assert r['path']=='.github/workflows/build-v089-runtime.yml'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: NKTouch-v0.8.9-runtime-rootless
+          run-id: 42153169788
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: sileo-artifact
+      - name: Inspect package and publish
+        run: |
+          set -euo pipefail
+          bash -n scripts/publish-v089-sileo.sh
+          bash scripts/publish-v089-sileo.sh
+      - name: Verify published metadata and rollback
+        run: |
+          set -euo pipefail
+          git fetch origin sileo-repo
+          git show FETCH_HEAD:Packages > /tmp/packages
+          grep -Fxq 'Version: 0.8.9' /tmp/packages
+          grep -Fxq 'Version: 0.8.8' /tmp/packages
+          grep -Fxq 'Filename: debs/com.nk.nktouch_0.8.9_iphoneos-arm64.deb' /tmp/packages
