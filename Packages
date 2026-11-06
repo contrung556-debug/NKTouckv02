@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.8.9 Runtime Reliability beta: cooperative Lua deadlines, cancel checks, once-only mutation guard, LIFO cleanup and private diagnostics; retains Vision, Native Input and Precision
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.8.9
+Installed-Size: 7336
+Filename: debs/com.nk.nktouch_0.8.9_iphoneos-arm64.deb
+Size: 1406942
+MD5sum: e7fb3b61d43971df0171fdaa5c9e4cf6
+SHA1: c9123657aca8de84c7e1776719a66058c98a8ce3
+SHA256: 9751639ed19acfc9ad67b622305b340f46ac9064825fa0869984ec462b8f4ea1
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.8.8 Vision Speed Stability beta: one-frame Color/OCR/Image batch with cached pixels, bounded stable-screen gate; retains Native Input and Precision
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
