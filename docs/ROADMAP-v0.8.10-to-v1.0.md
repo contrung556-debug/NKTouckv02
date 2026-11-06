@@ -3,16 +3,16 @@
 ## Current baseline
 Sileo currently serves v0.8.9. Keep it as the stable rollback point while testing development builds.
 
-## v0.8.10 — Runtime Self-Test (in progress)
+## v0.8.10 — Runtime Self-Test (artifact built; device validation pending)
 - Add an in-app, read-only Lua sample that checks module load, runtime, screen dimensions, sleep, io.popen output and process exit status.
 - Optionally run only `cranectl --list com.facebook.Facebook`; never create or switch a container.
-- Build an artifact-only rootless candidate, install on the iPhone, and collect the `[NKRT810]` log.
-- Release gate: confirm all checks and repeat the failing second-loop UI scenario before considering Sileo.
+- The artifact-only rootless candidate built successfully. Install it on the iPhone and collect the `[NKRT810]` log.
+- Release gate: confirm runtime checks and repeat the failing second-loop UI scenario before considering Sileo.
 
-## v0.8.11 — Vision and UI-state reliability
-- Normalize OCR text and distinguish stable page labels from transient/empty reads.
-- Keep timeout diagnostics actionable and fail closed when page identity is uncertain.
-- Add read-only samples for OCR and color matching; verify behavior against real app screens.
+## v0.8.11 — Vision and UI-state reliability (source work in progress)
+- Add Vietnamese OCR normalization and a bounded stable-label wait; the sample logs state labels and counts, never recognized text.
+- Validate OCR regions against current screen geometry and fail closed on ambiguous labels.
+- Keep color verification tied to screen evidence; verify behavior against real app screens before packaging.
 
 ## v0.8.12 — Touch and InputText reliability
 - Check focus and dispatch result, preserve at-most-once input behavior, and report field-level verification clearly.
