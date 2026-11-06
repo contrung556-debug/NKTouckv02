@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.8.5 Input Engine Pro beta: one-packet native Fast Input, guarded Safe Input and explicit Keyboard mode; retains v0.8.3 OCR performance diagnostics
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.8.5
+Installed-Size: 7260
+Filename: debs/com.nk.nktouch_0.8.5_iphoneos-arm64.deb
+Size: 1393370
+MD5sum: d3112acece54f1e8674fa2054d005df8
+SHA1: 59ba812f7feb54ee0437b65c339fba694ea05b95
+SHA256: 2c92c60754bcecd453d90b0f00cbfbd683291ba0b4bbede2c5b6e8930ea77075
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.8.3 OCR performance and stability experimental beta; retains validated v0.8.2 same-frame SpringBoard OCR IPC
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
