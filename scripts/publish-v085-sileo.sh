@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publish ONLY the pinned, successful v0.8.5 Input Engine Pro rootless artifact; device acceptance is pending.
+# Publish ONLY the exact successful v0.8.5 Input Engine Pro rootless artifact; on-device testing pending.
 # Preserve every prior NKTouch and NKCrane entry; fail closed on artifact collision.
 set -euo pipefail
 ARTIFACT_DIR="$(pwd)/sileo-artifact"
@@ -143,7 +143,7 @@ readme=root/'README.md'
 if readme.exists():
     text=readme.read_text()
     new=re.sub(r'(?m)^Current package: com\.nk\.nktouch .*$',
-               'Current package: com.nk.nktouch 0.8.5 (iphoneos-arm64) — Native Fast/Safe/Keyboard Input Engine Pro, OCR diagnostics retained (beta)',text)
+               'Current package: com.nk.nktouch 0.8.5 (iphoneos-arm64) — Input Engine Pro Native Fast/Safe/Keyboard with retained same-frame OCR (beta)',text)
     readme.write_text(new)
 index=root/'index.html'
 if index.exists():
@@ -151,72 +151,22 @@ if index.exists():
     index.write_text(re.sub(r'NKTouch 0\.(?:7|8)\.\d+(?:\.\d+)*','NKTouch 0.8.5',html))
 print('Preserved',len(keep),'existing package stanzas')
 PY
-  # Safeguard the last stable published version and all NKCrane records.
-  grep -Fq 'Version: 0.8.3' "$TARGET/Packages"
-  grep -Fq 'Filename: debs/com.nk.nktouch_0.8.3_iphoneos-arm64.deb' "$TARGET/Packages"
-  test -s "$TARGET/debs/com.nk.nktouch_0.8.3_iphoneos-arm64.deb"
   python3 - "$TARGET" <<'PY'
 from pathlib import Path
 import re,sys
 root=Path(sys.argv[1])
-stanzas=[s for s in re.split(r'\n\s*\n', (root/'Packages').read_text().strip()) if s.strip()]
-def meta(s,k):
-    m=re.search(r'(?m)^'+re.escape(k)+r': (.+)
-  python3 - "$TARGET" <<'PY'
-from pathlib import Path
-from datetime import datetime, timezone
-import hashlib,sys
-root=Path(sys.argv[1])
-release=root/'Release'
-existing=release.read_text() if release.exists() else ''
-header=existing.split('MD5Sum:',1)[0].strip()
-lines=[x for x in header.splitlines() if not x.startswith('Date:')]
-if not lines:
-    lines=['Origin: NKTouch Repository','Label: NKTouch Repository',
-           'Suite: stable','Codename: nktouch','Architectures: iphoneos-arm64',
-           'Components: main']
-lines.append('Date: '+datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S +0000'))
-checks=[]
-for name in ('Packages','Packages.gz'):
-    data=(root/name).read_bytes()
-    checks.append((name,len(data),hashlib.md5(data).hexdigest(),hashlib.sha256(data).hexdigest()))
-out='\n'.join(lines)+'\nMD5Sum:\n'
-out+=''.join(f' {md5} {size} {name}\n' for name,size,md5,sha in checks)
-out+='SHA256:\n'
-out+=''.join(f' {sha} {size} {name}\n' for name,size,md5,sha in checks)
-release.write_text(out)
-PY
-
-  (cd "$TARGET" && gzip -dc Packages.gz | cmp -s - Packages)
-  grep -Fq "Filename: debs/$DEB_NAME" "$TARGET/Packages"
-  git -C "$TARGET" add Packages Packages.gz Release README.md index.html "debs/$DEB_NAME"
-  if git -C "$TARGET" diff --cached --quiet; then
-    echo 'Sileo already has NKTouch 0.8.5'
-    exit 0
-  fi
-  git -C "$TARGET" commit -m 'Publish NKTouch 0.8.5 Input Engine Pro beta to existing Sileo'
-  if git -C "$TARGET" push origin HEAD:refs/heads/sileo-repo; then
-    echo 'PUBLISHED NKTouch 0.8.5 to existing Sileo source (v0.8.3 and v0.8.2 retained)'
-    git -C "$TARGET" rev-parse HEAD
-    exit 0
-  fi
-  echo "Sileo branch advanced concurrently; retry $attempt/3" >&2
-  sleep 2
-done
-echo 'FAILED to publish after 3 attempts' >&2
-exit 1
-,s)
-    return m.group(1) if m else ''
-assert len([s for s in stanzas if meta(s,'Package')=='com.nk.nktouch' and meta(s,'Version')=='0.8.5'])==1
-assert len([s for s in stanzas if meta(s,'Package')=='com.nk.nktouch' and meta(s,'Version')=='0.8.3'])==1
-assert len([s for s in stanzas if meta(s,'Package')=='com.nk.nktouch' and meta(s,'Version')=='0.8.2'])==1
+stanzas=[s for s in re.split(r'\n\s*\n',(root/'Packages').read_text().strip()) if s.strip()]
+def field(stanza,name):
+    for line in stanza.splitlines():
+        if line.startswith(name+': '): return line.split(': ',1)[1]
+    return ''
+for version in ('0.8.5','0.8.3','0.8.2'):
+    assert sum(1 for stanza in stanzas if field(stanza,'Package')=='com.nk.nktouch'
+               and field(stanza,'Version')==version)==1, f'missing/duplicate NKTouch {version}'
 assert (root/'debs/com.nk.nktouch_0.8.3_iphoneos-arm64.deb').stat().st_size>100000
-assert any('nkcrane' in meta(s,'Package').lower() for s in stanzas), 'preserve NKCrane'
-print("PASS: v0.8.5 published alongside rollback v0.8.3, v0.8.2 and NKCrane")
+assert any('nkcrane' in field(s,'Package').lower() for s in stanzas), 'NKCrane missing'
+print('PASS: 0.8.5 + 0.8.3 + 0.8.2 + NKCrane retained')
 PY
-  # Safeguard the last stable published version and all NKCrane records.
-  grep -Fq 'Version: 0.8.3' "$TARGET/Packages"
-  grep -Fq 'Filename: debs/com.nk.nktouch_0.8.3_iphoneos-arm64.deb' "$TARGET/Packages"
   test -s "$TARGET/debs/com.nk.nktouch_0.8.3_iphoneos-arm64.deb"
   gzip -n -9 -c "$TARGET/Packages" > "$TARGET/Packages.gz"
   python3 - "$TARGET" <<'PY'
@@ -251,7 +201,7 @@ PY
     echo 'Sileo already has NKTouch 0.8.5'
     exit 0
   fi
-  git -C "$TARGET" commit -m 'Publish NKTouch 0.8.5 Input Engine Pro beta to existing Sileo'
+  git -C "$TARGET" commit -m 'Publish NKTouch 0.8.5 Input Engine Pro beta to Sileo'
   if git -C "$TARGET" push origin HEAD:refs/heads/sileo-repo; then
     echo 'PUBLISHED NKTouch 0.8.5 to existing Sileo source (v0.8.3 and v0.8.2 retained)'
     git -C "$TARGET" rev-parse HEAD
