@@ -19,7 +19,7 @@ class VisionSpeed088(unittest.TestCase):
                        'function M.batch(nk,plan,opts)',
                        'function M.whenStable(nk,plan,opts)',
                        'for yi=1,4 do', 'for xi=1,4 do',
-                       'call.cache_hits=call.cache_hits+1',
+                       'self.cache_hits=self.cache_hits+1',
                        'out.metrics.reused_last_frame=true',
                        'SCREEN_UNSTABLE','GEOMETRY_MISMATCH',
                        'UNVERIFIED_BACKEND','stable_frames',
