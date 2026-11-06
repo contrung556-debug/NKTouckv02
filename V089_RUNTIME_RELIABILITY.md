@@ -62,7 +62,10 @@ proof the target UI responded.
 callbacks. `session:finish()` runs them last-in-first-out, exactly once,
 and reports `CLEANUP_FAILED` when one fails. `session:run(fn)` and
 `nk.runGuarded(fn,options)` run a protected callback and automatically
-call `finish()`. Hard kill, memory crash and sudden process exit **cannot
+call `finish()`. An explicitly returned `false`/`nil` or a failed child
+step is reported as an error (`CALLBACK_REJECTED` or the recorded step
+code); it is never silently promoted to `FINISHED`. Hard kill,
+memory crash and sudden process exit **cannot
 guarantee Lua cleanup**; native `nktask` handles process lifecycle.
 
 `session:snapshot()` reports only step count, status categories,
