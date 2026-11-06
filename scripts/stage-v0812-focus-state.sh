@@ -61,7 +61,6 @@ api.write_text(api_src.replace(anchor,methods+anchor,1))
 src=ui.read_text()
 for old,new in (("NKTouch 0.8.11","NKTouch 0.8.12"),
                 ('nkLabel:@"0.8.11"','nkLabel:@"0.8.12"'),
-                ('text:@"0.8.11"','text:@"0.8.12"'),
                 ("-- NKTouch Test Lab v0.8.11-beta","-- NKTouch Test Lab v0.8.12-beta")):
     if old not in src: raise SystemExit(f"UI version marker missing: {old}")
     src=src.replace(old,new)
