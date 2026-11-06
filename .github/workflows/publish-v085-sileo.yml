@@ -1,5 +1,6 @@
 name: Publish NKTouch v0.8.5 Input Engine Pro Beta to existing Sileo
 
+# Publisher pinned to completed build 42136671236 (SHA c5592048); script syntax fixed; preserves NKCrane, NKTouch 0.8.3/0.8.2.
 on:
   push:
     branches: [v0.8.5-input-engine-pro-dev]
