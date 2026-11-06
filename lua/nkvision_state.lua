@@ -150,16 +150,26 @@ function M.waitFor(nk,options)
   if not sw or not sh or options.x+options.w>sw or options.y+options.h>sh then
     return fail("OCR region is outside the current screen","OUT_OF_BOUNDS")
   end
-  local start=cfg.now()
-  if not integer(start,0,math.huge) then return fail("invalid monotonic clock","CLOCK") end
+  local function clock()
+    local ok,value=pcall(cfg.now)
+    if not ok or not integer(value,0,math.huge) then return nil end
+    return value
+  end
+  local start=clock()
+  if not start then return fail("invalid monotonic clock","CLOCK") end
+  local function elapsed()
+    local current=clock()
+    if not current or current<start then return nil end
+    return current-start
+  end
   local previous=nil
   local stable=0
   local reads=0
   local lastState=nil
   while reads<cfg.maximum do
-    local elapsed=cfg.now()-start
-    if not integer(elapsed,0,math.huge) then return fail("monotonic clock regressed","CLOCK") end
-    if reads>0 and elapsed>=cfg.timeout then break end
+    local spent=elapsed()
+    if not spent then return fail("monotonic clock failed or regressed","CLOCK") end
+    if reads>0 and spent>=cfg.timeout then break end
     reads=reads+1
     local called,text,ocrErr,ocrCode=pcall(nk.ocr,options.x,options.y,options.w,options.h,"")
     if not called then return fail("OCR call raised an error","OCR") end
@@ -178,9 +188,11 @@ function M.waitFor(nk,options)
       stable=(state==previous) and (stable+1) or 1
       previous=state
       lastState=state
-      if stable>=cfg.stable then
+      local afterRead=elapsed()
+      if not afterRead then return fail("monotonic clock failed or regressed","CLOCK") end
+      if stable>=cfg.stable and afterRead<cfg.timeout then
         return {status="PASS",state=state,reads=reads,
-          stable_reads=stable,elapsed_ms=cfg.now()-start,ocr_text_included=false}
+          stable_reads=stable,elapsed_ms=afterRead,ocr_text_included=false}
       end
     else
       previous=nil
@@ -188,7 +200,8 @@ function M.waitFor(nk,options)
       lastState=nil
     end
     if reads<cfg.maximum then
-      local used=cfg.now()-start
+      local used=elapsed()
+      if not used then return fail("monotonic clock failed or regressed","CLOCK") end
       local remaining=cfg.timeout-used
       if remaining<=0 then break end
       local delay=math.min(cfg.interval,remaining)
@@ -199,7 +212,7 @@ function M.waitFor(nk,options)
     end
   end
   return fail("OCR state was not stable before the read/time limit",
-    "STATE_UNCERTAIN",{reads=reads,last_state=lastState,elapsed_ms=cfg.now()-start,
+    "STATE_UNCERTAIN",{reads=reads,last_state=lastState,elapsed_ms=elapsed(),
       ocr_text_included=false})
 end
 
