@@ -1,1 +1,3 @@
 Publish only GitHub Actions run 42174600677, artifact 13482333244, pinned in .github/workflows/publish-v0812-sileo.yml.
+
+Retry after correcting shell parameter expansion.
