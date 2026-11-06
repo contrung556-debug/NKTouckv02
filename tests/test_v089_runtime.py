@@ -55,8 +55,8 @@ class Runtime089(unittest.TestCase):
 
     def test_artifact_only_build_preserves_existing_native_supervisor(self):
         w=BUILD.read_text()
-        for marker in ('runs-on: macos-15','NK_VERSION: 0.8.9',
-                       'NKTouch-v0.8.9-runtime-rootless',
+        for marker in ('runs-on: macos-15','NK_VERSION: 0.8.10',
+                       'NKTouch-v0.8.10-runtime-selftest-rootless',
                        'bash scripts/stage-v088-vision-speed.sh upstream',
                        'bash scripts/stage-v089-runtime.sh upstream',
                        'lua tests/lua_v089_runtime_guard.lua',
