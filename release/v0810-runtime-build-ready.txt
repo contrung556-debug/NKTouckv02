@@ -1,2 +1,2 @@
-NKTouch v0.8.10 artifact-only candidate build approved by project direction.
+NKTouch v0.8.10 artifact-only candidate build retry after aligning inherited v0.8.9 runtime contract assertions.
 This marker does not publish to Sileo. Validate build output and install on a test iPhone before release.
