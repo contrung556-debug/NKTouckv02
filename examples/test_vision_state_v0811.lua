@@ -1,7 +1,6 @@
 -- NKTouch v0.8.11 OCR State sample. READ ONLY.
 -- This sample observes one existing screen; it never taps or types.
 local nk=require("nktouch_v7")
-local state=require("nkvision_state")
 local raw,err,code=nk.screen()
 if not raw then
   print("[NKVISION811][SKIP] screen "..tostring(code or err))
@@ -14,9 +13,17 @@ if not sw or not sh or sw<320 or sh<600 then
   return
 end
 
+local normalized,normalizeErr,normalizeCode=nk.normalizeOCR(
+  "Nhập tên để tạo Tài khoản Meta")
+if normalized~="nhaptendetaotaikhoanmeta" then
+  print("[NKVISION811][FAIL] normalize code="..tostring(normalizeCode)
+    .." detail="..tostring(normalizeErr))
+  return
+end
+print("[NKVISION811][PASS] Vietnamese OCR normalization")
 -- The labels below are examples for Facebook onboarding. Edit phrases to
 -- match another app. OCR text is never printed or returned by default.
-local result,why,kind,detail=state.waitFor(nk,{
+local result,why,kind,detail=nk.waitForOCRState({
   x=0,y=0,w=math.floor(sw),h=math.floor(sh),
   labels={
     name_form={"nhap ten de tao tai khoan","ban ten gi"},
