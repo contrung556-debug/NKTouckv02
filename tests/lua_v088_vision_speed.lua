@@ -43,7 +43,7 @@ function nk.withFrame(fn)
   function frame:findImage(path,max,confidence,scale)
     state.image=state.image+1
     assert(path=="/tmp/example-template.png" and max==1 and confidence==0.8 and scale==0.8)
-    return {x=10,y=20,confidence=0.99}
+    return {x=10,y=20,width=20,height=30,confidence=0.99}
   end
   function frame:ocr(x,y,w,h,lang)
     state.ocr=state.ocr+1
