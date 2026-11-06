@@ -12,3 +12,7 @@ FEATURES:
 - existing nktask C supervisor retained as hard stop/timeout authority
 - preserves v0.8.8 Vision, v0.8.7 Focus, v0.8.6 Touch/Color and Input
 DEVICE_TEST=PENDING
+
+REBUILD_REASON=Guarded run now rejects explicit false/nil and failed child steps rather than reporting false success.
+FINAL_HOST_CI=42153010586 SUCCESS
+SUPERSEDES_INITIAL_BUILD=42152852817
