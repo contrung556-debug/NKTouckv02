@@ -154,8 +154,12 @@ function M.safe(nk,s,opts)
                "FOCUS_PROBE_UNAVAILABLE")
   end
   local key=opts.onceKey
-  if key~=nil and (type(key)~="string" or #key<1 or #key>64 or
-                    not key:match("^[A-Za-z0-9_.%-]+$")) then
+  if key==nil then
+    return err("safe input requires a per-field onceKey to prevent duplicate dispatch",
+               "ONCE_KEY_REQUIRED")
+  end
+  if type(key)~="string" or #key<1 or #key>64 or
+     not key:match("^[A-Za-z0-9_.%-]+$") then
     return err("onceKey must be 1..64 ASCII token characters","INVALID")
   end
   -- Reject duplicate before any side-effect, including an extra focus tap.
