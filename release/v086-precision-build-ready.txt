@@ -1,0 +1,11 @@
+NKTouch v0.8.6 Touch and Color Precision artifact candidate
+Build from last successful Sileo v0.8.5 source, retain OCR/Input/Recorder compatibility.
+CI_HOST=42141706734 PASS.
+FEATURES:
+- One frame multi-point RGB check, at most 16 pixels
+- Native userdata frame compatible, geometry and packed RGB validated
+- Explicit guarded single tap: enabled+confirmed+foreground+pixel check
+- No OCR or automatic resending after uncertain HID dispatch
+- Read-only Color demo; guarded Touch demo OFF by default
+- Rootless v0.8.6 package only, no Sileo publisher
+DEVICE_VALIDATION=PENDING
