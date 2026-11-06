@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.8.8 Vision Speed Stability beta: one-frame Color/OCR/Image batch with cached pixels, bounded stable-screen gate; retains Native Input and Precision
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.8.8
+Installed-Size: 7312
+Filename: debs/com.nk.nktouch_0.8.8_iphoneos-arm64.deb
+Size: 1404900
+MD5sum: 232d7bae1ce2e325d16db3e9e9a6768e
+SHA1: dc89538f2e66369258017ee2e4f79a2ba6be3950
+SHA256: 4fa9d36a73077e5a04e189e23246be2b3ebcbf53b0ed81a84b4b2cbc8283d237
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.8.7 Native Input Reliability beta: read-only UIKit first-responder focus probe, strict guarded input; retains Precision, same-frame OCR and Lua tools
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
