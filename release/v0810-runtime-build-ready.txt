@@ -1,0 +1,2 @@
+NKTouch v0.8.10 artifact-only candidate build approved by project direction.
+This marker does not publish to Sileo. Validate build output and install on a test iPhone before release.
