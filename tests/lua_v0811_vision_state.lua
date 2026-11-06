@@ -27,7 +27,7 @@ do
   local nk,sleep,clock=fixture({"Nhập tên để tạo tài khoản","Đăng nhập"})
   local result,_,code,detail=vision.waitFor(nk,{x=0,y=0,w=750,h=1334,
     labels={name_form={"nhap ten de tao tai khoan"},login={"dang nhap"}},
-    stable_reads=2,max_reads=3,interval_ms=100,timeout_ms=1000,
+    stable_reads=2,max_reads=2,interval_ms=100,timeout_ms=1000,
     sleep=sleep,now=clock})
   expect(result==nil and code=="STATE_UNCERTAIN","unstable state fails closed")
   expect(detail.ocr_text_included==false,"no OCR text in failure detail")
