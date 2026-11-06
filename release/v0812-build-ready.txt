@@ -1,1 +1,1 @@
-Build one artifact for NKTouch v0.8.12 with v0.8.11 OCR state and v0.8.12 focus state. Artifact only; do not publish to Sileo.
+Build one artifact for NKTouch v0.8.12. Retest after fixing unstable OCR fixture. Artifact only; do not publish to Sileo.
