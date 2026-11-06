@@ -1,0 +1,68 @@
+name: Publish NKTouch v0.8.12 OCR State + Focus Reliability beta to Sileo
+
+on:
+  push:
+    branches: [v0.8.12-ocr-focus-reliability-dev]
+    paths: [release/v0812-sileo-publish-ready.txt]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: nktouch-sileo-publisher
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact successful build and artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api repos/contrung556-debug/NKTouckv02/actions/runs/42174600677 > /tmp/run.json
+          python3 - <<'PY'
+          import json, urllib.request, os
+          r=json.load(open('/tmp/run.json'))
+          assert r['head_sha']=='797922dbcd38b82c4d135c6d123dd231f09ee4d0'
+          assert r['head_branch']=='v0.8.12-ocr-focus-reliability-dev'
+          assert r['status']=='completed' and r['conclusion']=='success'
+          req=urllib.request.Request(
+            'https://api.github.com/repos/contrung556-debug/NKTouckv02/actions/runs/42174600677/artifacts',
+            headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+          with urllib.request.urlopen(req) as f: a=json.load(f)
+          xs=[x for x in a['artifacts'] if x['name']=='NKTouch-v0.8.12-ocr-focus-rootless' and not x['expired']]
+          assert len(xs)==1, 'expected exactly one unexpired v0.8.12 artifact'
+          assert xs[0]['id']==13482333244
+          assert xs[0]['digest']=='sha256:d736b300e67495603e37f282e6fd7c2d2e8a2780667e64905c9a7a778f3cd491'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: NKTouch-v0.8.12-ocr-focus-rootless
+          run-id: 42174600677
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: sileo-artifact
+      - name: Publish exact package to Sileo source
+        run: |
+          set -euo pipefail
+          bash -n scripts/publish-v0812-sileo.sh
+          bash scripts/publish-v0812-sileo.sh
+      - name: Verify Sileo index and rollback versions
+        run: |
+          set -euo pipefail
+          git fetch origin sileo-repo
+          git show FETCH_HEAD:Packages > /tmp/packages
+          grep -Fxq 'Version: 0.8.12' /tmp/packages
+          grep -Fxq 'Version: 0.8.10' /tmp/packages
+          grep -Fxq 'Version: 0.8.9' /tmp/packages
+          grep -Fxq 'Version: 0.8.8' /tmp/packages
+          grep -Fxq 'Filename: debs/com.nk.nktouch_0.8.12_iphoneos-arm64.deb' /tmp/packages
+          git show FETCH_HEAD:Packages.gz > /tmp/Packages.gz
+          gzip -dc /tmp/Packages.gz | cmp -s - /tmp/packages
+          git cat-file -e FETCH_HEAD:debs/com.nk.nktouch_0.8.12_iphoneos-arm64.deb
