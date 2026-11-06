@@ -6,10 +6,10 @@ Codename: nktouch
 Architectures: iphoneos-arm64
 Components: main
 Description: NKTouch and NKCrane rootless repository for Sileo/Zebra
-Date: Fri, 06 Nov 2026 05:12:42 +0000
+Date: Fri, 06 Nov 2026 07:47:50 +0000
 MD5Sum:
- c858329c916815e6b0a7093e41a25202 34964 Packages
- b2ec8162d83ce56cdd3b3c4e09028415 9270 Packages.gz
+ 1664381c7255f270ef7c306bb19fac4a 35747 Packages
+ b76a2b309d88153b2bf7b575ba5567b1 9435 Packages.gz
 SHA256:
- de3a493488cf31a88663f83adb61dd0ba3af50ce7deee09a6bfbd70ff18424fa 34964 Packages
- da640ed174d7bf01066b987f0de1756d956ad2d4e47b3d840fecc0935f28c237 9270 Packages.gz
+ de5d74420f99c16d2e609e3f6fbe52fd344cc000a9a050ebcd05894e6e68446d 35747 Packages
+ 52c25127f5918d8d63ef9ca448b2de603c33e9cc45e2358f06cfe531414b659c 9435 Packages.gz

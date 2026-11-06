@@ -1,6 +1,25 @@
 Package: com.nk.nktouch
 Name: NKTouch
 Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
+Description: NKTouch v0.8.12 OCR State + Native Focus Reliability beta: stable Vietnamese OCR labels and bounded first-responder gate; retains Runtime, Vision, Native Input and Precision
+Maintainer: NKTouch
+Author: NKTouch + ZXTouch contributors
+Section: Utilities
+Tag: role::developer
+Conflicts: com.nk.topstatus, com.zjx.ioscontrol
+Architecture: iphoneos-arm64
+Version: 0.8.12
+Installed-Size: 7376
+Filename: debs/com.nk.nktouch_0.8.12_iphoneos-arm64.deb
+Size: 1411114
+MD5sum: e44495e663598b7ca6150012b0c35e9d
+SHA1: 3251d7df82cf49fd029213d4cc51b6ec126e99a2
+SHA256: fc4423674993e84349b716a20e2d1baa746769656232c6bbc9417598f6144f92
+Homepage: https://github.com/contrung556-debug/NKTouckv02
+
+Package: com.nk.nktouch
+Name: NKTouch
+Depends: mobilesubstrate | ellekit, firmware (>= 15.0)
 Description: NKTouch v0.8.10 Runtime Self-Test beta: Lua and io.popen diagnostics with read-only cranectl list sample; retains v0.8.9 Runtime, Vision, Native Input and Precision
 Maintainer: NKTouch
 Author: NKTouch + ZXTouch contributors
