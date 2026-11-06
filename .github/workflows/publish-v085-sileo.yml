@@ -1,6 +1,6 @@
 name: Publish NKTouch v0.8.5 Input Engine Pro Beta to existing Sileo
 
-# Publisher pinned to completed build 42136671236; failure traps show exact failing package guard; preserve v0.8.3/0.8.2.
+# Publisher pinned to build 42136671236; retained OCR samples are v083, Input Pro samples v085; keep v0.8.3/0.8.2.
 on:
   push:
     branches: [v0.8.5-input-engine-pro-dev]
