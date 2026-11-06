@@ -1,0 +1,38 @@
+name: Validate NKTouch v0.8.8 Vision Speed & Screen Stability (host-only)
+
+on:
+  push:
+    branches: [v0.8.8-vision-speed-stability-dev]
+    paths:
+      - lua/nkvision_speed.lua
+      - scripts/stage-v088-vision-speed.sh
+      - examples/test_vision_batch_v088.lua
+      - examples/test_vision_stability_v088.lua
+      - tests/lua_v088_vision_speed.lua
+      - tests/test_v088_vision_speed.py
+      - .github/workflows/build-v088-vision-speed.yml
+      - .github/workflows/validate-v088-vision-speed.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vision-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4
+        run: sudo apt-get update -qq && sudo apt-get install -y lua5.4
+      - name: Parse Lua and shell + run deterministic Vision host checks
+        run: |
+          set -euo pipefail
+          bash -n scripts/stage-v088-vision-speed.sh
+          luac5.4 -p lua/nkvision_speed.lua
+          luac5.4 -p examples/test_vision_batch_v088.lua
+          luac5.4 -p examples/test_vision_stability_v088.lua
+          lua5.4 tests/lua_v088_vision_speed.lua
+      - name: Regression tests for Vision, Focus, Precision, OCR and Input
+        run: |
+          set -euo pipefail
+          python3 -m unittest             tests/test_v088_vision_speed.py             tests/test_v087_native_focus.py             tests/test_v086_precision.py             tests/test_v085_input_pro.py             tests/test_v083_perf.py             tests/test_v079_vision_core.py             tests/test_v0716_color_accuracy.py -v
