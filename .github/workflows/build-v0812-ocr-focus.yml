@@ -8,6 +8,7 @@ on:
     branches: [ v0.8.12-ocr-focus-reliability-dev ]
     paths:
       - release/v0812-build-ready.txt
+      - release/v0812-retry-ready.txt
 
 permissions:
   contents: read
