@@ -1,0 +1,15 @@
+NKTouch v0.8.8 — Vision Speed & Screen Stability artifact candidate
+SOURCE_BRANCH=v0.8.8-vision-speed-stability-dev
+BASE=v0.8.7-native-input-reliability-dev
+HOST_CI=42150305631 SUCCESS
+SILEO_PUBLISH=false
+FEATURES:
+- Vision Batch Color/Image/OCR on one immutable frame
+- Repeated pixel coordinates cached per frame
+- 4x4 grid + up to 16 custom watch points stability check
+- 2..8 bounded captures; OCR only on stable final frame, no extra recapture
+- Validate physical pixels, native image matching bounds, OCR backend
+- Private OCR text hidden by default, no tap or input operations
+- Retain v0.8.7 Native Focus, v0.8.6 Precision, v0.8.5 Input, v0.8.3 OCR and Recorder
+- 0.8.8 device speed/RSS benchmark is NOT yet completed
+DO_NOT_PUBLISH_SILEO=true
