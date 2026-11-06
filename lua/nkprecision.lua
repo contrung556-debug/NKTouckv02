@@ -58,7 +58,8 @@ local function validPoints(points,geometry)
 end
 local function frameRun(nk,geometry,callback)
   local called,result,err,code=pcall(nk.withFrame,function(frame)
-    if type(frame)~="table" or type(frame.info)~="function" then
+    if (type(frame)~="table" and type(frame)~="userdata") or
+       type(frame.info)~="function" then
       return fail("invalid Vision frame","FRAME")
     end
     local info,ie,ic=frame:info()
