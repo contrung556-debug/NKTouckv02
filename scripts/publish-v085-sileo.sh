@@ -2,6 +2,7 @@
 # Publish ONLY the exact successful v0.8.5 Input Engine Pro rootless artifact; on-device testing pending.
 # Preserve every prior NKTouch and NKCrane entry; fail closed on artifact collision.
 set -euo pipefail
+trap 'rc=$?; echo "NKTouch v0.8.5 publish failed at line ${LINENO} (exit ${rc}): ${BASH_COMMAND}" >&2' ERR
 ARTIFACT_DIR="$(pwd)/sileo-artifact"
 DEB_NAME="com.nk.nktouch_0.8.5_iphoneos-arm64.deb"
 COUNT="$(find "$ARTIFACT_DIR" -type f -name '*.deb' | wc -l)"
