@@ -74,6 +74,9 @@ invalid,why,kind=pro.safe(nk,unicode,opts)
 assert(invalid==nil and kind=="DUPLICATE_BLOCKED")
 assert(c.tap==tapBefore and c.input==inputBefore)
 
+local beforeUnsafeTap=c.tap
+invalid,why,kind=pro.safe(nk,"field",{bundle=bundle,focus={x=350,y=400}})
+assert(invalid==nil and kind=="ONCE_KEY_REQUIRED" and c.tap==beforeUnsafeTap)
 active="com.apple.mobilesafari"
 invalid,why,kind=pro.safe(nk,"field",{bundle=bundle,focus={x=350,y=400},onceKey="form.second"})
 assert(invalid==nil and kind=="WRONG_APP")
