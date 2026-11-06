@@ -143,9 +143,6 @@ jobs:
           python3 -m unittest tests/test_v088_vision_speed.py -v
           lua tests/lua_v089_runtime_guard.lua
           python3 -m unittest tests/test_v089_runtime.py -v
-          python3 -m unittest tests/test_v0810_runtime_selftest.py -v
-          bash -n scripts/stage-v0810-runtime-selftest.sh
-          lua -e 'assert(loadfile("examples/test_runtime_selftest_v0810.lua"))'
           bash -n scripts/stage-v089-runtime.sh
           lua -e 'assert(loadfile("lua/nkruntime_guard.lua"))'
           lua -e 'assert(loadfile("examples/test_runtime_guard_readonly_v089.lua"))'
