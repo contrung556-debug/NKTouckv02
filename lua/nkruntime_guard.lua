@@ -38,10 +38,10 @@ end
 function M.create(opts)
   if opts==nil then opts={} end
   if type(opts)~="table" then return fail("INVALID") end
-  local deadline=opts.deadline_ms or 120000
-  local steps=opts.max_steps or 100
-  local resources=opts.max_resources or 32
-  local maxEvents=opts.max_events or 80
+  local deadline=opts.deadline_ms==nil and 120000 or opts.deadline_ms
+  local steps=opts.max_steps==nil and 100 or opts.max_steps
+  local resources=opts.max_resources==nil and 32 or opts.max_resources
+  local maxEvents=opts.max_events==nil and 80 or opts.max_events
   if not int(deadline,100,600000) or not int(steps,1,1000) or
       not int(resources,1,64) or not int(maxEvents,5,120) then
     return fail("INVALID")
