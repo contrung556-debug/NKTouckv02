@@ -1,0 +1,16 @@
+NKTouch 0.8.7 Native Input Reliability — artifact-only release candidate
+BASE=v0.8.6-touch-color-precision-dev
+SOURCE_BRANCH=v0.8.7-native-input-reliability-dev
+HOST_CI=42146965940 SUCCESS
+SILEO_PUBLISH=false
+REQUIRED_CHECKS:
+- Native nkcore.focusedInput(bundle) task 24/10 query without OCR/typing
+- SpringBoard sends nonce+bundle probe; max 700ms; response missing => fail closed
+- UIKit foreground-active scene and key window with isFirstResponder UIKeyInput
+- Strict InputSafe target bundle pre/post checks and one-packet delivery
+- Unicode, emoji, digits, password APIs preserved without retry
+- v0.8.6 Precision/Color; v0.8.5 Fast Input; v0.8.3 OCR and Recorder intact
+- Manual Notes samples OFF by default for write mode
+- Rootless .deb inspect native lua54 symbol + app/springboard hook binaries
+DEVICE_TEST=PENDING
+DO_NOT_PUBLISH_SILEO=true
