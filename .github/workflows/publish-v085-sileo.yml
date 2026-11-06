@@ -2,7 +2,7 @@ name: Publish NKTouch v0.8.5 Input Engine Pro Beta to existing Sileo
 
 on:
   push:
-    branches: [v0.8.5-ocr-perf-stability-dev]
+    branches: [v0.8.5-input-engine-pro-dev]
     paths:
       - .github/workflows/publish-v085-sileo.yml
   workflow_dispatch:
@@ -33,7 +33,7 @@ jobs:
           curl -fsSL --retry 3 --retry-all-errors \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/contrung556-debug/NKTouckv02/actions/workflows/build-v085-input-pro.yml/runs?branch=v0.8.5-ocr-perf-stability-dev&per_page=100" \
+            "https://api.github.com/repos/contrung556-debug/NKTouckv02/actions/workflows/build-v085-input-pro.yml/runs?branch=v0.8.5-input-engine-pro-dev&per_page=100" \
             -o /tmp/nktouch-v085-runs.json
           python3 - <<'PY'
           import json,os
@@ -41,7 +41,7 @@ jobs:
           pinned_sha="c559204827c83a49b6fdbbf345f902dfbdc6d36d"
           candidates=[
               run for run in obj.get("workflow_runs",[])
-              if run.get("head_branch")=="v0.8.5-ocr-perf-stability-dev"
+              if run.get("head_branch")=="v0.8.5-input-engine-pro-dev"
               and run.get("head_sha")==pinned_sha
               and run.get("status")=="completed"
               and run.get("conclusion")=="success"
