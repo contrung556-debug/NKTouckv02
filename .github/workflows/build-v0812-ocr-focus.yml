@@ -634,10 +634,14 @@ jobs:
           test -s /tmp/nk790/var/jb/usr/share/nktouch/examples/test_runtime_guard_readonly_v089.lua
           test -s /tmp/nk790/var/jb/usr/share/nktouch/examples/test_runtime_guard_write_optin_v089.lua
           test -s /tmp/nk790/var/jb/usr/share/nktouch/examples/test_runtime_selftest_v0810.lua
+          test -s /tmp/nk790/var/jb/usr/share/nktouch/lua/nkvision_state.lua
+          test -s /tmp/nk790/var/jb/usr/share/nktouch/lua/nkfocus_state.lua
+          test -s /tmp/nk790/var/jb/usr/share/nktouch/examples/test_vision_state_v0811.lua
+          test -s /tmp/nk790/var/jb/usr/share/nktouch/examples/test_focus_state_v0812.lua
           grep -Fq 'ENABLE_REAL_TAP=false' /tmp/nk790/var/jb/usr/share/nktouch/examples/test_runtime_guard_write_optin_v089.lua
           dpkg-deb -I "$OUT"
 
-      - name: Upload v0.8.10 Runtime Self-Test deb (artifact only; no Sileo)
+      - name: Upload v0.8.12 OCR State + Focus Reliability deb (artifact only; no Sileo)
         if: success()
         uses: actions/upload-artifact@v4
         with:
