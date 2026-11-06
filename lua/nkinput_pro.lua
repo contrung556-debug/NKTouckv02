@@ -131,14 +131,8 @@ function M.safe(nk,s,opts)
   end
   local focus=opts.focus
   if type(focus)~="table" or not integer(focus.x,0,10000) or
-     not integer(focus.y,0,10000) or
-     next(focus,next(focus))~=nil then
-    -- Reject unknown fields as well as invalid coordinates. We only accept
-    -- a focus point, never an untrusted list of UI actions.
-    if type(focus)~="table" or not integer(focus.x,0,10000)
-        or not integer(focus.y,0,10000) then
-      return err("focus requires numeric x,y in physical pixels","INVALID")
-    end
+     not integer(focus.y,0,10000) then
+    return err("focus requires numeric x,y in physical pixels","INVALID")
   end
   for k in pairs(focus) do if k~="x" and k~="y" then
     return err("focus accepts only x,y","INVALID") end
