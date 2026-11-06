@@ -78,20 +78,24 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin sileo-repo
-          git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.8'
-          git show FETCH_HEAD:Packages | grep -Fxq 'Filename: debs/com.nk.nktouch_0.8.8_iphoneos-arm64.deb'
-          git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.2'
-          git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.1'
-          git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.3'
-          git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.5'
-          git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.6'
-          git show FETCH_HEAD:Packages | grep -Fxq 'Version: 0.8.7'
-          git show FETCH_HEAD:README.md | grep -Fq 'Current package: com.nk.nktouch 0.8.8'
-          git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.8.8_iphoneos-arm64.deb'
-          git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.8.2_iphoneos-arm64.deb'
-          git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.8.3_iphoneos-arm64.deb'
-          git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.8.5_iphoneos-arm64.deb'
-          git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.8.6_iphoneos-arm64.deb'
-          git ls-tree -r --name-only FETCH_HEAD | grep -Fxq 'debs/com.nk.nktouch_0.8.7_iphoneos-arm64.deb'
-          git show FETCH_HEAD:Packages | grep -Fxq 'Package: com.nktouch.nkcrane' || echo 'NKCrane package spelling differs; publisher preserved existing stanzas'
+          # Avoid SIGPIPE (exit 141) when grep -q closes a Git output pipe.
+          git show FETCH_HEAD:Packages > /tmp/nktouch-v088-published-packages
+          git show FETCH_HEAD:README.md > /tmp/nktouch-v088-published-readme
+          git ls-tree -r --name-only FETCH_HEAD > /tmp/nktouch-v088-published-files
+          grep -Fxq 'Version: 0.8.8' /tmp/nktouch-v088-published-packages
+          grep -Fxq 'Filename: debs/com.nk.nktouch_0.8.8_iphoneos-arm64.deb' /tmp/nktouch-v088-published-packages
+          grep -Fxq 'Version: 0.8.2' /tmp/nktouch-v088-published-packages
+          grep -Fxq 'Version: 0.8.1' /tmp/nktouch-v088-published-packages
+          grep -Fxq 'Version: 0.8.3' /tmp/nktouch-v088-published-packages
+          grep -Fxq 'Version: 0.8.5' /tmp/nktouch-v088-published-packages
+          grep -Fxq 'Version: 0.8.6' /tmp/nktouch-v088-published-packages
+          grep -Fxq 'Version: 0.8.7' /tmp/nktouch-v088-published-packages
+          grep -Fq 'Current package: com.nk.nktouch 0.8.8' /tmp/nktouch-v088-published-readme
+          grep -Fxq 'debs/com.nk.nktouch_0.8.8_iphoneos-arm64.deb' /tmp/nktouch-v088-published-files
+          grep -Fxq 'debs/com.nk.nktouch_0.8.2_iphoneos-arm64.deb' /tmp/nktouch-v088-published-files
+          grep -Fxq 'debs/com.nk.nktouch_0.8.3_iphoneos-arm64.deb' /tmp/nktouch-v088-published-files
+          grep -Fxq 'debs/com.nk.nktouch_0.8.5_iphoneos-arm64.deb' /tmp/nktouch-v088-published-files
+          grep -Fxq 'debs/com.nk.nktouch_0.8.6_iphoneos-arm64.deb' /tmp/nktouch-v088-published-files
+          grep -Fxq 'debs/com.nk.nktouch_0.8.7_iphoneos-arm64.deb' /tmp/nktouch-v088-published-files
+          grep -Fxq 'Package: com.nktouch.nkcrane' /tmp/nktouch-v088-published-packages || echo 'NKCrane package spelling differs; publisher preserved existing stanzas'
           echo 'PUBLISHED NKTouch v0.8.8 Vision Speed & Screen Stability to existing Sileo source; Vision speed and screen stability still require device profiling.'
