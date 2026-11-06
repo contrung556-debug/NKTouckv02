@@ -1,0 +1,14 @@
+NKTouch v0.8.9 Runtime Reliability artifact build ready
+SOURCE_BRANCH=v0.8.9-runtime-reliability-dev
+BASE=v0.8.8-vision-speed-stability-dev
+HOST_CI=42152707041 SUCCESS
+SILEO_PUBLISH=false
+FEATURES:
+- cooperative Lua deadline and cancellation checkpoints
+- no implicit mutation retry; explicit onceKey reserved before native action
+- bounded sleep chunks and step count; no blocking native interruption promise
+- cleanup callbacks run LIFO on normal Lua completion/caught exceptions
+- sanitized bounded diagnostics with no typed/OCR/read values or raw errors
+- existing nktask C supervisor retained as hard stop/timeout authority
+- preserves v0.8.8 Vision, v0.8.7 Focus, v0.8.6 Touch/Color and Input
+DEVICE_TEST=PENDING
