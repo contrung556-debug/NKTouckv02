@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-trap 'rc=$?; echo "NKTouch v0.8.12 publish failed at line \${LINENO} (exit \${rc}): \${BASH_COMMAND}" >&2' ERR
+trap 'rc=$?; echo "NKTouch v0.8.12 publish failed at line ${LINENO} (exit ${rc}): ${BASH_COMMAND}" >&2' ERR
 ARTIFACT_DIR="$(pwd)/sileo-artifact"
 DEB_NAME="com.nk.nktouch_0.8.12_iphoneos-arm64.deb"
 mapfile -t DEBS < <(find "$ARTIFACT_DIR" -type f -name '*.deb' -print)
-[[ "\${#DEBS[@]}" -eq 1 ]] || { echo "Expected one .deb, found \${#DEBS[@]}" >&2; exit 2; }
-SOURCE="\${DEBS[0]}"
+[[ "${#DEBS[@]}" -eq 1 ]] || { echo "Expected one .deb, found ${#DEBS[@]}" >&2; exit 2; }
+SOURCE="${DEBS[0]}"
 [[ "$(dpkg-deb -f "$SOURCE" Package)" == "com.nk.nktouch" ]]
 [[ "$(dpkg-deb -f "$SOURCE" Version)" == "0.8.12" ]]
 [[ "$(dpkg-deb -f "$SOURCE" Architecture)" == "iphoneos-arm64" ]]
