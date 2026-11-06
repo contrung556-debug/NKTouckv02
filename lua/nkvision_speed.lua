@@ -92,7 +92,11 @@ local function depsFor(nk,opts)
     return fail("same-frame Vision and screen APIs required","NO_VISION")
   end
   if type(opts)~="table" then return fail("options table required","INVALID") end
-  local geom,err,code=require("nkcoords").screen(nk.screen())
+  local called,raw,readErr,readCode=pcall(nk.screen)
+  if not called or raw==nil then
+    return fail("screen query unavailable",readCode or "SCREEN")
+  end
+  local geom,err,code=require("nkcoords").screen(raw)
   if not geom then return nil,err,code end
   local now=opts.now
   if now==nil then
@@ -198,7 +202,12 @@ local function readPlan(frame,info,call,cfg,opts)
       if not hit then
         add("templates",{status=c=="NOT_FOUND" and "NOT_FOUND" or "FAIL",
           code=c or "IMAGE"})
-      elseif type(hit)~="table" then
+      elseif type(hit)~="table" or
+          not integer(hit.x,0,w-1) or not integer(hit.y,0,h-1) or
+          not integer(hit.width,1,w) or not integer(hit.height,1,h) or
+          hit.width>w-hit.x or hit.height>h-hit.y or
+          not number(hit.confidence,0,1) or
+          hit.confidence<(p.confidence or 0.8) then
         add("templates",{status="FAIL",code="BACKEND"})
       else
         add("templates",{status="PASS",found=true,hit=hit})
