@@ -238,15 +238,33 @@ function M.create(opts)
       return nil,e,c,summary or self:snapshot()
     end
     local performed=table.pack(pcall(callback,self))
+    -- Never turn an explicitly failed callback into "FINISHED".
+    -- A callback with no returned values is allowed; an explicit nil/false
+    -- result means failure and still triggers finalizers.
+    local rejected=performed[1] and performed.n>=2 and
+                   (performed[2]==nil or performed[2]==false)
     if not performed[1] then
       state.status="FAILED"
       pushEvent("run","CALLBACK_EXCEPTION")
+    elseif rejected then
+      state.status="FAILED"
+      pushEvent("run","CALLBACK_REJECTED")
     end
     local completed,final,code,summary=self:finish()
     if not completed then return nil,final,code,summary end
     if not performed[1] then
       return nil,"NKTouch runtime: CALLBACK_EXCEPTION",
              "CALLBACK_EXCEPTION",final
+    end
+    if rejected then
+      return nil,"NKTouch runtime: CALLBACK_REJECTED",
+             "CALLBACK_REJECTED",final
+    end
+    -- If a child step was rejected but the parent returned true, surface
+    -- the recorded failure instead of claiming completion.
+    if final.status~="FINISHED" then
+      return nil,"NKTouch runtime: FAILED",
+             final.last_code or "FAILED",final
     end
     return true,{status="FINISHED",summary=final},table.unpack(performed,2,performed.n)
   end
