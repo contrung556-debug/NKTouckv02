@@ -465,6 +465,34 @@ static int l_input_text_v2(lua_State *L) {
     return result;
 }
 
+// v0.8.7: read-only, bounded UIKit first-responder query.
+// Task 24 subcommand 10 sends a nonce-tagged probe to the foreground app.
+// A successful 0;;1 response means that app reported an active UIKeyInput
+// first responder; 0;;0 means explicitly not focused. Timeouts fail closed.
+// This must NEVER mutate text or retry an input command.
+static int l_focused_input(lua_State *L) {
+    size_t len=0;
+    const char *bundle=luaL_checklstring(L,1,&len);
+    if (len<3 || len>180)
+        return push_error(L,"focus probe requires target bundle ID (3..180 ASCII)");
+    for(size_t i=0;i<len;i++) {
+        unsigned char ch=(unsigned char)bundle[i];
+        if (!((ch>='A'&&ch<='Z')||(ch>='a'&&ch<='z')||
+              (ch>='0'&&ch<='9')||ch=='.'||ch=='_'||ch=='-'))
+            return push_error(L,"invalid target bundle ID");
+    }
+    char body[192],reply[128],err[512]={0};
+    int n=snprintf(body,sizeof(body),"10;;%s",bundle);
+    if(n<0 || (size_t)n>=sizeof(body))
+        return push_error(L,"focus query overflow");
+    if(request_task(TASK_TEXT,body,reply,sizeof(reply),err,sizeof(err)))
+        return push_error(L,err);
+    const char *answer=payload(reply);
+    if(strcmp(answer,"1")==0) { lua_pushboolean(L,1); return 1; }
+    if(strcmp(answer,"0")==0) { lua_pushboolean(L,0); return 1; }
+    return push_error(L,"unrecognized native focus query response");
+}
+
 static int l_text(lua_State *L) { return text_action(L, 1, luaL_checkstring(L, 1)); }
 static int l_paste(lua_State *L) { return text_action(L, 5, luaL_checkstring(L, 1)); }
 static int l_clipboard_set(lua_State *L) { return text_action(L, 7, luaL_checkstring(L, 1)); }
@@ -740,6 +768,7 @@ static const luaL_Reg nkcore_funcs[] = {
     {"recordStop", l_record_stop},
     {"text", l_text},
     {"inputTextV2", l_input_text_v2},
+    {"focusedInput", l_focused_input},
     {"paste", l_paste},
     {"keyboard", l_keyboard},
     {"cursor", l_cursor},
