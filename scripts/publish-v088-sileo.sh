@@ -270,7 +270,7 @@ PY
     echo 'Sileo already has NKTouch 0.8.8'
     exit 0
   fi
-  git -C "$TARGET" commit -m 'Publish NKTouch 0.8.8 Native Input Reliability beta to Sileo'
+  git -C "$TARGET" commit -m 'Publish NKTouch 0.8.8 Vision Speed and Screen Stability beta to Sileo'
   if git -C "$TARGET" push origin HEAD:refs/heads/sileo-repo; then
     echo 'PUBLISHED NKTouch 0.8.8 to existing Sileo source (v0.8.7, v0.8.6, v0.8.5, v0.8.3 and v0.8.2 retained)'
     git -C "$TARGET" rev-parse HEAD
