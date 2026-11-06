@@ -11,7 +11,7 @@ end
 put("àáảãạăằắẳẵặâầấẩẫậÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬ","a")
 put("èéẻẽẹêềếểễệÈÉẺẼẸÊỀẾỂỄỆ","e")
 put("ìíỉĩịÌÍỈĨỊ","i")
-put("òóỏõọôồốổỗộơờớởỡợÒÓỎỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢ","o")
+put("òóỏõọôồốổỗộơờớởỡợÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢ","o")
 put("ùúủũụưừứửữựÙÚỦŨỤƯỪỨỬỮỰ","u")
 put("ỳýỷỹỵỲÝỶỸỴ","y")
 put("đĐ","d")
@@ -85,8 +85,18 @@ local function compile(options)
     count=count+1
     if count>12 then return nil,"at most 12 labels are allowed","INVALID" end
     local compiled={}
-    for i,phrase in ipairs(phrases) do
-      if not integer(i,1,8) or type(phrase)~="string" or #phrase>256 then
+    local phraseCount=#phrases
+    local phraseEntries=0
+    for key in pairs(phrases) do
+      if not integer(key,1,8) then return nil,"invalid phrase list","INVALID" end
+      phraseEntries=phraseEntries+1
+    end
+    if phraseCount<1 or phraseEntries~=phraseCount then
+      return nil,"phrase list must be dense","INVALID"
+    end
+    for i=1,phraseCount do
+      local phrase=phrases[i]
+      if type(phrase)~="string" or #phrase>256 then
         return nil,"invalid phrase","INVALID"
       end
       local normalized,err,code=M.normalize(phrase)
@@ -129,6 +139,17 @@ function M.waitFor(nk,options)
   end
   local cfg,err,code=compile(options)
   if not cfg then return nil,err,code end
+  if type(nk.screen)~="function" then return fail("screen API unavailable","NO_SCREEN") end
+  local screenOK,screen,screenErr,screenCode=pcall(nk.screen)
+  if not screenOK or type(screen)~="string" then
+    return fail("screen geometry unavailable",screenCode or "SCREEN",
+      {error=tostring(screenErr or screen):sub(1,96)})
+  end
+  local sw,sh=screen:match("^%s*(%d+%.?%d*)%s*;;%s*(%d+%.?%d*)%s*$")
+  sw,sh=tonumber(sw),tonumber(sh)
+  if not sw or not sh or options.x+options.w>sw or options.y+options.h>sh then
+    return fail("OCR region is outside the current screen","OUT_OF_BOUNDS")
+  end
   local start=cfg.now()
   if not integer(start,0,math.huge) then return fail("invalid monotonic clock","CLOCK") end
   local previous=nil
