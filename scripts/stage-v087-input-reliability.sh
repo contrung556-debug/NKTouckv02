@@ -23,6 +23,7 @@ grep -Fq 'function M.precisionTapIfMatch(options)' "$LIB/nktouch.lua"
 grep -Fq 'NKInputV2FocusedView' "$SRC/appdelegate/UIKeyboard.xm"
 
 # Repair ONLY native UIKit focus query; original input dispatch 8/9 intact.
+mkdir -p "$EXAMPLES"
 python3 "$ROOT/scripts/apply-v087-focus-probe.py" "$SRC"
 install -m 0644 "$ROOT/lua/nkinput_pro.lua" "$LIB/nkinput_pro.lua"
 install -m 0644 "$ROOT/examples/test_focus_probe_v087.lua" "$EXAMPLES/test_focus_probe_v087.lua"
