@@ -1,0 +1,41 @@
+name: Validate NKTouch v0.8.7 Native UIKit Focus (host-only)
+
+on:
+  push:
+    branches: [v0.8.7-native-input-reliability-dev]
+    paths:
+      - runtime/nkcore.c
+      - lua/nkinput_pro.lua
+      - scripts/apply-v087-focus-probe.py
+      - scripts/stage-v087-input-reliability.sh
+      - tests/lua_v087_focus.lua
+      - tests/test_v087_native_focus.py
+      - examples/test_focus_probe_v087.lua
+      - examples/test_input_strict_v087.lua
+      - .github/workflows/build-v087-native-input.yml
+      - .github/workflows/validate-v087-native-input.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4
+        run: sudo apt-get update -qq && sudo apt-get install -y lua5.4
+      - name: Parse scripts and run no-device focus tests
+        run: |
+          set -euo pipefail
+          bash -n scripts/stage-v087-input-reliability.sh
+          python3 -m py_compile scripts/apply-v087-focus-probe.py
+          luac5.4 -p lua/nkinput_pro.lua
+          luac5.4 -p examples/test_focus_probe_v087.lua
+          luac5.4 -p examples/test_input_strict_v087.lua
+          lua5.4 tests/lua_v087_focus.lua
+      - name: Run focus, previous input, precision and OCR regressions
+        run: |
+          set -euo pipefail
+          python3 -m unittest             tests/test_v087_native_focus.py             tests/test_v086_precision.py             tests/test_v085_input_pro.py             tests/test_v083_perf.py             tests/test_v0710_input_engine_v2.py             tests/test_v0712_inputtext_fix.py             tests/test_v0713_notes_input_selftest.py -v
