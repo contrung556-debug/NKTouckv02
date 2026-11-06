@@ -1,0 +1,64 @@
+name: Publish NKTouch v0.8.10 Runtime Self-Test beta to Sileo
+
+on:
+  push:
+    branches: [v0.8.10-runtime-selftest-dev]
+    paths: [release/v0810-sileo-publish-ready.txt]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: nktouch-sileo-publisher
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact successful build and artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api repos/contrung556-debug/NKTouckv02/actions/runs/42163659924 > /tmp/run.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/run.json'))
+          assert r['head_sha']=='9d43ff6d2e579c398ace38723c659563cb34f37a'
+          assert r['head_branch']=='v0.8.10-runtime-selftest-dev'
+          assert r['status']=='completed' and r['conclusion']=='success'
+          a=json.load(__import__('os').popen('gh api repos/contrung556-debug/NKTouckv02/actions/runs/42163659924/artifacts'))
+          xs=[x for x in a['artifacts'] if x['name']=='NKTouch-v0.8.10-runtime-selftest-rootless' and not x['expired']]
+          assert len(xs)==1, 'expected exactly one unexpired v0.8.10 artifact'
+          assert xs[0]['id']==13477629472
+          assert xs[0]['digest']=='sha256:628f04a27c1b8bc869f6160b79cd19118d217ae0b83abf2ab992b3cf295d3502'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: NKTouch-v0.8.10-runtime-selftest-rootless
+          run-id: 42163659924
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: sileo-artifact
+      - name: Publish exact package to Sileo source
+        run: |
+          set -euo pipefail
+          bash -n scripts/publish-v0810-sileo.sh
+          bash scripts/publish-v0810-sileo.sh
+      - name: Verify Sileo index and rollback versions
+        run: |
+          set -euo pipefail
+          git fetch origin sileo-repo
+          git show FETCH_HEAD:Packages > /tmp/packages
+          grep -Fxq 'Version: 0.8.10' /tmp/packages
+          grep -Fxq 'Version: 0.8.9' /tmp/packages
+          grep -Fxq 'Version: 0.8.8' /tmp/packages
+          grep -Fxq 'Filename: debs/com.nk.nktouch_0.8.10_iphoneos-arm64.deb' /tmp/packages
+          git show FETCH_HEAD:Packages.gz > /tmp/Packages.gz
+          gzip -dc /tmp/Packages.gz | cmp -s - /tmp/packages
+          git cat-file -e FETCH_HEAD:debs/com.nk.nktouch_0.8.10_iphoneos-arm64.deb
