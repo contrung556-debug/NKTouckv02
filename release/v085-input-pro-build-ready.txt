@@ -1,0 +1,13 @@
+NKTouch v0.8.5 Input Engine Pro artifact build requested.
+BASE=v0.8.3-ocr-perf-stability-dev with pinned ZXTouch 16.5 patched Theos SDK
+SILEO_PUBLISH=false
+CI=42136478961 PASS (Unicode, FAST/SAFE/KEYBOARD, onceKey, uncertain delivery, no OCR)
+Additions:
+- lua/nkinput_pro.lua, native-only one-packet API
+- nk.inputFast, nk.inputSafe, nk.inputKeyboard; retain nk.inputText v2
+- Manual opt-in Notes samples; default no typing
+- Foreground and bounds preflight, one tap, second foreground check
+- onceKey required per safe input, no retry on uncertainty
+- No actual focus proof claimed; strict mode fails when native probe missing
+- No OCR, no hidden fallback
+Build artifact only. Preserve 0.8.3 on Sileo until on-device tests.
