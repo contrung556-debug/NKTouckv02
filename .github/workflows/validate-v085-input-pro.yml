@@ -1,0 +1,38 @@
+name: Validate NKTouch v0.8.5 Input Engine Pro (no device or iOS build)
+
+on:
+  push:
+    branches: [v0.8.5-input-engine-pro-dev]
+    paths:
+      - lua/nkinput_pro.lua
+      - examples/test_input_fast_v085.lua
+      - examples/test_input_safe_v085.lua
+      - scripts/stage-v085-input-pro.sh
+      - tests/lua_v085_input_pro.lua
+      - tests/test_v085_input_pro.py
+      - .github/workflows/build-v085-input-pro.yml
+      - .github/workflows/validate-v085-input-pro.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4
+        run: sudo apt-get update -qq && sudo apt-get install -y lua5.4
+      - name: Parse Lua + shell and run no-device security tests
+        run: |
+          set -euo pipefail
+          bash -n scripts/stage-v085-input-pro.sh
+          luac5.4 -p lua/nkinput_pro.lua
+          luac5.4 -p examples/test_input_fast_v085.lua
+          luac5.4 -p examples/test_input_safe_v085.lua
+          lua5.4 tests/lua_v085_input_pro.lua
+      - name: Test staging, compatibility and existing input contracts
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_v085_input_pro.py             tests/test_v083_perf.py             tests/test_v0710_input_engine_v2.py             tests/test_v0712_inputtext_fix.py             tests/test_v0713_notes_input_selftest.py -v
